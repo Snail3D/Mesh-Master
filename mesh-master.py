@@ -1289,9 +1289,27 @@ def _viewer_should_show(line: str) -> bool:
     "Chat message",
     "DM message sent",
     "Chat message sent",
-    "Notification queued",
-    "Notification sent",
+    "Mail notification queued",
+    "Mail notification sent",
     "Reminder sent",
+    "Ollama sent in",
+    "Mail sent to",
+    "Mail reply sent",
+    "New report logged",
+    "Report sent",
+    "New field log recorded",
+    "Log sent",
+    "Offline wiki stored",
+    "Offline wiki delivered",
+    "Offline wiki lookup",
+    "Offline crawl cached",
+    "Offline crawl delivered",
+    "Offline search cached",
+    "Offline search delivered",
+    "Position shared",
+    "Position request",
+    "Inbox checked",
+    "Inbox cleared",
     "Added to archive",
     "Shared archive file",
     "[AsyncAI]",
@@ -1353,7 +1371,26 @@ _LOG_MULTI_SPACE = re.compile(r'\s+')
 _LOG_SUMMARY_RULES: Sequence[Tuple[re.Pattern[str], str, Optional[str]]] = (
     (re.compile(r'📨\s*message from', re.IGNORECASE), '📨 Message received', 'Message received'),
     (re.compile(r'notification sent', re.IGNORECASE), '📬 Notification', 'Notification sent'),
+    (re.compile(r'mail notification queued', re.IGNORECASE), '📬 Notification queued', None),
+    (re.compile(r'mail notification sent', re.IGNORECASE), '📬 Notification sent', None),
     (re.compile(r'reminder sent', re.IGNORECASE), '🧭 Reminder', 'Reminder sent'),
+    (re.compile(r'new report logged', re.IGNORECASE), '📝 Report logged', None),
+    (re.compile(r'report sent', re.IGNORECASE), '📝 Report sent', None),
+    (re.compile(r'new field log recorded', re.IGNORECASE), '🗒️ Log recorded', None),
+    (re.compile(r'log sent', re.IGNORECASE), '🗒️ Log sent', None),
+    (re.compile(r'mail sent to', re.IGNORECASE), '✉️📬 Mail sent', None),
+    (re.compile(r'mail reply sent', re.IGNORECASE), '✉️📡 Mail reply sent', None),
+    (re.compile(r'offline wiki stored', re.IGNORECASE), '📚 Wiki stored', None),
+    (re.compile(r'offline wiki delivered', re.IGNORECASE), '📚 Wiki delivered', None),
+    (re.compile(r'offline wiki lookup', re.IGNORECASE), '📚 Wiki lookup', None),
+    (re.compile(r'offline crawl cached', re.IGNORECASE), '🛰️ Crawl cached', None),
+    (re.compile(r'offline crawl delivered', re.IGNORECASE), '🛰️ Crawl delivered', None),
+    (re.compile(r'offline search cached', re.IGNORECASE), '🔎 Search cached', None),
+    (re.compile(r'offline search delivered', re.IGNORECASE), '🔎 Search delivered', None),
+    (re.compile(r'position shared', re.IGNORECASE), '📍 Position shared', None),
+    (re.compile(r'position request', re.IGNORECASE), '📍 Position request', None),
+    (re.compile(r'inbox checked', re.IGNORECASE), '📬🔍 Inbox checked', None),
+    (re.compile(r'inbox cleared', re.IGNORECASE), '📬🧹 Inbox cleared', None),
     (re.compile(r'added to archive', re.IGNORECASE), '🗂️ Archive update', None),
     (re.compile(r'shared archive', re.IGNORECASE), '🗂️ Archive share', None),
     (re.compile(r'📤', re.IGNORECASE), '📤 Outbound relay', 'Reply dispatched to mesh'),
@@ -1392,6 +1429,8 @@ def _summarize_log_line(line: str) -> str:
     if pattern.search(masked):
       detail = canned or _extract_log_detail(masked)
       detail = detail.strip()
+      if title == '📨 Message received':
+        return title
       if detail:
         display = _truncate_for_log(detail, 80)
         if canned and display.lower() == str(canned).strip().lower():
@@ -2406,6 +2445,7 @@ def _build_config_overview() -> Dict[str, Any]:
             {"value": hour, "label": _format_hour_label(hour)}
             for hour in range(24)
         ],
+        "ollama_model": config.get("ollama_model", ""),
     }
 
     return {"sections": sections, "metadata": metadata}
@@ -2733,9 +2773,11 @@ PENDING_POSITION_CONFIRM: Dict[str, Dict[str, Any]] = {}
 PENDING_SAVE_WIZARDS: Dict[str, Dict[str, Any]] = {}
 PENDING_VIBE_SELECTIONS: Dict[str, Dict[str, Any]] = {}
 PENDING_MAILBOX_SELECTIONS: Dict[str, Dict[str, Any]] = {}
+PENDING_MODEL_SELECTIONS: Dict[str, Dict[str, Any]] = {}
 
 SAVE_WIZARD_TIMEOUT = 5 * 60
 VIBE_MENU_TIMEOUT = 3 * 60
+MODEL_SELECTION_TIMEOUT = 5 * 60
 BIBLE_NAV_LOCK = threading.Lock()
 
 AUTO_RESUME_DELAY_SECONDS = 120
@@ -3130,7 +3172,7 @@ def _offline_wiki_download_worker():
                     with OFFLINE_WIKI_DL_LOCK:
                         OFFLINE_WIKI_DL_COUNT_TODAY += 1
                     title = article.get('title') or topic
-                    clean_log(f"Saved offline wiki: {title}", "📥")
+                    clean_log(f"Offline wiki stored: {title}", "📚", show_always=False)
                     try:
                         STATS.record_wiki_saved(title)
                     except Exception:
@@ -3626,7 +3668,7 @@ def _persist_offline_crawl(
         slug = result.get("slug") if isinstance(result, dict) else None
         label = slug or title
         author_suffix = f" by {author_label}" if author_label else ""
-        clean_log(f"Saved offline crawl{author_suffix}: {label}", "📥", show_always=False)
+        clean_log(f"Offline crawl cached{author_suffix}: {label}", "🛰️", show_always=False)
     except Exception as exc:
         clean_log(f"Failed to persist offline crawl for {start_url}: {exc}", "⚠️", show_always=False)
 
@@ -3664,7 +3706,7 @@ def _persist_offline_ddg(
         except Exception:
             pass
         author_suffix = f" by {author_label}" if author_label else ""
-        clean_log(f"Saved offline search{author_suffix}: {query}", "📥", show_always=False)
+        clean_log(f"Offline search cached{author_suffix}: {query}", "🔎", show_always=False)
     except Exception as exc:
         clean_log(f"Failed to persist offline search for '{query}': {exc}", "⚠️", show_always=False)
 
@@ -3963,8 +4005,11 @@ def _store_user_note(
         pass
     created_iso = record.get('created_at') if isinstance(record, dict) else None
     created_display = _display_timestamp(created_iso)
+    if entry_type == 'report':
+        clean_log(f"New report logged: {title}", "📝", show_always=False)
+    else:
+        clean_log(f"New field log recorded: {title}", "🗒️", show_always=False)
     icon = "📝" if entry_type == 'report' else "🗒️"
-    clean_log(f"Saved {entry_type} by {author}: {title}", "📥", show_always=False)
     preview = content.strip()
     if len(preview) > 400:
         preview = preview[:397].rstrip() + "…"
@@ -5216,6 +5261,80 @@ if OLLAMA_NUM_THREAD <= 0:
 
 OLLAMA_LOW_VRAM = bool(config.get("ollama_low_vram", True))
 
+
+def _ollama_api_base() -> str:
+    try:
+        parsed = urllib.parse.urlparse(OLLAMA_URL)
+        scheme = parsed.scheme or 'http'
+        netloc = parsed.netloc or ''
+        path = parsed.path or ''
+        if not netloc:
+            # Fallback to localhost default
+            return 'http://localhost:11434/api'
+        if path.endswith('/generate'):
+            path = path[: -len('/generate')]
+        if not path:
+            path = '/api'
+        if not path.endswith('/api'):
+            path = path.rstrip('/') + '/api'
+        base = urllib.parse.urlunparse((scheme, netloc, path.rstrip('/'), '', '', ''))
+        return base or 'http://localhost:11434/api'
+    except Exception:
+        return 'http://localhost:11434/api'
+
+
+def _ollama_api_url(endpoint: str) -> str:
+    base = _ollama_api_base()
+    endpoint = endpoint.lstrip('/')
+    return f"{base}/{endpoint}"
+
+
+def _ollama_list_local_models(timeout: float = 8.0) -> List[Dict[str, Any]]:
+    tags_url = _ollama_api_url('tags')
+    response = requests.get(tags_url, timeout=timeout)
+    response.raise_for_status()
+    payload = response.json() or {}
+    models: List[Dict[str, Any]] = []
+    for entry in payload.get('models', []):
+        name = entry.get('name') or entry.get('model') or ''
+        details = entry.get('details') or {}
+        size_bytes = entry.get('size')
+        size_mb = None
+        try:
+            if isinstance(size_bytes, (int, float)):
+                size_mb = round(size_bytes / (1024 * 1024), 1)
+        except Exception:
+            size_mb = None
+        models.append({
+            'name': name,
+            'parameter_size': details.get('parameter_size'),
+            'quantization': details.get('quantization_level'),
+            'size_mb': size_mb,
+        })
+    models.sort(key=lambda item: item.get('name') or '')
+    return models
+
+
+def _apply_ollama_model(model_name: str) -> Tuple[bool, str]:
+    sanitized = str(model_name or '').strip()
+    if not sanitized:
+        return False, 'Model name cannot be empty.'
+    with CONFIG_LOCK:
+        previous = config.get('ollama_model')
+        config['ollama_model'] = sanitized
+        try:
+            write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+        except Exception as exc:
+            if previous is not None:
+                config['ollama_model'] = previous
+            return False, str(exc)
+    try:
+        globals()['OLLAMA_MODEL'] = sanitized
+    except Exception:
+        pass
+    clean_log(f"Ollama model set to {sanitized}", "🧠", show_always=True, rate_limit=False)
+    return True, ''
+
 try:
     SEND_RATE_WINDOW_SECONDS = max(1, int(config.get("send_rate_window_seconds", 5)))
 except (TypeError, ValueError):
@@ -5532,6 +5651,7 @@ def _set_user_personality(sender_key: str, persona_id: str) -> bool:
         USER_AI_SETTINGS[sender_key] = entry
         snapshot = _snapshot_user_ai_settings()
     _save_user_ai_settings_to_disk(snapshot)
+    return True
 
 # -----------------------------
 # User access (mute/block) storage
@@ -5652,7 +5772,15 @@ def build_system_prompt_for_sender(sender_id: Any) -> str:
     else:
         persona_id = _default_personality_id()
     if persona_id and persona_id in AI_PERSONALITY_MAP:
-        persona_prompt = _sanitize_prompt_text(AI_PERSONALITY_MAP[persona_id].get("prompt"))
+        persona = AI_PERSONALITY_MAP[persona_id]
+        persona_prompt = _sanitize_prompt_text(persona.get("prompt"))
+        persona_name = persona.get("name") or persona_id.title()
+        persona_description = _sanitize_prompt_text(persona.get("description"))
+        persona_emoji = persona.get("emoji") or "🧠"
+        descriptor = f"Current persona: {persona_name} ({persona_id})"
+        if persona_description:
+            descriptor = f"{descriptor}. {persona_description}"
+        segments.append(f"{persona_emoji} {descriptor}".strip())
         if persona_prompt:
             segments.append(persona_prompt)
     if web_context:
@@ -5745,8 +5873,7 @@ def _handle_pending_vibe_selection(sender_key: str, text: str) -> Optional[Pendi
         return PendingReply("👍 No vibe changes made.", "/vibe menu")
 
     if not cleaned.isdigit():
-        PENDING_VIBE_SELECTIONS.pop(sender_key, None)
-        return None
+        return PendingReply("Reply with the number from the list, or X to cancel.", "/vibe menu")
 
     choice = int(cleaned)
     ids = pending.get('ids', [])
@@ -5756,8 +5883,15 @@ def _handle_pending_vibe_selection(sender_key: str, text: str) -> Optional[Pendi
 
     persona_id = ids[choice - 1]
     if not _set_user_personality(sender_key, persona_id):
-        PENDING_VIBE_SELECTIONS.pop(sender_key, None)
-        return PendingReply("⚠️ Couldn't apply that vibe. Try again in a moment.", "/vibe menu")
+        fallback = AI_PERSONALITY_ORDER[:]
+        fallback_ids = [pid for pid in fallback if pid in AI_PERSONALITY_MAP]
+        for candidate in fallback_ids:
+            if _set_user_personality(sender_key, candidate):
+                persona_id = candidate
+                break
+        else:
+            PENDING_VIBE_SELECTIONS.pop(sender_key, None)
+            return PendingReply("⚠️ Couldn't apply that vibe. Send `/vibe` to reopen the list.", "/vibe menu")
 
     PENDING_VIBE_SELECTIONS.pop(sender_key, None)
     persona = AI_PERSONALITY_MAP.get(persona_id, {})
@@ -5768,6 +5902,61 @@ def _handle_pending_vibe_selection(sender_key: str, text: str) -> Optional[Pendi
     if description:
         lines.append(description)
     return PendingReply("\n".join(lines), "/vibe menu")
+
+
+def _build_simple_model_menu(models: Sequence[Dict[str, Any]]) -> Tuple[List[str], List[Dict[str, Any]]]:
+    lines: List[str] = ["📚 Installed models:"]
+    entries: List[Dict[str, Any]] = []
+    for idx, entry in enumerate(models, 1):
+        name = entry.get('name') or entry.get('model') or 'unknown'
+        lines.append(f"{idx}. {name}")
+        entries.append(entry)
+    return lines, entries
+
+
+def _start_model_selection_menu(sender_key: str) -> PendingReply:
+    try:
+        models = _ollama_list_local_models()
+    except Exception as exc:
+        return PendingReply(f"⚠️ Couldn't list local models: {exc}", "/selectmodel")
+    if not models:
+        return PendingReply("No local Ollama models installed. Use the dashboard search to download one, then retry.", "/selectmodel")
+    lines, entries = _build_simple_model_menu(models)
+    lines.append("\nReply with the number to switch the global model, or X to cancel.")
+    PENDING_MODEL_SELECTIONS[sender_key] = {
+        'created': _now(),
+        'models': entries,
+    }
+    return PendingReply("\n".join(lines), "/selectmodel menu")
+
+
+def _process_model_selection(sender_key: str, text: str) -> Optional[PendingReply]:
+    state = PENDING_MODEL_SELECTIONS.get(sender_key)
+    if not state:
+        return PendingReply("⚠️ No active selection. Send `/selectmodel` to open the menu.", "/selectmodel")
+    if (_now() - state.get('created', 0.0)) > MODEL_SELECTION_TIMEOUT:
+        PENDING_MODEL_SELECTIONS.pop(sender_key, None)
+        return PendingReply("⏱️ Model menu expired. Send `/selectmodel` to open it again.", "/selectmodel")
+    trimmed = text.strip()
+    lowered = trimmed.lower()
+    if lowered in {'x', 'cancel', 'exit'}:
+        PENDING_MODEL_SELECTIONS.pop(sender_key, None)
+        return PendingReply("Okay, no changes made.", "/selectmodel")
+    if not trimmed.isdigit():
+        return PendingReply("Reply with the number from the list, or X to cancel.", "/selectmodel")
+    choice = int(trimmed)
+    models = state.get('models') or []
+    if choice < 1 or choice > len(models):
+        return PendingReply("That number isn't on the list. Try again or reply X to cancel.", "/selectmodel")
+    entry = models[choice - 1]
+    model_name = entry.get('name') or entry.get('model') or ''
+    if not model_name:
+        return PendingReply("⚠️ Couldn't determine the model name. Try again.", "/selectmodel")
+    success, error = _apply_ollama_model(model_name)
+    PENDING_MODEL_SELECTIONS.pop(sender_key, None)
+    if not success:
+        return PendingReply(f"⚠️ Failed to set model: {error}", "/selectmodel")
+    return PendingReply(f"✅ Global Ollama model set to {model_name}.", "/selectmodel")
 
 
 HOME_ASSISTANT_URL = config.get("home_assistant_url", "")
@@ -7194,6 +7383,8 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/printprompt": "Prints the active prompt with minimal formatting.",
     "/changemotd": "Updates the global message of the day.",
     "/aisettings": "Shows key AI configuration values at a glance.",
+    "/showmodel": "Lists the active Ollama model and installed options (admin only).",
+    "/selectmodel": "Interactive menu to set the global Ollama model (admin only).",
     "/mail": "Compose and send a Mesh Mail message to another user.",
     "/m": "Shortcut for composing Mesh Mail.",
     "/checkmail": "Check your inbox for pending Mesh Mail.",
@@ -7298,6 +7489,8 @@ BUILTIN_COMMANDS = {
     "/vibe",
     "/chathistory",
     "/aisettings",
+    "/showmodel",
+    "/selectmodel",
     "/emailhelp",
     "/bibletrivia",
     "/disastertrivia",
@@ -7727,6 +7920,7 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
             "commands": [
                 "/ai", "/bot", "/data", "/vibe", "/aipersonality", "/chathistory",
                 "/changeprompt", "/showprompt", "/printprompt", "/changemotd", "/aisettings",
+                "/showmodel", "/selectmodel",
             ],
         },
     ),
@@ -10174,6 +10368,16 @@ def _format_location_reply(sender_id: Any) -> Optional[str]:
     return f"📍 {display_name}: {map_url}"
 
 
+def _log_position_share(sender_id: Any) -> None:
+    try:
+        label = get_node_shortname(sender_id)
+    except Exception:
+        label = None
+    if not label:
+        label = _safe_sender_key(sender_id) or str(sender_id)
+    clean_log(f"Position shared: {label}", "📍", show_always=True, rate_limit=False)
+
+
 def _handle_position_confirmation(
     sender_key: str,
     sender_id: Any,
@@ -10193,6 +10397,7 @@ def _handle_position_confirmation(
         reply_text = _format_location_reply(sender_id)
         if not reply_text:
             return PendingReply("🤖 Sorry, I still don't have a GPS fix for your node.", "position reply")
+        _log_position_share(sender_id)
         return PendingReply(reply_text, "position reply")
     if normalized_reply in {"n", "no"}:
         PENDING_POSITION_CONFIRM.pop(sender_key, None)
@@ -11023,6 +11228,7 @@ def _activate_find_result(
                 source_label = article.source
                 context_parts.append(f"Source: {article.source}")
             context_text = "\n\n".join(part for part in context_parts if part)
+            clean_log(f"Offline wiki delivered: {article.title}", "📤", show_always=False)
         elif entry_type == 'crawl':
             store = _get_crawl_store_for_lang(lang_code) or OFFLINE_CRAWL_STORE
             if not store:
@@ -11047,6 +11253,7 @@ def _activate_find_result(
                 if contact_url:
                     context_parts.append(f"Primary contact page: {contact_url}")
             context_text = "\n\n".join(part for part in context_parts if part)
+            clean_log(f"Offline crawl delivered: {record.title}", "📤", show_always=False)
         elif entry_type == 'ddg':
             store = _get_ddg_store_for_lang(lang_code) or OFFLINE_DDG_STORE
             if not store:
@@ -11071,6 +11278,7 @@ def _activate_find_result(
                 context_text = "\n".join(lines)
             if record.source:
                 source_label = record.source
+            clean_log(f"Offline search delivered: {record.query}", "🔎", show_always=False)
         elif entry_type in {'report', 'log'}:
             store = REPORTS_STORE if entry_type == 'report' else LOGS_STORE
             if not store:
@@ -11087,6 +11295,10 @@ def _activate_find_result(
                 "",
                 record.content,
             ]
+            if entry_type == 'report':
+                clean_log(f"Report sent: {title}", "📤", show_always=False)
+            else:
+                clean_log(f"Log sent: {title}", "📤", show_always=False)
             return PendingReply("\n".join(lines), "/find select")
         else:
             return PendingReply("⚠️ Unknown entry type. Try again.", "/find select")
@@ -11465,7 +11677,7 @@ def send_to_ollama(
         if not full_text:
             full_text = _format_ai_error("Ollama", "no content returned")
         elapsed = max(0.01, time.perf_counter() - start_time)
-        ai_log(f"Sent in {elapsed:.1f}s", "ollama")
+        clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
         return StreamingResult(full_text[:MAX_RESPONSE_LENGTH], sent_chunks=streamed_chunks, truncated=truncated)
 
     try:
@@ -11507,7 +11719,7 @@ def send_to_ollama(
             if not resp:
                 resp = _format_ai_error("Ollama", "no content returned")
             elapsed = max(0.01, time.perf_counter() - start_time)
-            ai_log(f"Sent in {elapsed:.1f}s", "ollama")
+            clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
             return (resp or "")[:MAX_RESPONSE_LENGTH]
         else:
             status = getattr(r, 'status_code', 'no response')
@@ -11686,6 +11898,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     location_text = _format_location_reply(sender_id)
     if is_direct:
       if location_text:
+        _log_position_share(sender_id)
         return _cmd_reply(cmd, location_text)
       return _cmd_reply(cmd, "🤖 Sorry, I have no GPS fix for your node. Check your Meshtastic app settings to make sure GPS is enabled.")
     else:
@@ -12086,6 +12299,43 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     combined = f"{preface}\n\n{response}" if response else preface
     return PendingReply(combined, "/meshtastic context")
 
+  elif cmd == "/showmodel":
+    is_admin = bool(sender_key and sender_key in AUTHORIZED_ADMINS)
+    if not is_admin:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    current = config.get('ollama_model') or OLLAMA_MODEL or 'unknown'
+    lines = [f"📦 Current Ollama model: `{current}`"]
+    try:
+      models = _ollama_list_local_models()
+    except Exception as exc:
+      lines.append(f"⚠️ Failed to list local models: {exc}")
+      return _cmd_reply(cmd, "\n".join(lines))
+
+    if not models:
+      lines.append('No local models installed.')
+      return _cmd_reply(cmd, "\n".join(lines))
+
+    menu_lines, entries = _build_simple_model_menu(models)
+    lines.append("")
+    lines.extend(menu_lines)
+    lines.append("")
+    lines.append("Reply with the number to switch the global model, or X to cancel.")
+    PENDING_MODEL_SELECTIONS[sender_key] = {
+      'created': _now(),
+      'models': entries,
+    }
+    return _cmd_reply(cmd, "\n".join(lines))
+
+  elif cmd == "/selectmodel":
+    is_admin = bool(sender_key and sender_key in AUTHORIZED_ADMINS)
+    if not is_admin:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    remainder = full_text[len(cmd):].strip()
+    if not remainder:
+      return _start_model_selection_menu(sender_key)
+    reply = _process_model_selection(sender_key, remainder)
+    return reply or _cmd_reply(cmd, "Send `/selectmodel` and reply with the number to switch globally.")
+
   elif cmd == "/biblehelp":
     default_help = (
       "📖 Bible quick tips: `/bible` keeps your place. Jump with `/bible John 3:16`. "
@@ -12156,9 +12406,14 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
       "/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/wordladder", "/adventure", "/rps", "/coinflip", "/cipher", "/quizbattle", "/morse",
       "/vibe", "/chathistory", "/changemotd", "/changeprompt", "/showprompt", "/printprompt", "/reset"
     ]
+    admin_note = ""
+    if sender_key and sender_key in AUTHORIZED_ADMINS:
+      built_in.extend(["/showmodel", "/selectmodel"])
+      admin_note = "\nAdmin tools: /showmodel, /selectmodel"
     custom_cmds = [c.get("command") for c in commands_config.get("commands", [])]
     help_text = "Commands:\n" + ", ".join(built_in + custom_cmds)
     help_text += "\nNote: /vibe, /chathistory, /changeprompt, /changemotd, /showprompt, and /printprompt are DM-only."
+    help_text += admin_note
     help_text += "\nBrowse highlights with /menu."
     return _cmd_reply(cmd, help_text)
 
@@ -12520,7 +12775,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
           _store_web_context(sender_key, formatted, context=article.content)
         try:
           STATS.record_wiki_served(article.title)
-          clean_log(f"Served offline wiki: {article.title}", "📤")
+          clean_log(f"Offline wiki delivered: {article.title}", "📤", show_always=False)
         except Exception:
           pass
         return _cmd_reply(cmd, formatted)
@@ -12548,6 +12803,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     if sender_key:
       _store_web_context(sender_key, formatted, context=context_block)
     _persist_offline_ddg(query, results, language_hint=lang, author_label=wiki_author_label)
+    clean_log(f"Offline search delivered: {title}", "🔎", show_always=False)
     # Opportunistically queue an offline download so next time is instant
     if OFFLINE_WIKI_AUTOSAVE_FROM_WIKI:
       try:
@@ -12641,10 +12897,10 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
         _store_web_context(sender_key, formatted, context=article.content)
 
       origin = article.matched_alias if article.matched_alias else argument
-      clean_log(f"Offline wiki request '{origin}' → {article.title}", "📦", show_always=False)
+      clean_log(f"Offline wiki lookup '{origin}' → {article.title}", "📦", show_always=False)
       try:
         STATS.record_wiki_served(article.title)
-        clean_log(f"Served offline wiki: {article.title}", "📤")
+        clean_log(f"Offline wiki delivered: {article.title}", "📤", show_always=False)
       except Exception:
         pass
       return _cmd_reply(cmd, formatted)
@@ -13628,6 +13884,17 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
     mailbox_reply = _handle_pending_mailbox_selection(sender_id, sender_key, text)
     if mailbox_reply:
       return mailbox_reply
+  if (
+      sender_key
+      and sender_key in AUTHORIZED_ADMINS
+      and sender_key in PENDING_MODEL_SELECTIONS
+      and not text.startswith("/")
+  ):
+    if check_only:
+      return True
+    model_reply = _process_model_selection(sender_key, text)
+    if model_reply:
+      return model_reply
   if is_direct and sender_key and not text.startswith("/") and ONBOARDING_MANAGER.is_session_active(sender_key):
     if check_only:
       return False
@@ -13686,6 +13953,11 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       title = state.get('title') or 'Untitled'
       lang_state = state.get('language') or lang
       success, message = _store_user_note(note_type, title, text, sender_id, sender_key, lang_state)
+      if success:
+        if note_type == 'report':
+          clean_log(f"Report sent: {title}", "📤", show_always=False)
+        else:
+          clean_log(f"Log sent: {title}", "📤", show_always=False)
       return PendingReply(message, f"/{note_type} saved")
 
   if is_direct and sender_key and sender_key in PENDING_FIND_SELECTIONS and not text.startswith("/"):
@@ -13985,6 +14257,10 @@ def on_receive(packet=None, interface=None, **kwargs):
     is_direct_message = to_node_int != BROADCAST_ADDR
     summary_label = "DM message" if is_direct_message else "Chat message"
     trailing_emoji = "💌" if is_direct_message else "💬"
+    lower_text = normalized_text.lower()
+    if lower_text.startswith('/whereami') or lower_text.startswith('whereami'):
+      summary_label = "Position request"
+      trailing_emoji = "📍"
     summary_text = summary_label
     clean_log(f"{summary_text} {trailing_emoji}", emoji="", show_always=False)
 
@@ -15208,6 +15484,151 @@ def dashboard():
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-secondary);
+    }
+    .model-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      margin-bottom: 18px;
+      border: 1px solid rgba(86, 156, 214, 0.18);
+      border-radius: 10px;
+      background: rgba(11, 18, 28, 0.72);
+    }
+    .model-selector-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .model-selector-header label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .model-status {
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+    }
+    .model-status[data-tone="success"] {
+      color: var(--success);
+    }
+    .model-status[data-tone="error"] {
+      color: var(--danger);
+    }
+    .model-status[data-tone="warn"] {
+      color: var(--warning);
+    }
+    .model-picker,
+    .model-search {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .model-search input {
+      flex: 1;
+      min-width: 220px;
+    }
+    .model-search-results {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .model-result {
+      background: rgba(17, 22, 32, 0.72);
+      border: 1px solid rgba(86, 156, 214, 0.18);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .model-result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .model-result-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .model-result-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .model-result-variants {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .model-result-variants button {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(86, 156, 214, 0.35);
+      background: rgba(86, 156, 214, 0.12);
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    .model-result-variants button:hover,
+    .model-result-variants button:focus-visible {
+      color: var(--text-primary);
+      border-color: rgba(86, 156, 214, 0.65);
+      background: rgba(86, 156, 214, 0.2);
+      outline: none;
+    }
+    .model-download {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(13, 20, 30, 0.72);
+      border: 1px solid rgba(86, 156, 214, 0.25);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .model-download-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+    }
+    .model-progress-track {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(86, 156, 214, 0.18);
+      overflow: hidden;
+    }
+    .model-progress-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 999px;
+      transition: width 0.2s ease;
     }
     /* reset defaults button removed */
     .config-select {
@@ -16505,10 +16926,34 @@ def dashboard():
           <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
         </div>
         <div class="panel-body" id="configOverviewBody">
-          <div class="config-select-row">
-            <label for="configCategorySelect">Category</label>
-            <select id="configCategorySelect" class="config-select"></select>
+        <div class="model-selector" id="ollamaModelSelector">
+          <div class="model-selector-header">
+            <label for="ollamaModelSelect">Ollama model</label>
+            <span class="model-status" id="ollamaModelStatus"></span>
           </div>
+          <div class="model-picker">
+            <select id="ollamaModelSelect" class="config-select"></select>
+            <button type="button" id="ollamaRefreshModels" class="config-save-btn">Refresh</button>
+          </div>
+          <div class="model-search">
+            <input type="text" id="ollamaModelSearch" class="config-input" placeholder="Search registry (e.g. llama3)" autocomplete="off">
+            <button type="button" id="ollamaModelSearchBtn" class="config-save-btn">Search</button>
+          </div>
+          <div class="model-search-results" id="ollamaModelSearchResults"></div>
+          <div class="model-download" id="ollamaModelDownload" hidden>
+            <div class="model-download-header">
+              <span id="ollamaModelDownloadLabel">Preparing download…</span>
+              <button type="button" id="ollamaModelDownloadCancel" class="config-save-btn" hidden>Cancel</button>
+            </div>
+            <div class="model-progress-track">
+              <div class="model-progress-bar" id="ollamaModelDownloadBar"></div>
+            </div>
+          </div>
+        </div>
+        <div class="config-select-row">
+          <label for="configCategorySelect">Category</label>
+          <select id="configCategorySelect" class="config-select"></select>
+        </div>
           <div class="config-table" id="configSettingsList">
             <p class="config-empty">Config snapshot unavailable.</p>
           </div>
@@ -16640,6 +17085,403 @@ def dashboard():
     let configSelectInitialized = false;
     let radioState = { connected: false, radio_id: null, hops: null, channels: [] };
     let offlineModalOpen = false;
+    let modelSelectorInitialized = false;
+    let modelDownloadController = null;
+
+    function setModelStatus(message, tone = null) {
+      const status = $("ollamaModelStatus");
+      if (!status) return;
+      status.textContent = message || '';
+      if (tone) {
+        status.dataset.tone = tone;
+      } else {
+        delete status.dataset.tone;
+      }
+    }
+
+    async function fetchJsonOrThrow(url, options) {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        let detail = '';
+        try {
+          detail = await response.text();
+        } catch (err) {}
+        const message = detail || response.statusText || 'Request failed';
+        throw new Error(message);
+      }
+      return response.json();
+    }
+
+    async function refreshLocalModels(showMessage = true) {
+      const select = $("ollamaModelSelect");
+      if (!select) return;
+      if (showMessage) {
+        setModelStatus('Loading models…', 'info');
+      }
+      select.disabled = true;
+      try {
+        const data = await fetchJsonOrThrow('/dashboard/ai/models/local');
+        const models = Array.isArray(data && data.models) ? data.models : [];
+        const current = (configOverviewState.metadata && configOverviewState.metadata.ollama_model) || '';
+        select.innerHTML = '';
+        if (!models.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No models installed';
+          select.appendChild(opt);
+          setModelStatus('No local models installed', 'warn');
+        } else {
+          models.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+          models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.name || model.model || '';
+            let label = option.value;
+            if (model.details && model.details.parameter_size) {
+              label += ` · ${model.details.parameter_size}`;
+            }
+            if (model.size_mb) {
+              label += ` · ${model.size_mb} MB`;
+            }
+            option.textContent = label;
+            select.appendChild(option);
+          });
+          if (current && models.some(m => (m.name || m.model) === current)) {
+            select.value = current;
+          }
+          setModelStatus(select.value ? `Using ${select.value}` : 'Select a model', select.value ? 'success' : 'info');
+        }
+        select.disabled = false;
+      } catch (err) {
+        setModelStatus(err && err.message ? err.message : 'Failed to load models', 'error');
+        select.disabled = false;
+      }
+    }
+
+    async function updateModelConfig(value) {
+      try {
+        await fetchJsonOrThrow(CONFIG_UPDATE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'ollama_model', value }),
+        });
+        configOverviewState.metadata = configOverviewState.metadata || {};
+        configOverviewState.metadata.ollama_model = value;
+        setModelStatus(`Using ${value}`, 'success');
+        loadMetrics();
+      } catch (err) {
+        setModelStatus(err && err.message ? err.message : 'Failed to set model', 'error');
+        throw err;
+      }
+    }
+
+    function renderModelSearchResults(models) {
+      const container = $("ollamaModelSearchResults");
+      if (!container) return;
+      container.innerHTML = '';
+      if (!models || !models.length) {
+        container.innerHTML = '<p class="config-empty" style="margin:0">No results.</p>';
+        return;
+      }
+      models.slice(0, 50).forEach(model => {
+        const item = document.createElement('div');
+        item.className = 'model-result';
+        const slug = model.id || model.name || model.model || '';
+        if (slug) {
+          item.dataset.slug = slug;
+        }
+        const header = document.createElement('div');
+        header.className = 'model-result-header';
+        header.textContent = model.id || model.name || model.model || 'unknown';
+        const meta = document.createElement('div');
+        meta.className = 'model-result-meta';
+        const metaItems = [];
+        if (model.size_mb) {
+          metaItems.push(`Size ${model.size_mb} MB`);
+        }
+        if (model.parameter_size) {
+          metaItems.push(`Params ${model.parameter_size}`);
+        }
+        if (model.quantization) {
+          metaItems.push(model.quantization);
+        }
+        if (model.owner) {
+          metaItems.push(`by ${model.owner}`);
+        }
+        if (model.sizes && model.sizes.length) {
+          metaItems.push(`Variants ${model.sizes.join(', ')}`);
+        }
+        if (model.pulls) {
+          metaItems.push(`${model.pulls} pulls`);
+        }
+        if (model.tags) {
+          metaItems.push(`${model.tags} tags`);
+        }
+        if (model.updated) {
+          metaItems.push(model.updated);
+        }
+        meta.textContent = metaItems.join(' • ');
+        const actions = document.createElement('div');
+        actions.className = 'model-result-actions';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'config-save-btn';
+        button.textContent = 'Download';
+        button.addEventListener('click', () => chooseModelVariant(item, model));
+        actions.appendChild(button);
+        if (model.url) {
+          const link = document.createElement('a');
+          link.href = model.url;
+          link.target = '_blank';
+          link.rel = 'noreferrer';
+          link.className = 'header-meta-link';
+          link.textContent = 'View';
+          actions.appendChild(link);
+        }
+        item.appendChild(header);
+        item.appendChild(meta);
+        if (model.description) {
+          const desc = document.createElement('div');
+          desc.className = 'model-result-meta';
+          desc.textContent = model.description;
+          item.appendChild(desc);
+        }
+        item.appendChild(actions);
+        const variantsBox = document.createElement('div');
+        variantsBox.className = 'model-result-variants';
+        variantsBox.id = `variant-box-${slug}`;
+        item.appendChild(variantsBox);
+        container.appendChild(item);
+      });
+    }
+
+    async function fetchModelInfo(slug) {
+      if (!slug) {
+        throw new Error('Missing model identifier');
+      }
+      const res = await fetch(`/dashboard/ai/models/info?slug=${encodeURIComponent(slug)}`);
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data && data.ok) {
+        return data;
+      }
+      throw new Error((data && data.error) || 'Model info unavailable');
+    }
+
+    function renderVariantButtons(container, variants) {
+      container.innerHTML = '';
+      if (!variants || !variants.length) {
+        container.innerHTML = '<span class="model-status" data-tone="warn">No variants available.</span>';
+        return;
+      }
+      variants.forEach(variant => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = variant;
+        btn.addEventListener('click', () => startModelDownload(variant));
+        container.appendChild(btn);
+      });
+    }
+
+    async function chooseModelVariant(resultEl, model) {
+      if (!resultEl) return;
+      const slug = resultEl.dataset.slug || model.id || model.name || model.model || '';
+      if (!slug) {
+        setModelStatus('Unable to determine model id', 'error');
+        return;
+      }
+      const variantsBox = resultEl.querySelector('.model-result-variants');
+      if (!variantsBox) {
+        startModelDownload(slug);
+        return;
+      }
+      if (Array.isArray(model.variants) && model.variants.length) {
+        renderVariantButtons(variantsBox, model.variants);
+        setModelStatus(`Choose a variant for ${slug}`, 'info');
+        return;
+      }
+      try {
+        setModelStatus(`Fetching variants for ${slug}…`, 'info');
+        const info = await fetchModelInfo(slug);
+        if (info && Array.isArray(info.variants) && info.variants.length) {
+          renderVariantButtons(variantsBox, info.variants);
+          setModelStatus(`Choose a variant for ${slug}`, 'info');
+        } else {
+          renderVariantButtons(variantsBox, [info && info.base ? info.base : slug]);
+          setModelStatus(`Variant info unavailable; using default`, 'warn');
+        }
+      } catch (err) {
+        renderVariantButtons(variantsBox, [slug]);
+        setModelStatus(err && err.message ? err.message : 'Model info lookup failed', 'error');
+      }
+    }
+
+    async function onModelSearch(event) {
+      if (event) event.preventDefault();
+      const input = $("ollamaModelSearch");
+      if (!input) return;
+      const query = input.value.trim();
+      if (!query) {
+        renderModelSearchResults([]);
+        setModelStatus('Enter a search term to find models', 'warn');
+        return;
+      }
+      setModelStatus(`Searching for "${query}"…`, 'info');
+      try {
+        const data = await fetchJsonOrThrow(`/dashboard/ai/models/search?q=${encodeURIComponent(query)}`);
+        renderModelSearchResults(Array.isArray(data && data.models) ? data.models : []);
+        setModelStatus(`Search results for "${query}"`, 'info');
+      } catch (err) {
+        renderModelSearchResults([]);
+        setModelStatus(err && err.message ? err.message : 'Search failed', 'error');
+      }
+    }
+
+    function resetDownloadUI(text, tone = 'info') {
+      const wrapper = $("ollamaModelDownload");
+      const label = $("ollamaModelDownloadLabel");
+      const bar = $("ollamaModelDownloadBar");
+      const cancel = $("ollamaModelDownloadCancel");
+      if (!wrapper || !label || !bar || !cancel) return;
+      if (text) {
+        label.textContent = text;
+      }
+      bar.style.width = '0%';
+      cancel.hidden = true;
+      wrapper.hidden = true;
+      if (tone && text) {
+        setModelStatus(text, tone);
+      }
+    }
+
+    async function startModelDownload(modelName) {
+      if (!modelName) return;
+      const wrapper = $("ollamaModelDownload");
+      const label = $("ollamaModelDownloadLabel");
+      const bar = $("ollamaModelDownloadBar");
+      const cancel = $("ollamaModelDownloadCancel");
+      if (!wrapper || !label || !bar || !cancel) return;
+      if (modelDownloadController) {
+        modelDownloadController.abort();
+      }
+      modelDownloadController = new AbortController();
+      bar.style.width = '0%';
+      label.textContent = `Downloading ${modelName}…`;
+      wrapper.hidden = false;
+      cancel.hidden = false;
+      cancel.onclick = () => {
+        if (modelDownloadController) {
+          modelDownloadController.abort();
+          modelDownloadController = null;
+          resetDownloadUI('Download cancelled', 'warn');
+        }
+      };
+      try {
+        const response = await fetch('/dashboard/ai/models/pull', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: modelName }),
+          signal: modelDownloadController.signal,
+        });
+        if (!response.ok || !response.body) {
+          const text = await response.text();
+          throw new Error(text || response.statusText || 'Pull failed');
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let boundary;
+          while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+            const chunk = buffer.slice(0, boundary).trim();
+            buffer = buffer.slice(boundary + 2);
+            if (!chunk.startsWith('data:')) continue;
+            const payloadText = chunk.replace(/^data:\s*/, '');
+            if (!payloadText) continue;
+            try {
+              const payload = JSON.parse(payloadText);
+              if (payload.progress !== undefined) {
+                const pct = Math.max(0, Math.min(100, Number(payload.progress)));
+                bar.style.width = `${pct}%`;
+                label.textContent = `Downloading ${modelName}… ${pct.toFixed(1)}%`;
+              }
+              if (payload.error) {
+                throw new Error(payload.error);
+              }
+              if (payload.status) {
+                setModelStatus(payload.status, 'info');
+              }
+              if (payload.done) {
+                bar.style.width = '100%';
+                label.textContent = `Download complete: ${modelName}`;
+              }
+            } catch (err) {
+              console.error('Download parse error:', err);
+            }
+          }
+        }
+        label.textContent = `Download complete: ${modelName}`;
+        bar.style.width = '100%';
+        cancel.hidden = true;
+        modelDownloadController = null;
+        await refreshLocalModels(false);
+        try {
+          await updateModelConfig(modelName);
+        } catch (err) {}
+        setTimeout(() => {
+          wrapper.hidden = true;
+        }, 1500);
+      } catch (err) {
+        if (modelDownloadController && modelDownloadController.signal.aborted) {
+          resetDownloadUI('Download cancelled', 'warn');
+        } else {
+          resetDownloadUI(err && err.message ? err.message : 'Download failed', 'error');
+        }
+        modelDownloadController = null;
+      }
+    }
+
+    function initModelSelector() {
+      const select = $("ollamaModelSelect");
+      if (!select) return;
+      if (!modelSelectorInitialized) {
+        select.addEventListener('change', async event => {
+          const value = event.target.value;
+          if (!value) {
+            setModelStatus('Select an installed model', 'warn');
+            return;
+          }
+          setModelStatus(`Switching to ${value}…`, 'info');
+          try {
+            await updateModelConfig(value);
+          } catch (err) {}
+        });
+        const refreshBtn = $("ollamaRefreshModels");
+        if (refreshBtn) {
+          refreshBtn.addEventListener('click', () => refreshLocalModels());
+        }
+        const searchBtn = $("ollamaModelSearchBtn");
+        if (searchBtn) {
+          searchBtn.addEventListener('click', onModelSearch);
+        }
+        const searchInput = $("ollamaModelSearch");
+        if (searchInput) {
+          searchInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              onModelSearch(event);
+            }
+          });
+        }
+        modelSelectorInitialized = true;
+      }
+      refreshLocalModels(false);
+    }
 
     function $(id) { return document.getElementById(id); }
 
@@ -17670,6 +18512,11 @@ def dashboard():
         applyPanelHiddenState(panel, shouldHide, { persist: false });
         button.setAttribute('aria-pressed', shouldHide ? 'false' : 'true');
         badge.textContent = shouldHide ? 'show' : 'hide';
+        if (panelId === 'operations') {
+          applyPanelHiddenState(panel, true, { persist: true });
+          button.setAttribute('aria-pressed', 'false');
+          badge.textContent = 'show';
+        }
         button.addEventListener('click', () => {
           const currentlyHidden = hiddenPanelState.has(panelId);
           setPanelVisibility(panelId, currentlyHidden);
@@ -18614,6 +19461,7 @@ def dashboard():
       }
       select.value = selectedId;
       renderConfigSection(selectedId);
+      initModelSelector();
       if (!configSelectInitialized) {
         select.addEventListener('change', onConfigCategoryChange);
         configSelectInitialized = true;
@@ -19715,6 +20563,215 @@ def update_dashboard_config():
         'type': _config_value_kind(new_value),
     }
     return jsonify({'ok': True, 'entry': entry})
+
+
+# -------------------------------------------------
+# Ollama model management endpoints
+# -------------------------------------------------
+
+
+def _sse_event(payload: Dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _normalize_registry_entry(raw: Dict[str, Any]) -> Dict[str, Any]:
+    identifier = raw.get('id') or raw.get('name') or raw.get('model') or ''
+    created = raw.get('created')
+    created_iso = None
+    try:
+        if isinstance(created, (int, float)):
+            created_iso = datetime.utcfromtimestamp(created).isoformat() + 'Z'
+    except Exception:
+        created_iso = None
+    return {
+        'id': identifier,
+        'owner': raw.get('owned_by') or raw.get('owner') or '',
+        'created': created,
+        'created_iso': created_iso,
+        'description': raw.get('description') or '',
+        'size_mb': None,
+        'parameter_size': None,
+        'quantization': None,
+    }
+
+
+@app.route('/dashboard/ai/models/local', methods=['GET'])
+def list_local_ollama_models():
+    tags_url = _ollama_api_url('tags')
+    try:
+        response = requests.get(tags_url, timeout=8)
+        response.raise_for_status()
+        payload = response.json() or {}
+        models = []
+        for entry in payload.get('models', []):
+            name = entry.get('name') or entry.get('model') or ''
+            details = entry.get('details') or {}
+            size_bytes = entry.get('size')
+            size_mb = None
+            try:
+                if isinstance(size_bytes, (int, float)):
+                    size_mb = round(size_bytes / (1024 * 1024), 1)
+            except Exception:
+                size_mb = None
+            models.append({
+                'name': name,
+                'size': size_bytes,
+                'size_mb': size_mb,
+                'modified_at': entry.get('modified_at'),
+                'details': {
+                    'parameter_size': details.get('parameter_size'),
+                    'quantization_level': details.get('quantization_level'),
+                },
+            })
+        return jsonify({'ok': True, 'models': models})
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/ai/models/search', methods=['GET'])
+def search_ollama_registry():
+    query = (request.args.get('q') or '').strip().lower()
+    limit = request.args.get('limit', 25)
+    try:
+        limit_int = max(1, min(int(limit), 100))
+    except Exception:
+        limit_int = 25
+    if not query:
+        return jsonify({'ok': True, 'models': []})
+    search_url = f'https://ollama.com/search?q={urllib.parse.quote(query)}'
+    try:
+        response = requests.get(search_url, timeout=10)
+        response.raise_for_status()
+        html_text = response.text
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
+    results: List[Dict[str, Any]] = []
+    pattern = re.compile(r'<a href="/library/(?P<slug>[^"]+)" class="group w-full">(.*?)</a>', re.DOTALL)
+    for match in pattern.finditer(html_text):
+        block = match.group(0)
+        slug = match.group('slug')
+        title_match = re.search(r'x-test-search-response-title>([^<]+)<', block)
+        desc_match = re.search(r'<p class="[^>]*text-neutral-800[^>]*>(.*?)</p>', block, re.DOTALL)
+        sizes = re.findall(r'x-test-size[^>]*>([^<]+)<', block)
+        pulls_match = re.search(r'x-test-pull-count>([^<]+)<', block)
+        tags_match = re.search(r'x-test-tag-count>([^<]+)<', block)
+        updated_match = re.search(r'<span class="flex items-center" title="([^"]+)"', block)
+        description = html.unescape(re.sub(r'<[^>]+>', '', desc_match.group(1).strip())) if desc_match else ''
+        result = {
+            'id': slug,
+            'title': html.unescape(title_match.group(1).strip()) if title_match else slug,
+            'description': description,
+            'sizes': [s.strip() for s in sizes if s.strip()],
+            'pulls': pulls_match.group(1).strip() if pulls_match else '',
+            'tags': tags_match.group(1).strip() if tags_match else '',
+            'updated': updated_match.group(1).strip() if updated_match else '',
+            'url': f'https://ollama.com/library/{slug}',
+        }
+        if result['sizes']:
+            result['variants'] = []
+            for raw_size in result['sizes']:
+                size_key = raw_size.strip().replace(' ', '').lower()
+                if not size_key:
+                    continue
+                if size_key.startswith(':'):
+                    variant_name = f"{slug}{size_key}"
+                else:
+                    variant_name = f"{slug}:{size_key}"
+                result['variants'].append(variant_name)
+        results.append(result)
+        if len(results) >= limit_int:
+            break
+
+    if not results:
+        # Fallback to registry list if HTML structure changed
+        try:
+            registry = requests.get('https://registry.ollama.ai/v1/models', params={'limit': 200}, timeout=10)
+            registry.raise_for_status()
+            payload = registry.json() or {}
+            models_raw = payload.get('data') or []
+            for item in models_raw:
+                normalized = _normalize_registry_entry(item)
+                identifier = normalized.get('id', '')
+                if query and query not in identifier.lower():
+                    continue
+                results.append(normalized)
+                if len(results) >= limit_int:
+                    break
+        except Exception:
+            pass
+
+    return jsonify({'ok': True, 'models': results})
+
+
+@app.route('/dashboard/ai/models/pull', methods=['POST'])
+def pull_ollama_model():
+    payload = request.get_json(force=True, silent=True) or {}
+    model_name = str(payload.get('name') or '').strip()
+    if not model_name:
+        return jsonify({'ok': False, 'error': 'Missing model name.'}), 400
+
+    pull_url = _ollama_api_url('pull')
+
+    def generate():
+        try:
+            with requests.post(pull_url, json={'name': model_name}, stream=True, timeout=None) as response:
+                if response.status_code != 200:
+                    try:
+                        detail = response.json()
+                    except Exception:
+                        detail = response.text
+                    yield _sse_event({'error': f"HTTP {response.status_code}: {detail}"})
+                    return
+                for line in response.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except Exception:
+                        continue
+                    event: Dict[str, Any] = {}
+                    status_text = data.get('status')
+                    if status_text:
+                        event['status'] = status_text
+                    if data.get('error'):
+                        event['error'] = data.get('error')
+                    completed = data.get('completed')
+                    total = data.get('total')
+                    if isinstance(completed, (int, float)) and isinstance(total, (int, float)) and total:
+                        progress = max(0.0, min(100.0, (completed / total) * 100.0))
+                        event['progress'] = round(progress, 1)
+                    if data.get('status') == 'success':
+                        event['done'] = True
+                    yield _sse_event(event)
+        except requests.exceptions.RequestException as exc:
+            yield _sse_event({'error': str(exc)})
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+
+@app.route('/dashboard/ai/models/info', methods=['GET'])
+def ollama_model_info():
+    slug = (request.args.get('slug') or '').strip().strip('/')
+    if not slug:
+        return jsonify({'ok': False, 'error': 'Missing model slug.'}), 400
+    library_url = f'https://ollama.com/library/{slug}'
+    try:
+        response = requests.get(library_url, timeout=10)
+        response.raise_for_status()
+        html_text = response.text
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
+    variants: List[str] = []
+    pattern = re.compile(r'ollama\s+(?:run|pull)\s+([a-z0-9._:-]+)', re.IGNORECASE)
+    for match in pattern.finditer(html_text):
+        candidate = match.group(1).strip()
+        if candidate and candidate not in variants:
+            variants.append(candidate)
+
+    base = variants[0] if variants else slug
+    return jsonify({'ok': True, 'slug': slug, 'base': base, 'variants': variants})
 
 
 ## Reset defaults endpoint removed
