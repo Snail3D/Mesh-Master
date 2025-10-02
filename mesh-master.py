@@ -11548,7 +11548,7 @@ def send_to_ollama(
             # Ask Ollama to allocate a larger context window if the model supports it
             "num_ctx": OLLAMA_NUM_CTX,
             # Performance optimizations for faster responses
-            "num_predict": 200,    # Limit response length for mesh network
+            "num_predict": 120,    # Limit response length for mesh network
             "temperature": 0.7,    # Slightly less random for more focused responses
             "top_p": 0.9,         # Nucleus sampling for quality vs speed balance
             "top_k": 40,          # Limit vocabulary consideration for speed
@@ -16934,6 +16934,7 @@ def dashboard():
           <div class="model-picker">
             <select id="ollamaModelSelect" class="config-select"></select>
             <button type="button" id="ollamaRefreshModels" class="config-save-btn">Refresh</button>
+            <button type="button" id="ollamaDeleteModel" class="config-cancel-btn">Delete</button>
           </div>
           <div class="model-search">
             <input type="text" id="ollamaModelSearch" class="config-input" placeholder="Search registry (e.g. llama3)" autocomplete="off">
@@ -17114,11 +17115,15 @@ def dashboard():
 
     async function refreshLocalModels(showMessage = true) {
       const select = $("ollamaModelSelect");
+      const deleteBtn = $("ollamaDeleteModel");
       if (!select) return;
       if (showMessage) {
         setModelStatus('Loading models…', 'info');
       }
       select.disabled = true;
+      if (deleteBtn) {
+        deleteBtn.disabled = true;
+      }
       try {
         const data = await fetchJsonOrThrow('/dashboard/ai/models/local');
         const models = Array.isArray(data && data.models) ? data.models : [];
@@ -17151,9 +17156,15 @@ def dashboard():
           setModelStatus(select.value ? `Using ${select.value}` : 'Select a model', select.value ? 'success' : 'info');
         }
         select.disabled = false;
+        if (deleteBtn) {
+          deleteBtn.disabled = !select.value;
+        }
       } catch (err) {
         setModelStatus(err && err.message ? err.message : 'Failed to load models', 'error');
         select.disabled = false;
+        if (deleteBtn) {
+          deleteBtn.disabled = true;
+        }
       }
     }
 
@@ -17171,6 +17182,52 @@ def dashboard():
       } catch (err) {
         setModelStatus(err && err.message ? err.message : 'Failed to set model', 'error');
         throw err;
+      }
+    }
+
+    async function deleteSelectedModel() {
+      const select = $("ollamaModelSelect");
+      const deleteBtn = $("ollamaDeleteModel");
+      if (!select || !select.value) {
+        setModelStatus('Select a model to delete', 'warn');
+        return;
+      }
+      const modelName = select.value;
+      if (!window.confirm(`Remove ${modelName} from disk?`)) {
+        return;
+      }
+      setModelStatus(`Deleting ${modelName}…`, 'info');
+      select.disabled = true;
+      if (deleteBtn) {
+        deleteBtn.disabled = true;
+      }
+      try {
+        const result = await fetchJsonOrThrow('/dashboard/ai/models/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: modelName }),
+        });
+        const cleared = result && result.active_cleared;
+        const nextModel = (result && result.next_model) || '';
+        if (cleared) {
+          configOverviewState.metadata = configOverviewState.metadata || {};
+          configOverviewState.metadata.ollama_model = nextModel;
+        }
+        await refreshLocalModels(false);
+        if (cleared && nextModel) {
+          setModelStatus(`Deleted ${modelName}. Switched to ${nextModel}.`, 'success');
+        } else if (cleared && !nextModel) {
+          setModelStatus(`Deleted ${modelName}. Select a new model.`, 'warn');
+        } else {
+          setModelStatus(`Deleted ${modelName}.`, 'success');
+        }
+      } catch (err) {
+        setModelStatus(err && err.message ? err.message : 'Delete failed', 'error');
+      } finally {
+        select.disabled = false;
+        if (deleteBtn) {
+          deleteBtn.disabled = !select.value;
+        }
       }
     }
 
@@ -17448,10 +17505,14 @@ def dashboard():
 
     function initModelSelector() {
       const select = $("ollamaModelSelect");
+      const deleteBtn = $("ollamaDeleteModel");
       if (!select) return;
       if (!modelSelectorInitialized) {
         select.addEventListener('change', async event => {
           const value = event.target.value;
+          if (deleteBtn) {
+            deleteBtn.disabled = !value;
+          }
           if (!value) {
             setModelStatus('Select an installed model', 'warn');
             return;
@@ -17464,6 +17525,9 @@ def dashboard():
         const refreshBtn = $("ollamaRefreshModels");
         if (refreshBtn) {
           refreshBtn.addEventListener('click', () => refreshLocalModels());
+        }
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', deleteSelectedModel);
         }
         const searchBtn = $("ollamaModelSearchBtn");
         if (searchBtn) {
@@ -20772,6 +20836,65 @@ def ollama_model_info():
 
     base = variants[0] if variants else slug
     return jsonify({'ok': True, 'slug': slug, 'base': base, 'variants': variants})
+
+
+@app.route('/dashboard/ai/models/delete', methods=['POST'])
+def delete_ollama_model():
+    payload = request.get_json(force=True, silent=True) or {}
+    model_name = str(payload.get('name') or '').strip()
+    if not model_name:
+        return jsonify({'ok': False, 'error': 'Missing model name.'}), 400
+
+    delete_url = _ollama_api_url('delete')
+    try:
+        response = requests.delete(delete_url, json={'name': model_name}, timeout=15)
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
+    if response.status_code not in (200, 204):
+        detail = None
+        try:
+            detail = response.json()
+        except Exception:
+            detail = response.text
+        if isinstance(detail, dict):
+            message = detail.get('error') or detail.get('message')
+        else:
+            message = str(detail or '')
+        message = message or f'HTTP {response.status_code}'
+        return jsonify({'ok': False, 'error': message}), response.status_code
+
+    with CONFIG_LOCK:
+        current_model = str(config.get('ollama_model') or '')
+
+    replacement = ''
+    if current_model == model_name:
+        try:
+            models = _ollama_list_local_models()
+        except Exception:
+            models = []
+        for entry in models:
+            candidate = entry.get('name') or entry.get('model') or ''
+            if candidate and candidate != model_name:
+                replacement = candidate
+                break
+
+    active_cleared = False
+    if current_model == model_name:
+        with CONFIG_LOCK:
+            if str(config.get('ollama_model') or '') == model_name:
+                config['ollama_model'] = replacement
+                write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+                active_cleared = True
+    if active_cleared:
+        globals()['OLLAMA_MODEL'] = config.get('ollama_model') or 'llama3.2:1b'
+
+    return jsonify({
+        'ok': True,
+        'removed': model_name,
+        'active_cleared': active_cleared,
+        'next_model': replacement,
+    })
 
 
 ## Reset defaults endpoint removed
