@@ -78,6 +78,7 @@ class OfflineWikiStore:
         self._alias_map: Dict[str, str] = {}
         self._loaded = False
         self._load_error: Optional[str] = None
+        self._index_mtime: Optional[float] = None
         self._lock = threading.RLock()
         # Eagerly load metadata so we can report readiness immediately
         self._load_index()
@@ -93,6 +94,52 @@ class OfflineWikiStore:
 
     def available_topics(self) -> Iterable[str]:
         return (entry.title for entry in self._entries.values())
+
+    def list_entries(self) -> List[Dict[str, object]]:
+        """Return a snapshot of index entries with file stats for UI.
+
+        Each item includes: key, title, aliases, path (relative), size_bytes, mtime_iso.
+        """
+        entries: List[Dict[str, object]] = []
+        with self._lock:
+            if not self._loaded:
+                self._load_index()
+            for key, entry in sorted(self._entries.items(), key=lambda kv: kv[1].title.lower()):
+                try:
+                    st = entry.path.stat()
+                    size = int(getattr(st, "st_size", 0))
+                    mtime = getattr(st, "st_mtime", None)
+                except Exception:
+                    size = 0
+                    mtime = None
+                rel_path = entry.path
+                try:
+                    rel_path = entry.path.relative_to(self.base_dir)
+                except Exception:
+                    rel_path = entry.path
+                mtime_iso = None
+                age_days = None
+                if isinstance(mtime, (int, float)) and mtime > 0:
+                    try:
+                        import datetime as _dt
+                        mdt = _dt.datetime.utcfromtimestamp(mtime).replace(tzinfo=_dt.timezone.utc)
+                        mtime_iso = mdt.isoformat()
+                        age_days = int(max(0, (_dt.datetime.now(tz=_dt.timezone.utc) - mdt).days))
+                    except Exception:
+                        mtime_iso, age_days = None, None
+                entries.append(
+                    {
+                        "key": key,
+                        "title": entry.title,
+                        "summary": entry.summary or "",
+                        "aliases": list(entry.aliases) if entry.aliases else [],
+                        "path": rel_path.as_posix(),
+                        "size_bytes": size,
+                        "mtime_iso": mtime_iso,
+                        "age_days": age_days,
+                    }
+                )
+        return entries
 
     def lookup(
         self,
@@ -140,6 +187,79 @@ class OfflineWikiStore:
                 source=article.source,
                 matched_alias=matched_alias,
             ), []
+
+    def delete(self, title_or_key: str) -> bool:
+        """Delete an article from disk and remove from the index.
+
+        Accepts either the canonical key or display title; aliases are also
+        resolved. Returns True if an entry was removed.
+        """
+        normalized = _normalize(title_or_key)
+        if not normalized:
+            return False
+        with self._lock:
+            if not self._loaded:
+                self._load_index()
+            key = self._resolve_key(normalized) or normalized
+            entry = self._entries.get(key)
+            if not entry:
+                # Also try by matching display title
+                for k, e in self._entries.items():
+                    if _normalize(e.title) == normalized:
+                        key, entry = k, e
+                        break
+            if not entry:
+                return False
+            try:
+                entry.path.unlink(missing_ok=True)
+            except Exception:
+                # Continue even if file deletion fails; we can still drop the index entry
+                pass
+            # Remove entry and its aliases
+            self._entries.pop(key, None)
+            # Rebuild alias map excluding any alias pointing to the removed key
+            self._alias_map = {a: tgt for a, tgt in self._alias_map.items() if tgt != key}
+            self._write_index()
+            self._load_error = None
+            return True
+
+    def prune_by_max(self, max_articles: int) -> Dict[str, int]:
+        """Ensure the store has at most max_articles by deleting oldest.
+
+        Returns a dict with {'before': N, 'removed': R, 'after': M}.
+        """
+        max_articles = max(0, int(max_articles))
+        with self._lock:
+            if not self._loaded:
+                self._load_index()
+            items = list(self._entries.items())
+            before = len(items)
+            if before <= max_articles:
+                return {"before": before, "removed": 0, "after": before}
+            # Sort by mtime (oldest first); fallback to path name for stability
+            def sort_key(kv: Tuple[str, _IndexEntry]):
+                entry = kv[1]
+                try:
+                    mtime = entry.path.stat().st_mtime
+                except Exception:
+                    mtime = 0
+                return (mtime, entry.path.as_posix())
+
+            items.sort(key=sort_key)
+            to_remove = before - max_articles
+            removed = 0
+            for key, entry in items[:to_remove]:
+                try:
+                    entry.path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                self._entries.pop(key, None)
+                removed += 1
+            # Rebuild alias map
+            self._alias_map = {a: tgt for a, tgt in self._alias_map.items() if tgt in self._entries}
+            self._write_index()
+            after = len(self._entries)
+            return {"before": before, "removed": removed, "after": after}
 
     def store_article(
         self,
@@ -227,14 +347,28 @@ class OfflineWikiStore:
         return None
 
     def _load_index(self) -> None:
-        """Load metadata from the index file."""
+        """Load metadata from the index file, reloading if the file changed."""
+        try:
+            current_mtime = self.index_file.stat().st_mtime
+        except FileNotFoundError:
+            current_mtime = None
+
         if self._loaded:
-            return
+            if current_mtime is None and self._index_mtime is None:
+                return
+            if (
+                current_mtime is not None
+                and self._index_mtime is not None
+                and current_mtime <= self._index_mtime
+            ):
+                return
+
         try:
             if not self.index_file.is_file():
                 self._load_error = f"Offline wiki index missing: {self.index_file}"
                 self._entries.clear()
                 self._alias_map.clear()
+                self._index_mtime = None
                 self._loaded = True
                 return
 
@@ -244,6 +378,7 @@ class OfflineWikiStore:
             self._load_error = f"Failed to load offline wiki index: {exc}"
             self._entries.clear()
             self._alias_map.clear()
+            self._index_mtime = None
             self._loaded = True
             return
 
@@ -252,6 +387,7 @@ class OfflineWikiStore:
             self._load_error = "Offline wiki index is malformed (expected entries array)."
             self._entries.clear()
             self._alias_map.clear()
+            self._index_mtime = current_mtime
             self._loaded = True
             return
 
@@ -280,6 +416,7 @@ class OfflineWikiStore:
         self._entries = temp_entries
         self._alias_map = temp_alias_map
         self._load_error = None
+        self._index_mtime = current_mtime
         self._loaded = True
 
     def _load_article(self, entry: _IndexEntry) -> Optional[OfflineWikiArticle]:
@@ -332,6 +469,10 @@ class OfflineWikiStore:
         with self.index_file.open("w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
             f.write("\n")
+        try:
+            self._index_mtime = self.index_file.stat().st_mtime
+        except Exception:
+            self._index_mtime = None
 
 
 def _normalize(value: Optional[str]) -> str:
