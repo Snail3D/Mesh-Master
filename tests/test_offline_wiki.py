@@ -96,6 +96,35 @@ class OfflineWikiStoreTest(unittest.TestCase):
 
             self.assertFalse(store.store_article(title="Custom Topic", content="x", overwrite=False))
 
+    def test_list_entries_and_delete_and_prune(self):
+        index, base_dir = self._make_dataset()
+        store = OfflineWikiStore(index, base_dir=base_dir)
+
+        # list_entries reports metadata
+        entries = store.list_entries()
+        self.assertTrue(isinstance(entries, list) and entries)
+        entry = entries[0]
+        self.assertIn('title', entry)
+        self.assertIn('size_bytes', entry)
+        # age_days may be None or int depending on clock resolution
+        self.assertIn('age_days', entry)
+
+        # store another article
+        store.store_article(title="Alpha Beta", content="Z", summary="S")
+        entries2 = store.list_entries()
+        self.assertGreaterEqual(len(entries2), 2)
+
+        # prune to 1
+        result = store.prune_by_max(1)
+        self.assertEqual(result.get('after'), 1)
+        entries3 = store.list_entries()
+        self.assertEqual(len(entries3), 1)
+
+        # delete last
+        remaining_title = entries3[0]['title']
+        self.assertTrue(store.delete(remaining_title))
+        self.assertFalse(store.list_entries())
+
     def test_missing_index_sets_error_state(self):
         with tempfile.TemporaryDirectory(prefix="offline_wiki_missing_") as tmp:
             base_dir = Path(tmp)

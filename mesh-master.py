@@ -78,7 +78,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     pynvml = None
 
-from meshtastic_facts import MESHTASTIC_ALERT_FACTS
+from scripts.utilities.meshtastic_facts import MESHTASTIC_ALERT_FACTS
 from unidecode import unidecode   # Added unidecode import for Ollama text normalization
 from google.protobuf.message import DecodeError
 import queue  # For async message processing
@@ -1803,11 +1803,11 @@ SERIAL_WARNING_KEYWORDS = (
 # Load Config Files
 # -----------------------------
 CONFIG_FILE = "config.json"
-COMMANDS_CONFIG_FILE = "commands_config.json"
-MOTD_FILE = "motd.json"
+COMMANDS_CONFIG_FILE = "data/commands_config.json"
+MOTD_FILE = "data/motd.json"
 LOG_FILE = "messages.log"
 ARCHIVE_FILE = "messages_archive.json"
-FEATURE_FLAGS_FILE = "feature_flags.json"
+FEATURE_FLAGS_FILE = "data/feature_flags.json"
 
 print("Loading config files...")
 
@@ -5404,7 +5404,7 @@ RESEND_SUFFIX_ENABLED = bool(config.get("resend_suffix_enabled", True))
 RESEND_TELEMETRY_ENABLED = bool(config.get("resend_telemetry_enabled", True))
 
 MAIL_MANAGER = MailManager(
-    store_path="mesh_mailboxes.json",
+    store_path="data/mesh_mailboxes.json",
     security_path=MAIL_SECURITY_FILE,
     clean_log=clean_log,
     ai_log=ai_log,
@@ -5511,7 +5511,7 @@ if DEFAULT_PERSONALITY_ID not in AI_PERSONALITY_MAP:
     else:
         DEFAULT_PERSONALITY_ID = next(iter(AI_PERSONALITY_MAP), None)
 
-USER_AI_SETTINGS_FILE = config.get("user_ai_settings_file", "user_ai_settings.json")
+USER_AI_SETTINGS_FILE = config.get("user_ai_settings_file", "data/user_ai_settings.json")
 USER_LANGUAGE_FILE = config.get("user_language_file", "data/user_languages.json")
 USER_AI_SETTINGS_LOCK = threading.Lock()
 USER_AI_SETTINGS: Dict[str, Dict[str, str]] = {}
@@ -6217,7 +6217,7 @@ for canonical, display in BIBLE_SPANISH_DISPLAY_OVERRIDES.items():
         if alias and alias not in BIBLE_RVR_ABBREVIATIONS[canonical]:
             BIBLE_RVR_ABBREVIATIONS[canonical].append(alias)
 
-BIBLE_VERSES_DATA_ES = safe_load_json("bible_jesus_verses_es.json", [])
+BIBLE_VERSES_DATA_ES = safe_load_json("data/bible_jesus_verses_es.json", [])
 if not BIBLE_VERSES_DATA_ES and BIBLE_RVR_VERSES:
     BIBLE_VERSES_DATA_ES = BIBLE_RVR_VERSES
 
@@ -6739,11 +6739,11 @@ def _update_bible_progress(
         }
         _save_bible_progress()
 
-CHUCK_NORRIS_FACTS = safe_load_json("chuck_api_jokes.json", [])
-CHUCK_NORRIS_FACTS_ES = safe_load_json("chuck_api_jokes_es.json", [])
-BLOND_JOKES = safe_load_json("blond_jokes.json", [])
-YO_MOMMA_JOKES = safe_load_json("yo_momma_jokes.json", [])
-EL_PASO_FACTS = safe_load_json("el_paso_people_facts.json", [])
+CHUCK_NORRIS_FACTS = safe_load_json("data/chuck_api_jokes.json", [])
+CHUCK_NORRIS_FACTS_ES = safe_load_json("data/chuck_api_jokes_es.json", [])
+BLOND_JOKES = safe_load_json("data/blond_jokes.json", [])
+YO_MOMMA_JOKES = safe_load_json("data/yo_momma_jokes.json", [])
+EL_PASO_FACTS = safe_load_json("data/el_paso_people_facts.json", [])
 
 ALERT_BELL_RESPONSES = MESHTASTIC_ALERT_FACTS
 
@@ -11523,16 +11523,15 @@ def send_to_ollama(
             combined_history = f"{extra_block}\n\n{combined_history}"
         else:
             combined_history = extra_block
+
+    prompt_sections: List[str] = []
+    if effective_system_prompt:
+        prompt_sections.append(effective_system_prompt)
     if combined_history:
-        if effective_system_prompt:
-            combined_prompt = f"{effective_system_prompt}\nCONTEXT:\n{combined_history}\n\nUSER: {user_message}\nASSISTANT:"
-        else:
-            combined_prompt = f"CONTEXT:\n{combined_history}\n\nUSER: {user_message}\nASSISTANT:"
-    else:
-        if effective_system_prompt:
-            combined_prompt = f"{effective_system_prompt}\nUSER: {user_message}\nASSISTANT:"
-        else:
-            combined_prompt = f"USER: {user_message}\nASSISTANT:"
+        prompt_sections.append(f"Context:\n{combined_history}")
+    prompt_sections.append(f"Question: {user_message}")
+    combined_prompt = "\n\n".join(section.strip() for section in prompt_sections if section.strip())
+    combined_prompt = f"{combined_prompt}\nAnswer:"
     if DEBUG_ENABLED:
         dprint(f"Ollama combined prompt:\n{combined_prompt}")
     else:
@@ -11548,7 +11547,7 @@ def send_to_ollama(
             # Ask Ollama to allocate a larger context window if the model supports it
             "num_ctx": OLLAMA_NUM_CTX,
             # Performance optimizations for faster responses
-            "num_predict": 120,    # Limit response length for mesh network
+            "num_predict": 80,     # Limit response length for mesh network
             "temperature": 0.7,    # Slightly less random for more focused responses
             "top_p": 0.9,         # Nucleus sampling for quality vs speed balance
             "top_k": 40,          # Limit vocabulary consideration for speed

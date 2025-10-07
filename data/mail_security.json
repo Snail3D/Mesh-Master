@@ -27,12 +27,12 @@
     "subscribers": {
       "!376be684": {
         "first_seen": 1759103875.7552705,
-        "last_check": 1759104055.0008636,
+        "last_check": 1759399879.454478,
         "node_id": "!376be684",
         "short": "SnMo",
         "unread": [],
         "pending_notice": false,
-        "last_heartbeat": 1759111768.5040038,
+        "last_heartbeat": 1759399879.447572,
         "trusted": true
       }
     },
@@ -49,5 +49,105 @@
       }
     },
     "mailbox_name": "happy"
+  },
+  "qas": {
+    "pin_hash": "0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+    "owner": "!376be684",
+    "created": 1759178148.4253778,
+    "failures": {},
+    "subscribers": {
+      "!376be684": {
+        "first_seen": 1759178148.42542,
+        "last_check": 1759399879.454478,
+        "node_id": "!376be684",
+        "short": "SnMo",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true,
+        "last_heartbeat": 1759399879.447572
+      },
+      "!a3cb5c4e": {
+        "first_seen": 1759178322.7911708,
+        "last_check": 1759178733.3398132,
+        "node_id": "!a3cb5c4e",
+        "short": "Lucy",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true,
+        "last_heartbeat": 1759399830.9263577
+      }
+    },
+    "messages": {
+      "423205ba-48b3-44f3-b29b-6e06656fd392": {
+        "id": "423205ba-48b3-44f3-b29b-6e06656fd392",
+        "mailbox": "qas",
+        "sender_key": "!376be684",
+        "sender_node": "!376be684",
+        "sender_short": "SnMo",
+        "timestamp": "2025-09-29T20:34:32.946360+00:00",
+        "body": "sup with it",
+        "readers": {
+          "!a3cb5c4e": 1759178322.7937868
+        }
+      },
+      "a5fb2d2e-bca0-4256-9f03-a2d0f975ce04": {
+        "id": "a5fb2d2e-bca0-4256-9f03-a2d0f975ce04",
+        "mailbox": "qas",
+        "sender_key": "!376be684",
+        "sender_node": "!376be684",
+        "sender_short": "SnMo",
+        "timestamp": "2025-09-29T20:41:40.088329+00:00",
+        "body": "we gud?",
+        "readers": {
+          "!a3cb5c4e": 1759178733.3398132
+        }
+      }
+    },
+    "mailbox_name": "qas"
+  },
+  "doo": {
+    "pin_hash": "edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9",
+    "owner": "!89449aaa",
+    "created": 1759394683.1786616,
+    "failures": {},
+    "subscribers": {
+      "!89449aaa": {
+        "first_seen": 1759394683.1787705,
+        "last_check": 0.0,
+        "node_id": "!89449aaa",
+        "short": "Gues",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true,
+        "last_heartbeat": 1759399864.3298686
+      },
+      "!376be684": {
+        "first_seen": 1759399854.2388463,
+        "last_check": 1759399879.454478,
+        "node_id": "!376be684",
+        "short": "!376be684",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "last_heartbeat": 1759399879.447572,
+        "trusted": true
+      }
+    },
+    "messages": {
+      "b027cd47-c8fc-43b2-a973-222ce2147f26": {
+        "id": "b027cd47-c8fc-43b2-a973-222ce2147f26",
+        "mailbox": "doo",
+        "sender_key": "!89449aaa",
+        "sender_node": "!89449aaa",
+        "sender_short": "Gues",
+        "timestamp": "2025-10-02T08:44:19.451292+00:00",
+        "body": "hey there!",
+        "readers": {}
+      }
+    },
+    "mailbox_name": "doo"
   }
 }

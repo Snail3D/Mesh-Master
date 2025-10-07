@@ -10,6 +10,13 @@
       ]
     },
     {
+      "key": "civil war",
+      "title": "Civil war",
+      "path": "civil-war.json",
+      "summary": "A civil war is a war between organized groups within the same state (or country). The aim of one side may be to take control of the country or a region, to achieve independence for a region, or to change government policies. The term is a calque of Latin bellum civile which was used to refer to the various civil wars of the Roman Republic in the 1st century BC. Civil here means \"of/related to cit…",
+      "aliases": []
+    },
+    {
       "key": "computer mouse",
       "title": "Computer mouse",
       "path": "computer-mouse.json",
@@ -17,10 +24,35 @@
       "aliases": []
     },
     {
+      "key": "fall of the western roman empire",
+      "title": "Fall of the Western Roman Empire",
+      "path": "fall-of-the-western-roman-empire.json",
+      "summary": "The fall of the Western Roman Empire, also called the fall of the Roman Empire or the fall of Rome, was the loss of central political control in the Western Roman Empire, a process in which the Empire failed to enforce its rule, and its vast territory was divided among several successor polities. The Roman Empire lost the strengths that had allowed it to exercise effective control over its Wester…",
+      "aliases": [
+        "fall of rome"
+      ]
+    },
+    {
       "key": "google",
       "title": "Google",
       "path": "google.json",
       "summary": "Google LLC ( , GOO-gəl) is an American multinational technology corporation focused on information technology, online advertising, search engine technology, email, cloud computing, software, quantum computing, e-commerce, consumer electronics, and artificial intelligence (AI). It has been referred to as \"the most powerful company in the world\" by the BBC and is one of the world's most valuable br…",
+      "aliases": []
+    },
+    {
+      "key": "gunsmith",
+      "title": "Gunsmith",
+      "path": "gunsmith.json",
+      "summary": "A gunsmith is a person who repairs, modifies, designs, or builds guns. The occupation differs from an armorer, who usually replaces only worn parts in standard firearms. Gunsmiths do modifications and changes to a firearm that may require a very high level of craftsmanship, requiring the skills of a top-level machinist, a very skilled woodworker, and even an engineer. Gunsmiths perform factory-le…",
+      "aliases": [
+        "gunsmithing"
+      ]
+    },
+    {
+      "key": "john wick",
+      "title": "John Wick",
+      "path": "john-wick.json",
+      "summary": "John Wick is an American media franchise created by Derek Kolstad. It centers on a neo-noir action thriller film series featuring the eponymous character portrayed by Keanu Reeves. Wick is a legendary hitman who is reluctantly drawn back into the criminal underworld after retiring. The franchise began with the release of John Wick (2014), which was followed by three sequels: Chapter 2 (2017), Cha…",
       "aliases": []
     },
     {
@@ -38,10 +70,10 @@
       "aliases": []
     },
     {
-      "key": "sherbet",
-      "title": "Sherbet",
-      "path": "sherbet.json",
-      "summary": "Sherbet may refer to:",
+      "key": "roman empire",
+      "title": "Roman Empire",
+      "path": "roman-empire.json",
+      "summary": "The Roman Empire was the post-Republican period of ancient Rome, characterized by autocratic rule and territorial expansion across Europe, North Africa, and the Near East. The Romans conquered most of this during the Republic, and it was ruled by emperors following Octavian's  assumption of effective sole rule in 27 BC. The western empire collapsed in 476 AD, but the eastern empire lasted until t…",
       "aliases": []
     },
     {

@@ -930,8 +930,8 @@ class MailManager:
         ]
         self.user_engaged(sender_key, node_id=sender_id, skip_prompt=True)
         self.clean_log(
-            f"Forwarded mailbox reply from {sender_short or sender_key} to {entry.get('short')} ({node_id})",
-            "📨",
+            f"Mail reply sent to {entry.get('short')} ({node_id})",
+            "✉️📡",
             show_always=False,
         )
         return PendingReply("\n".join(ack_lines), "mail reply", chunk_delay=2.0)
@@ -993,7 +993,7 @@ class MailManager:
             self.clean_log(f"Mail store write failed: {exc}")
             return PendingReply("Failed to store message. Please try again.", "/m command")
 
-        self.clean_log(f"Stored mail for '{mailbox}' from {sender_short}")
+        self.clean_log(f"Mail sent to {mailbox}", "✉️📬", show_always=False)
         lines = [
             f"Saved message to '{mailbox}'.",
             f"Use /c {mailbox} to check the latest messages.",
@@ -1206,7 +1206,7 @@ class MailManager:
         if sender_key:
             self._mark_all_mailboxes_checked(sender_key, sender_id, sender_short, exclude=mailbox)
             self.user_engaged(sender_key, node_id=sender_id, skip_prompt=True)
-        self.clean_log(f"Mailbox '{mailbox}' checked")
+        self.clean_log(f"Inbox checked: {mailbox}", "📬🔍", show_always=False)
         return PendingReply(
             response_text,
             "/c command",
@@ -1345,7 +1345,7 @@ class MailManager:
             }
         )
         try:
-            self.clean_log("Notification queued", "📬", show_always=False)
+            self.clean_log("Mail notification queued", "📬⏳", show_always=False)
         except Exception:
             pass
         self.active_auto_notifications[sender_key] = {
@@ -1378,7 +1378,7 @@ class MailManager:
         while buffer:
             self.events.appendleft(buffer.pop())
         if processed_any:
-            self.clean_log("Notification sent", "📬", show_always=False)
+            self.clean_log("Mail notification sent", "📬✅", show_always=False)
 
     def _finalize_mailbox_creation(self, sender_key: str, state: Dict[str, Any], pin: Optional[str]) -> PendingReply:
         mailbox = state.get("mailbox")
@@ -1410,7 +1410,7 @@ class MailManager:
                 except Exception:
                     pass
         if entry:
-            self.clean_log(f"Stored mail for '{mailbox}' from {sender_short}", "✉️")
+            self.clean_log(f"Mail sent to {mailbox}", "✉️📬", show_always=False)
 
         self._set_mailbox_security(mailbox, sender_key, pin)
         try:
@@ -1506,7 +1506,7 @@ class MailManager:
             return PendingReply("Failed to wipe mailbox. Please try again.", "/wipe command")
 
         if cleared:
-            self.clean_log(f"Mailbox '{mailbox}' wiped", "🧹")
+            self.clean_log(f"Inbox cleared: {mailbox}", "📬🧹", show_always=False)
             with self.security_lock:
                 entry = self.security.get(self._security_key(mailbox))
                 if entry:

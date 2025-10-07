@@ -1,5 +1,17 @@
 {
   "alarms": {},
   "stopwatches": {},
-  "timers": {}
+  "timers": {
+    "!376be684": [
+      {
+        "due_ts": 1759211046.3990326,
+        "id": "3486e9",
+        "label": "",
+        "node_id": "!376be684",
+        "original": 1000,
+        "paused": true,
+        "remaining": 907
+      }
+    ]
+  }
 }

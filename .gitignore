@@ -186,7 +186,18 @@ mesh-master.pid
 mesh-master.lock
 mesh-master.app.lock
 mesh_mail.db
-mesh_mailboxes.json
-user_ai_settings.json
+data/mesh_mailboxes.json
+data/user_ai_settings.json
 data/bible_progress.json
 data/meshtastic_kb_sources/
+
+# Node.js distributions
+node-v*.tar.xz
+node-v*/
+
+# Test output files
+tests/*_test_*.txt
+tests/*_test_*.log
+
+# VS Code workspace files
+*.code-workspace

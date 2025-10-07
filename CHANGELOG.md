@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.99.0] - 2025-09-29
+## [1.9.0] - 2025-09-29
 
 Highlights
 - Resend (No Ack): per‑chunk DM retries with configurable interval/attempts, “(Nth try)” suffix toggle, and network‑usage gating.

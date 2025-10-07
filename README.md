@@ -1,6 +1,6 @@
-# MESH MASTER v1.99.0 — Off-Grid AI Operations Suite
+# MESH MASTER v1.9.0 — Off-Grid AI Operations Suite
 
-**MESH MASTER 1.99** is the next evolution of the Mesh-AI project: a resilient AI copilot for Meshtastic LoRa meshes that remembers conversations, coordinates teams, and keeps the network moving even when the wider internet is gone. Version 1.99 doubles down on collaboration with the new Mesh Mail hub, a suite of llama-powered games for morale and training, richer offline knowledge, and a refreshed web command center.
+**MESH MASTER 1.9** is the next evolution of the Mesh-AI project: a resilient AI copilot for Meshtastic LoRa meshes that remembers conversations, coordinates teams, and keeps the network moving even when the wider internet is gone. Version 1.9 doubles down on collaboration with the new Mesh Mail hub, a suite of llama-powered games for morale and training, richer offline knowledge, and a refreshed web command center.
 
 > **Disclaimer**  
 > This project is an independent community effort and is **not associated** with the official Meshtastic project. Always maintain backup communication paths for real emergencies.
@@ -9,7 +9,7 @@
 
 ---
 
-## 1.99 Headline Upgrades
+## 1.9 Headline Upgrades
 - **Mesh Mail** — PIN-protected inboxes, multi-user notifications, and one-shot llama summaries keep longer messages flowing across the mesh.
 - **Game Hub** — Chess & Checkers duels, Blackjack, Yahtzee rounds, Tic-Tac-Toe, Hangman, Wordle, Word Ladder, Adventure stories, Cipher drills, Bingo, Morse, Rock–Paper–Scissors, Coinflip, Quiz Battle, and more—all DM-friendly and multilingual.
 - **Adaptive Personalities & Context Capsules** — `/aipersonality` and `/save`/`/recall` tune the assistant instantly while persistent archives keep continuity across restarts.
@@ -126,7 +126,8 @@ Create the `state` directory (and `touch` the files listed above) before the fir
 
 - **AI conversations** — `/ai`, `/bot`, `/query`, or `/data` (DM or configured channels).  
 - **Mesh mail** — `/m <mailbox> <message>`, `/c <mailbox> [question]`, `/emailhelp`, `/wipe ...`.  
-- **Quick knowledge** — `/bible`, `/chucknorris`, `/elpaso`, `/meshtastic`, `/offline wiki`, `/web <query>`, `/wiki <topic>`, `/drudge`, `/weather`.  
+- **Quick knowledge** — `/bible`, `/chucknorris`, `/elpaso`, `/meshtastic`, `/offline wiki`, `/web <query>`, `/wiki <topic>`, `/find <query>`, `/drudge`, `/weather`.  
+- **Field notes** — `/report <title>` to capture a report, `/log <title>` for quick logging; both are DM-only and searchable via `/find`.  
 - **Personality & context** — `/aipersonality` (list/set/prompt/reset), `/save [topic]`, `/recall <topic>`, `/exit`.  
 - **Games** — `/games`, `/hangman start`, `/wordle start`, `/wordladder start cold warm`, `/adventure start`, `/cipher start`, `/quizbattle start`, `/morse start`, `/rps`, `/coinflip`.  
 - **Location & status** — `/test`, `/motd`, Meshtastic “Request Position,” `/reset`, `/about`.  
@@ -179,7 +180,7 @@ Additional knobs:
 - **Mesh Mail:** `mailbox_max_messages`, `mail_follow_up_delay`, `mail_notify_enabled`, `mail_notify_reminders_enabled`, `mail_notify_quiet_hours_enabled`, `mail_notify_reminder_hours`, `mail_notify_expiry_hours`, `mail_notify_max_reminders`, `mail_notify_include_self`, `mail_notify_heartbeat_only`, `mail_search_model`, `mail_search_max_messages`, `mail_search_num_ctx`, `mail_search_timeout`, `notify_active_start_hour`, `notify_active_end_hour`, and `mail_security_file`.  
 - **Saved context:** `saved_context_max_chars`, `saved_context_summary_chars`, `context_session_timeout_seconds`.  
 - **Feature toggles:** `feature_flags.json` can disable commands or switch `message_mode` to `broadcast`, `dm`, or `both`.  
-- **Offline wiki:** configure `offline_wiki_dir`, `offline_wiki_summary_chars`, and `offline_wiki_context_chars` to control local article size.
+- **Offline knowledge:** configure `offline_wiki_dir`, `offline_crawl_dir`, `offline_ddg_dir`, `reports_dir`, and `logs_dir` plus the `*_summary_chars` / `*_context_chars` settings to control local article size. Use `/find <query>` in a DM to search wiki snapshots, crawls, DDG saves, reports, and logs—reply with the number to open or return the entry.
 
 Remember to restart the service after editing configs that lack runtime setters.
 
