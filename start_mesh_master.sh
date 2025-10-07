@@ -63,11 +63,13 @@ if [ "${FOREGROUND:-0}" = "1" ]; then
   # Run in foreground for systemd; skip browser
   echo "Starting mesh-master (foreground)"
   export NO_BROWSER=1
+  export PYTHONPATH="$SCRIPT_DIR:$SCRIPT_DIR/scripts/utilities:${PYTHONPATH:-}"
   # Create lock file with current process PID
   echo $$ > "$LOCK_FILE"
   # Exec so systemd tracks this process
   exec python "$SCRIPT_DIR/mesh-master.py"
 else
+  export PYTHONPATH="$SCRIPT_DIR:$SCRIPT_DIR/scripts/utilities:${PYTHONPATH:-}"
   nohup python "$SCRIPT_DIR/mesh-master.py" >> "$LOG_FILE" 2>&1 &
   PID=$!
   echo "$PID" > "$PID_FILE"
