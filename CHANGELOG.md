@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2025-10-07
+
+Highlights
+- **Interactive Onboarding**: New 9-step guided tour via `/onboard`, `/onboarding`, or `/onboardme` (DM only)
+  - Customizable welcome messages through dashboard
+  - Auto-onboarding toggle for first-time users
+  - Persistent state across restarts
+- **Private Logs & Public Reports**: Enhanced privacy model
+  - `/log <title>` creates private entries visible only to creator
+  - `/report <title>` creates public entries searchable by everyone
+  - `/find` respects privacy: shows only your logs, but all reports
+  - Author-based filtering in UserEntryStore
+- **Enhanced Dashboard Controls**
+  - Real-time activity feed with icon-based categorization
+  - Radio configuration: node names, device role, modem preset, frequency slot
+  - Ollama model management with download progress
+  - GitHub version selector
+  - Operations Center with collapsible command categories (default collapsed)
+  - Configuration editor by category with inline help
+- **Data Persistence**: Protected all user data via .gitignore
+  - logs/, reports/, mail, settings, game states persist across updates
+  - Git pulls won't overwrite user data
+- **Simplified Activity Logs**: Icon-based notifications for privacy
+  - 📨 Incoming messages, 📖 Bible, 🎮 Games, 🤖 AI, 🔐 Admin, etc.
+  - No message content or node names in logs
+  - Toggle between summary and verbose modes
+- **Process Management**: Automatic cleanup of orphaned processes
+  - Startup script kills stale mesh-master.py processes
+  - Systemd ExecStopPost ensures clean shutdown
+  - Prevents "Resource temporarily unavailable" serial port locks
+- **Command Improvements**
+  - Added usage examples to all command descriptions
+  - Command aliases: `/onboard`, `/onboarding`, `/onboardme` all work
+  - Updated help text to clarify privacy and functionality
+
+Notes
+- All onboarding steps use 5th grade reading level for accessibility
+- Dashboard "Activity" panel removes "Snapshot" branding
+- Command categories organized: Admin, AI Settings, Email, Reports & Logs, Games, Fun, Web & Search, Books & Reference, Files & Data, Information
+
 ## [1.9.0] - 2025-09-29
 
 Highlights
