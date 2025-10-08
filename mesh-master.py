@@ -2073,6 +2073,21 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
             ],
         },
     ),
+    (
+        "onboarding",
+        {
+            "label": "Onboarding",
+            "keys": [
+                "onboard_auto_enable",
+                "onboard_daily_reminders",
+                "onboard_reminder_frequency",
+                "onboard_reminder_hour",
+                "onboard_quiet_start",
+                "onboard_quiet_end",
+                "onboard_custom_welcome",
+            ],
+        },
+    ),
 ])
 
 CONFIG_HIDDEN_KEYS = {
@@ -2184,6 +2199,14 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
     "feed_queue_high": "Feed queue high mark",
     "feed_min_budget": "Feed min char budget",
     "offline_wiki_multi_language": "Offline wiki per-language",
+    # Onboarding
+    "onboard_auto_enable": "Auto-onboard new users",
+    "onboard_daily_reminders": "Send onboard reminders",
+    "onboard_reminder_frequency": "Reminder frequency",
+    "onboard_reminder_hour": "Reminder hour",
+    "onboard_quiet_start": "Quiet hours start",
+    "onboard_quiet_end": "Quiet hours end",
+    "onboard_custom_welcome": "Custom welcome message",
 }
 
 CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
@@ -2277,6 +2300,14 @@ CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "feed_queue_high": "Queue length considered 'high' for auto-tuning feed budgets.",
     "feed_min_budget": "Minimum characters kept for feeds after auto-tuning.",
     "offline_wiki_multi_language": "Store and look up offline wikis under language subfolders (applies to future saves).",
+    # Onboarding
+    "onboard_auto_enable": "Automatically send the onboarding tour to first-time users via DM when they message the system.",
+    "onboard_daily_reminders": "Enable periodic reminders for users who haven't completed onboarding yet.",
+    "onboard_reminder_frequency": "How often to send onboarding reminders: 'daily', 'weekly', or 'monthly'. Respects quiet hours.",
+    "onboard_reminder_hour": "Local hour (0–23) when onboarding reminders are sent to users who haven't finished the tour.",
+    "onboard_quiet_start": "Local hour (0–23) when onboarding reminders pause for the night.",
+    "onboard_quiet_end": "Local hour (0–23) when onboarding reminders resume after overnight quiet hours.",
+    "onboard_custom_welcome": "Optional custom message shown at the start of onboarding. Leave blank for default.",
 }
 
 
@@ -2749,6 +2780,16 @@ def _initialize_onboarding_state() -> None:
     global _onboarding_state
     with _onboarding_lock:
         _onboarding_state = _load_onboarding_state()
+        # Sync settings from config.json
+        if "settings" not in _onboarding_state:
+            _onboarding_state["settings"] = {}
+        _onboarding_state["settings"]["auto_onboard_new_users"] = config.get("onboard_auto_enable", True)
+        _onboarding_state["settings"]["daily_reminders_enabled"] = config.get("onboard_daily_reminders", True)
+        _onboarding_state["settings"]["reminder_frequency"] = config.get("onboard_reminder_frequency", "daily")
+        _onboarding_state["settings"]["reminder_check_hour"] = config.get("onboard_reminder_hour", 10)
+        _onboarding_state["settings"]["reminder_quiet_start"] = config.get("onboard_quiet_start", 20)
+        _onboarding_state["settings"]["reminder_quiet_end"] = config.get("onboard_quiet_end", 8)
+        _onboarding_state["settings"]["custom_welcome_message"] = config.get("onboard_custom_welcome", "")
 
 def get_onboarding_state_snapshot() -> Dict[str, Any]:
     with _onboarding_lock:
@@ -15199,7 +15240,8 @@ def dashboard_update_check():
         )
 
         if result.returncode != 0:
-            return jsonify({"success": False, "error": "Failed to fetch releases from GitHub"}), 500
+            error_msg = result.stderr.strip() if result.stderr else "Failed to fetch releases from GitHub"
+            return jsonify({"success": False, "error": f"Git error: {error_msg}"}), 500
 
         # Parse tags
         tags = []
@@ -21917,6 +21959,28 @@ def update_dashboard_config():
     if key == 'web_ephemeral_feed_enabled':
         try:
             globals()['WEB_EPHEMERAL_FEED_ENABLED'] = bool(new_value)
+        except Exception:
+            pass
+    # Sync onboarding settings to runtime state
+    if key.startswith('onboard_'):
+        try:
+            with _onboarding_lock:
+                if "settings" not in _onboarding_state:
+                    _onboarding_state["settings"] = {}
+                if key == 'onboard_auto_enable':
+                    _onboarding_state["settings"]["auto_onboard_new_users"] = bool(new_value)
+                elif key == 'onboard_daily_reminders':
+                    _onboarding_state["settings"]["daily_reminders_enabled"] = bool(new_value)
+                elif key == 'onboard_reminder_frequency':
+                    _onboarding_state["settings"]["reminder_frequency"] = str(new_value)
+                elif key == 'onboard_reminder_hour':
+                    _onboarding_state["settings"]["reminder_check_hour"] = int(new_value) % 24
+                elif key == 'onboard_quiet_start':
+                    _onboarding_state["settings"]["reminder_quiet_start"] = int(new_value) % 24
+                elif key == 'onboard_quiet_end':
+                    _onboarding_state["settings"]["reminder_quiet_end"] = int(new_value) % 24
+                elif key == 'onboard_custom_welcome':
+                    _onboarding_state["settings"]["custom_welcome_message"] = str(new_value)
         except Exception:
             pass
     if key == 'web_ephemeral_feed_max_results':
