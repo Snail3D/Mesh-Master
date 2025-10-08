@@ -925,6 +925,21 @@ class MailManager:
         }
         self._record_message_append(mailbox_name, stored_message, sender_key, sender_id, sender_short or sender_key)
 
+        # Send immediate notification to recipient about the new reply
+        recipient_short = entry.get('short', 'user')
+        notification_text = f"📬 New reply in '{mailbox_name}' from {sender_short or sender_key}. Check with `/c {mailbox_name}`"
+        self._queue_event({
+            'type': 'dm',
+            'node_id': node_id,
+            'text': notification_text,
+            'meta': {
+                'kind': 'mail-notification-immediate',
+                'from': sender_key,
+                'mailbox': mailbox_name,
+            },
+        })
+
+        # Also send the actual reply message
         self._queue_event({
             'type': 'dm',
             'node_id': node_id,
