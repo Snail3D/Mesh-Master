@@ -12731,26 +12731,9 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
     elif session.get('prompt_addendum'):
       system_prompt = f"{system_prompt}\n\n{session['prompt_addendum']}"
 
-  # Check if system context should be injected (/system, /help, /menu follow-ups, onboarding)
-  try:
-    from mesh_master.system_context import consume_system_context, build_system_context
-    if consume_system_context():
-      clean_log("[AI] System context active - building", "🔧", show_always=True, rate_limit=False)
-      # Build and inject system context
-      try:
-        sys_context = build_system_context(config=config, interface=interface, user_query=prompt)
-        clean_log(f"[AI] Context built: {len(sys_context)} chars", "📦", show_always=True, rate_limit=False)
-        # Prepend system context to extra_context
-        if extra_context:
-          extra_context = f"{sys_context}\n\n{extra_context}"
-        else:
-          extra_context = sys_context
-      except Exception as e:
-        clean_log(f"[AI] Error building system context: {e}", "❌", show_always=True, rate_limit=False)
-        dprint(f"Error building system context: {e}")
-  except Exception as e:
-    clean_log(f"[AI] Error checking system context: {e}", "❌", show_always=True, rate_limit=False)
-    dprint(f"Error checking system context: {e}")
+  # System context injection disabled - too heavy for RPi Ollama (causes timeouts)
+  # TODO: Re-enable when using cloud LLM or more powerful hardware
+  # For now, /system just routes to AI like a regular question
   provider = AI_PROVIDER
   if provider == "home_assistant":
     return send_to_home_assistant(prompt)
@@ -13733,34 +13716,22 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     return _cmd_reply(cmd, help_text)
 
   elif cmd == "/system":
-    from mesh_master.system_context import activate_system_context, refresh_system_context_timeout
-
-    # Extract query from command
+    # Lightweight version - just route to AI without heavy context
+    # The full system context feature is disabled due to Ollama timeout on RPi
     query = full_text[len(cmd):].strip()
 
-    # Debug logging with clean_log (always shows)
-    clean_log(f"[/system DEBUG] query length: {len(query)} chars", "🔍", show_always=True, rate_limit=False)
-
     if not query:
-      help_text = "🔧 SYSTEM CONTEXT HELP\n\n"
-      help_text += "Ask questions with full system awareness.\n\n"
-      help_text += "Usage: /system <your question>\n\n"
+      help_text = "🔧 SYSTEM HELP\n\n"
+      help_text += "Ask questions about commands and features.\n\n"
+      help_text += "Usage: /system <question>\n\n"
       help_text += "Examples:\n"
-      help_text += "  /system how does the relay work?\n"
-      help_text += "  /system what LLM am I using?\n"
+      help_text += "  /system how does relay work?\n"
       help_text += "  /system how do I search logs?\n\n"
-      help_text += "The AI will have full context about your settings,\n"
-      help_text += "all commands, architecture, and features."
-      clean_log("[/system DEBUG] No query - sending help", "ℹ️", show_always=True, rate_limit=False)
+      help_text += "Tip: Use /help <topic> for specific commands"
       return _cmd_reply(cmd, help_text)
 
-    # Activate system context - will be injected by get_ai_response
-    clean_log("[/system DEBUG] Activating context, routing to AI", "✅", show_always=True, rate_limit=False)
-    activate_system_context()
-    refresh_system_context_timeout()
-
-    # Route query to AI (system context will be injected automatically)
-    # Return None to signal "no direct command response, continue to AI"
+    # Just route to AI like a regular question
+    # System context injection disabled - too heavy for RPi Ollama
     return None
 
   elif cmd == "/menu":
