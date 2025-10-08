@@ -10998,7 +10998,7 @@ def send_broadcast_chunks(interface, text, channelIndex, chunk_delay: Optional[f
         if success and i < len(chunks) - 1:  # Don't delay after last chunk
             time.sleep(delay)
     if sent_any:
-        clean_log("Chat message sent 💬", emoji="")
+        clean_log("Chat message sent 📡", emoji="")
     # Return basic info for potential resend scheduling
     return {"chunks": chunks, "sent": sent_any}
 
@@ -11107,7 +11107,7 @@ def send_direct_chunks(interface, text, destinationId, chunk_delay: Optional[flo
         if success and idx < len(chunks) - 1:
             time.sleep(delay)
     if sent_any:
-        clean_log("DM message sent 💌", emoji="")
+        clean_log("DM message sent 📤", emoji="")
     # For callers interested in granular ACK feedback
     return {"chunks": chunks, "acks": ack_results, "sent": sent_any}
 
@@ -14092,7 +14092,8 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   lang = _resolve_user_language(None, sender_key)
   if not check_only:
     channel_type = "DM" if is_direct else "Channel"
-    clean_log(f"Incoming {channel_type} message", "📨")
+    incoming_emoji = "📩" if is_direct else "💬"
+    clean_log(f"Incoming {channel_type} message", incoming_emoji)
   text = text.strip()
   if not text:
     return None if not check_only else False
@@ -14711,14 +14712,6 @@ def on_receive(packet=None, interface=None, **kwargs):
     if sender_key and _is_heartbeat_text(normalized_text):
         NODE_HEARTBEAT_LAST[sender_key] = _now()
     is_direct_message = to_node_int != BROADCAST_ADDR
-    summary_label = "DM message" if is_direct_message else "Chat message"
-    trailing_emoji = "💌" if is_direct_message else "💬"
-    lower_text = normalized_text.lower()
-    if lower_text.startswith('/whereami') or lower_text.startswith('whereami'):
-      summary_label = "Position request"
-      trailing_emoji = "📍"
-    summary_text = summary_label
-    clean_log(f"{summary_text} {trailing_emoji}", emoji="", show_always=False)
 
     entry = log_message(
         sender_node,
