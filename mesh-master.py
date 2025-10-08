@@ -11486,7 +11486,7 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
     return entry
 
 def split_message(text):
-    """Split outgoing text into UTF-8 safe chunks within radio payload limits."""
+    """Split outgoing text into UTF-8 safe chunks within radio payload limits, preferring word boundaries."""
 
     if not text:
         return []
@@ -11506,14 +11506,36 @@ def split_message(text):
             byte_len = len(encoded)
 
         if current_chars and current_bytes + byte_len > limit:
-            chunks.append("".join(current_chars))
+            # Try to break at word boundary
+            chunk_text = "".join(current_chars)
+
+            # Look for last space/newline in the last 30 characters to break cleanly
+            last_break = -1
+            search_start = max(0, len(chunk_text) - 30)
+            for i in range(len(chunk_text) - 1, search_start - 1, -1):
+                if chunk_text[i] in (' ', '\n', '\t', '-'):
+                    last_break = i
+                    break
+
+            # If we found a good break point and it's not too far back, use it
+            if last_break > 0 and (len(chunk_text) - last_break) < 30:
+                # Split at the break point
+                chunks.append(chunk_text[:last_break + 1])
+                # Carry over the remainder to the next chunk
+                remainder = chunk_text[last_break + 1:]
+                current_chars = list(remainder) + [char]
+                current_bytes = len(remainder.encode("utf-8")) + byte_len
+            else:
+                # No good break point, split as-is
+                chunks.append(chunk_text)
+                current_chars = [char]
+                current_bytes = byte_len
+
             if len(chunks) >= MAX_CHUNKS:
                 return chunks
-            current_chars = []
-            current_bytes = 0
-
-        current_chars.append(char)
-        current_bytes += byte_len
+        else:
+            current_chars.append(char)
+            current_bytes += byte_len
 
     if current_chars and len(chunks) < MAX_CHUNKS:
         chunks.append("".join(current_chars))
@@ -12713,17 +12735,21 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
   try:
     from mesh_master.system_context import consume_system_context, build_system_context
     if consume_system_context():
+      clean_log("[AI] System context active - building", "🔧", show_always=True, rate_limit=False)
       # Build and inject system context
       try:
         sys_context = build_system_context(config=CONFIG, interface=interface, user_query=prompt)
+        clean_log(f"[AI] Context built: {len(sys_context)} chars", "📦", show_always=True, rate_limit=False)
         # Prepend system context to extra_context
         if extra_context:
           extra_context = f"{sys_context}\n\n{extra_context}"
         else:
           extra_context = sys_context
       except Exception as e:
+        clean_log(f"[AI] Error building system context: {e}", "❌", show_always=True, rate_limit=False)
         dprint(f"Error building system context: {e}")
   except Exception as e:
+    clean_log(f"[AI] Error checking system context: {e}", "❌", show_always=True, rate_limit=False)
     dprint(f"Error checking system context: {e}")
   provider = AI_PROVIDER
   if provider == "home_assistant":
@@ -13712,6 +13738,9 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     # Extract query from command
     query = full_text[len(cmd):].strip()
 
+    # Debug logging with clean_log (always shows)
+    clean_log(f"[/system DEBUG] query length: {len(query)} chars", "🔍", show_always=True, rate_limit=False)
+
     if not query:
       help_text = "🔧 SYSTEM CONTEXT HELP\n\n"
       help_text += "Ask questions with full system awareness.\n\n"
@@ -13722,9 +13751,11 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
       help_text += "  /system how do I search logs?\n\n"
       help_text += "The AI will have full context about your settings,\n"
       help_text += "all commands, architecture, and features."
+      clean_log("[/system DEBUG] No query - sending help", "ℹ️", show_always=True, rate_limit=False)
       return _cmd_reply(cmd, help_text)
 
-    # Activate system context - will be injected by parse_incoming_text
+    # Activate system context - will be injected by get_ai_response
+    clean_log("[/system DEBUG] Activating context, routing to AI", "✅", show_always=True, rate_limit=False)
     activate_system_context()
     refresh_system_context_timeout()
 
@@ -15643,7 +15674,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       if cmd_lower in ["/reset"]:
         return False  # Process immediately, not async
       # Built-in AI commands need async processing
-      if cmd_lower in ["/ai", "/bot", "/data"]:
+      if cmd_lower in ["/ai", "/bot", "/data", "/system"]:
         return True  # Needs AI processing
       if cmd_lower == "/c":
         remainder = text[len(raw_cmd):].strip()
@@ -22555,7 +22586,7 @@ def dashboard():
         logUserScrolling = true;
         clearTimeout(logScrollTimeout);
         clearTimeout(logAutoResumeTimeout);
-        const nearBottom = logbox.scrollHeight - logbox.scrollTop <= logbox.clientHeight + 12;
+        const nearBottom = logbox.scrollHeight - logbox.scrollTop <= logbox.clientHeight + 50;
         if (nearBottom) {
           logAutoScroll = true;
           setActivityScrollLabel("Streaming", true);
