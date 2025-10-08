@@ -914,6 +914,17 @@ class MailManager:
         mailbox_name = entry.get('mailbox') or "their inbox"
         header = f"📬 Reply from {sender_short or sender_key} (via '{mailbox_name}')"
         outbound = f"{header}\n{message_text}"
+
+        # Record the reply in the mailbox to trigger notifications
+        stored_message = {
+            "body": message_text,
+            "sender_id": str(sender_id),
+            "sender_short": sender_short or sender_key,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "mailbox": mailbox_name,
+        }
+        self._record_message_append(mailbox_name, stored_message, sender_key, sender_id, sender_short or sender_key)
+
         self._queue_event({
             'type': 'dm',
             'node_id': node_id,
