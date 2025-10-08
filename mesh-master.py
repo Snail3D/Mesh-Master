@@ -19128,8 +19128,9 @@ def dashboard():
             const res = await fetch(RADIO_NAMES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ long_name: longName, short_name: shortName || undefined }) });
             const data = await res.json();
             if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Save failed');
-            if (status) { status.textContent = 'Saved'; status.removeAttribute('data-tone'); }
-            renderRadioStateDeferred();
+            if (status) { status.textContent = 'Saved - radio reconnecting…'; status.removeAttribute('data-tone'); }
+            // Node name changes cause radio reconnection, wait longer
+            renderRadioStateDeferred(5000);
           } catch (err) {
             if (status) { status.textContent = String(err.message || err); status.setAttribute('data-tone', 'error'); }
           }
@@ -19180,9 +19181,9 @@ def dashboard():
     }
 
     let radioRenderTimer = null;
-    function renderRadioStateDeferred() {
+    function renderRadioStateDeferred(delay = 400) {
       if (radioRenderTimer) clearTimeout(radioRenderTimer);
-      radioRenderTimer = setTimeout(loadRadioState, 400);
+      radioRenderTimer = setTimeout(loadRadioState, delay);
     }
 
     function formatPercent(value) {
