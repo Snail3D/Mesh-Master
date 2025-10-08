@@ -69,7 +69,7 @@
   "offline_wiki_summary_chars": 400,
   "ollama_context_chars": 1600,
   "ollama_max_messages": 8,
-  "ollama_model": "tinydolphin:latest",
+  "ollama_model": "gemma3:270m",
   "ollama_num_ctx": 1024,
   "ollama_stream": true,
   "ollama_timeout": 120,

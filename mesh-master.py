@@ -8065,6 +8065,8 @@ BUILTIN_COMMANDS = {
     "/cipher",
     "/quizbattle",
     "/morse",
+    "/masterquiz",
+    "/meshtasticquiz",
     "/mathquiz",
     "/electricalquiz",
     "/vibe",
@@ -14352,6 +14354,124 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     args = full_text[len(cmd):].strip()
     result = handle_trivia_command(cmd, category, args, sender_id, is_direct, channel_idx, lang)
     return _cmd_reply(cmd, result)
+
+  elif cmd in {"/masterquiz", "/meshtasticquiz"}:
+    # Comprehensive quiz commands
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ Quiz games must be played in DM.")
+
+    quiz_file = "data/mesh_master_quiz.json" if cmd == "/masterquiz" else "data/meshtastic_quiz.json"
+    quiz_title = "Mesh Master" if cmd == "/masterquiz" else "Meshtastic"
+
+    try:
+      with open(quiz_file, 'r') as f:
+        questions = json.load(f)
+    except Exception as e:
+      return _cmd_reply(cmd, f"❌ Quiz data not available: {e}")
+
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key:
+      return _cmd_reply(cmd, "⚠️ Unable to identify your session.")
+
+    # Initialize or get quiz state
+    if not hasattr(GAME_MANAGER, 'quiz_sessions'):
+      GAME_MANAGER.quiz_sessions = {}
+
+    args = full_text[len(cmd):].strip().lower()
+
+    # Check for quiz state
+    quiz_state = GAME_MANAGER.quiz_sessions.get(sender_key)
+
+    if args == "score" or args == "stats":
+      if not quiz_state or 'score' not in quiz_state:
+        return _cmd_reply(cmd, "📊 No quiz in progress. Start with `" + cmd + "`")
+      total = quiz_state.get('total', 0)
+      correct = quiz_state.get('score', 0)
+      pct = (correct * 100 // total) if total > 0 else 0
+      return _cmd_reply(cmd, f"📊 {quiz_title} Quiz Score\n\nCorrect: {correct}/{total} ({pct}%)")
+
+    if args == "stop" or args == "quit":
+      if sender_key in GAME_MANAGER.quiz_sessions:
+        del GAME_MANAGER.quiz_sessions[sender_key]
+      return _cmd_reply(cmd, "Quiz ended. Thanks for playing!")
+
+    # Start new quiz or continue
+    if not quiz_state:
+      # New quiz
+      random.shuffle(questions)
+      GAME_MANAGER.quiz_sessions[sender_key] = {
+        'questions': questions,
+        'current': 0,
+        'score': 0,
+        'total': 0,
+        'quiz_type': cmd
+      }
+      quiz_state = GAME_MANAGER.quiz_sessions[sender_key]
+
+    # Answer handling
+    if args in {"1", "2", "3", "4", "a", "b", "c", "d"}:
+      if quiz_state['current'] >= len(quiz_state['questions']):
+        return _cmd_reply(cmd, "Quiz complete! Use `" + cmd + " score` for results or `" + cmd + "` to restart.")
+
+      # Map answer
+      answer_map = {"1": 0, "a": 0, "2": 1, "b": 1, "3": 2, "c": 2, "4": 3, "d": 3}
+      user_answer = answer_map.get(args, -1)
+
+      q = quiz_state['questions'][quiz_state['current']]
+      correct_idx = q['correct']
+
+      quiz_state['total'] += 1
+
+      if user_answer == correct_idx:
+        quiz_state['score'] += 1
+        result = f"✅ Correct!\n\n"
+      else:
+        result = f"❌ Wrong! Correct answer: {q['answers'][correct_idx]}\n\n"
+
+      quiz_state['current'] += 1
+
+      # Show next question
+      if quiz_state['current'] < len(quiz_state['questions']):
+        next_q = quiz_state['questions'][quiz_state['current']]
+        result += f"Question {quiz_state['current'] + 1}/{len(quiz_state['questions'])}\n\n"
+        result += f"{next_q['question']}\n\n"
+        for i, ans in enumerate(next_q['answers']):
+          result += f"{i+1}. {ans}\n"
+        result += f"\nReply 1-{len(next_q['answers'])}"
+      else:
+        # Quiz complete
+        pct = (quiz_state['score'] * 100 // quiz_state['total']) if quiz_state['total'] > 0 else 0
+        result += f"🎉 Quiz Complete!\n\nScore: {quiz_state['score']}/{quiz_state['total']} ({pct}%)\n\n"
+        if pct >= 90:
+          result += "🏆 Outstanding!"
+        elif pct >= 75:
+          result += "⭐ Great job!"
+        elif pct >= 60:
+          result += "👍 Good work!"
+        else:
+          result += "📚 Keep studying!"
+        result += f"\n\nPlay again: `{cmd}`"
+
+      return _cmd_reply(cmd, result)
+
+    # Show current or first question
+    if quiz_state['current'] >= len(quiz_state['questions']):
+      # Reset for new round
+      quiz_state['current'] = 0
+      quiz_state['score'] = 0
+      quiz_state['total'] = 0
+      random.shuffle(quiz_state['questions'])
+
+    q = quiz_state['questions'][quiz_state['current']]
+    msg = f"📝 {quiz_title} Quiz\n\n"
+    msg += f"Question {quiz_state['current'] + 1}/{len(quiz_state['questions'])}\n\n"
+    msg += f"{q['question']}\n\n"
+    for i, ans in enumerate(q['answers']):
+      msg += f"{i+1}. {ans}\n"
+    msg += f"\nReply 1-{len(q['answers'])}\n"
+    msg += f"`{cmd} score` for stats\n`{cmd} stop` to quit"
+
+    return _cmd_reply(cmd, msg)
 
   elif cmd in {"/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/adventure", "/rps", "/coinflip", "/wordladder", "/cipher", "/quizbattle", "/morse"}:
     if cmd != "/games" and not is_direct:

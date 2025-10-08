@@ -1,0 +1,427 @@
+[
+  {
+    "question": "What does LoRa stand for?",
+    "answers": ["Long Range", "Low Range", "Local Radio", "Link Radio"],
+    "correct": 0
+  },
+  {
+    "question": "What is the current ground range record for Meshtastic?",
+    "answers": ["100km", "254km", "331km", "500km"],
+    "correct": 2
+  },
+  {
+    "question": "Does Meshtastic require a ham radio license?",
+    "answers": ["Yes, always", "No, for most regions", "Only in USA", "Only for repeaters"],
+    "correct": 1
+  },
+  {
+    "question": "How many users can connect to a single Meshtastic device?",
+    "answers": ["Unlimited", "One at a time", "Up to 5", "Up to 10"],
+    "correct": 1
+  },
+  {
+    "question": "What is a mesh network?",
+    "answers": [
+      "Direct point-to-point only",
+      "Devices relay messages to extend range",
+      "Requires a central router",
+      "Only works with internet"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What happens when a node receives a message with hop limit of 0?",
+    "answers": [
+      "It rebroadcasts it",
+      "It does not rebroadcast it",
+      "It increases the hop limit",
+      "It sends an error"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How many packets does a radio store when not connected to a client?",
+    "answers": ["Around 30", "Around 100", "Unlimited", "None"],
+    "correct": 0
+  },
+  {
+    "question": "What determines if nodes can form a mesh?",
+    "answers": [
+      "Same GPS location",
+      "Same spreading factor, frequency, and bandwidth",
+      "Same brand",
+      "Same firmware version"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What are presets used for?",
+    "answers": [
+      "Storing contacts",
+      "Configuring radio parameters easily",
+      "Saving messages",
+      "Setting alarms"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How many times will a message be retransmitted if no ACK is received?",
+    "answers": ["Once", "Twice", "Three times", "Until received"],
+    "correct": 2
+  },
+  {
+    "question": "What does SNR stand for?",
+    "answers": [
+      "Signal Noise Ratio",
+      "Signal-to-Noise Ratio",
+      "System Network Rating",
+      "Send Node Request"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Which node role has higher priority to rebroadcast messages?",
+    "answers": ["CLIENT", "ROUTER", "SENSOR", "TRACKER"],
+    "correct": 1
+  },
+  {
+    "question": "Should you configure private channels on unattended routers?",
+    "answers": [
+      "Yes, always",
+      "No, it's a security risk",
+      "Only for outdoor nodes",
+      "Doesn't matter"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What is the recommended network configuration?",
+    "answers": [
+      "All ROUTER nodes",
+      "All REPEATER nodes",
+      "CLIENT nodes with few well-placed ROUTERs",
+      "All CLIENT nodes"
+    ],
+    "correct": 2
+  },
+  {
+    "question": "Which role should typically not be monitored for direct messages?",
+    "answers": ["CLIENT", "ROUTER", "CLIENT_MUTE", "CLIENT_HIDDEN"],
+    "correct": 1
+  },
+  {
+    "question": "What does the hop limit control?",
+    "answers": [
+      "Message speed",
+      "Number of times a message can be relayed",
+      "Radio power",
+      "Encryption strength"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What happens when a node sees a packet it has already received?",
+    "answers": [
+      "It rebroadcasts it anyway",
+      "It ignores the message",
+      "It sends an error",
+      "It stores it again"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How does a ROUTER role differ from CLIENT?",
+    "answers": [
+      "No difference",
+      "ROUTER has higher rebroadcast priority",
+      "ROUTER can't send messages",
+      "ROUTER requires license"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What determines rebroadcast priority based on distance?",
+    "answers": [
+      "RSSI only",
+      "SNR - lower SNR nodes go first",
+      "Hop count",
+      "Random selection"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Can nodes relay encrypted messages they can't decrypt?",
+    "answers": [
+      "No",
+      "Yes, they relay all Meshtastic traffic",
+      "Only if configured",
+      "Only CLIENT nodes can"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What is the purpose of the REPEATER role?",
+    "answers": [
+      "Store messages",
+      "Rebroadcast messages with high priority",
+      "Connect to internet",
+      "Send alerts"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What problem can using too many ROUTER/REPEATER nodes cause?",
+    "answers": [
+      "None",
+      "Serious network congestion and issues",
+      "Faster messages",
+      "Better range"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What is a contention window in Meshtastic?",
+    "answers": [
+      "Time before rebroadcast based on SNR",
+      "Message size limit",
+      "Encryption window",
+      "GPS accuracy window"
+    ],
+    "correct": 0
+  },
+  {
+    "question": "Is Meshtastic 100% community driven?",
+    "answers": ["No", "Yes", "Only partly", "It's commercial"],
+    "correct": 1
+  },
+  {
+    "question": "What frequency does Meshtastic typically use?",
+    "answers": ["900MHz and 433MHz", "2.4GHz", "5GHz", "915MHz only"],
+    "correct": 0
+  },
+  {
+    "question": "What connection methods can link a radio to a phone?",
+    "answers": [
+      "Bluetooth only",
+      "Wi-Fi only",
+      "Bluetooth, Wi-Fi/Ethernet, or serial",
+      "USB only"
+    ],
+    "correct": 2
+  },
+  {
+    "question": "Is GPS required for mesh communication?",
+    "answers": [
+      "Yes, always",
+      "No, it's optional for location features",
+      "Only for ROUTER nodes",
+      "Only outdoors"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Are Meshtastic communications encrypted?",
+    "answers": ["No", "Yes", "Only for premium users", "Only direct messages"],
+    "correct": 1
+  },
+  {
+    "question": "What is the main advantage of a mesh network?",
+    "answers": [
+      "Faster speeds",
+      "Extended range through multi-hop relay",
+      "Better video quality",
+      "Requires less power"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Can Meshtastic work without phone coverage?",
+    "answers": [
+      "No",
+      "Yes, it's designed for off-grid use",
+      "Only in cities",
+      "Requires satellite"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Where can you find Meshtastic source code?",
+    "answers": [
+      "It's closed source",
+      "GitHub - github.com/meshtastic",
+      "Private repository",
+      "Not available"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What type of battery life does Meshtastic offer?",
+    "answers": ["Poor", "Average", "Excellent", "None - AC only"],
+    "correct": 2
+  },
+  {
+    "question": "What happens if a message times out without ACK?",
+    "answers": [
+      "It's discarded immediately",
+      "It's retransmitted up to 3 times",
+      "It's saved forever",
+      "It's sent to all nodes"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Can you receive text messages on Meshtastic?",
+    "answers": [
+      "No, send only",
+      "Yes, send and receive",
+      "Only with internet",
+      "Only on phone"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What is a spreading factor in LoRa?",
+    "answers": [
+      "Power level",
+      "Parameter affecting range vs data rate",
+      "Antenna type",
+      "Mesh size"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Can Meshtastic nodes have different firmware versions?",
+    "answers": [
+      "No, all must match",
+      "Yes, but compatibility may vary",
+      "Only major versions must match",
+      "Firmware doesn't matter"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What is RSSI?",
+    "answers": [
+      "Radio Signal Strength Indicator",
+      "Received Signal Strength Indicator",
+      "Remote Signal System Interface",
+      "Radio System Status Index"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How does low SNR affect rebroadcasting?",
+    "answers": [
+      "Prevents rebroadcast",
+      "Node waits less time to rebroadcast (higher priority)",
+      "No effect",
+      "Increases power"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Can a single node be in multiple meshes simultaneously?",
+    "answers": [
+      "Yes, unlimited",
+      "No, only one mesh at a time",
+      "Up to 3 meshes",
+      "Only ROUTER nodes can"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What determines if nodes are in the same mesh?",
+    "answers": [
+      "Same location",
+      "Same channel name",
+      "Same spreading factor, frequency, and bandwidth",
+      "Same brand"
+    ],
+    "correct": 2
+  },
+  {
+    "question": "Why should private PSK not be on unattended routers?",
+    "answers": [
+      "No reason",
+      "Physical access allows key extraction",
+      "It drains battery",
+      "It slows relaying"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What's the benefit of CLIENT nodes vs ROUTER nodes?",
+    "answers": [
+      "CLIENTs are faster",
+      "CLIENTs reduce network congestion",
+      "CLIENTs have better range",
+      "No difference"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How many hops can a message typically take?",
+    "answers": [
+      "1",
+      "Configured by hop limit",
+      "Always 3",
+      "Unlimited"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What is the SENSOR role used for?",
+    "answers": [
+      "Gaming",
+      "Unmonitored sensor data transmission",
+      "Video streaming",
+      "Internet gateway"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Can you use Meshtastic for emergency communications?",
+    "answers": [
+      "No, it's a toy",
+      "Yes, but not for mission-critical as it's beta",
+      "Only with license",
+      "Only indoors"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What happens when hop limit is decremented?",
+    "answers": [
+      "Message is encrypted",
+      "Message can be relayed one less time",
+      "Power increases",
+      "Speed increases"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Is Meshtastic open source?",
+    "answers": ["No", "Yes, 100%", "Partially", "Only firmware"],
+    "correct": 1
+  },
+  {
+    "question": "What is the TRACKER role for?",
+    "answers": [
+      "Internet access",
+      "GPS tracking without DM monitoring",
+      "Gaming",
+      "Debugging"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Can Meshtastic work in areas without infrastructure?",
+    "answers": [
+      "No, requires towers",
+      "Yes, that's its main purpose",
+      "Only with satellite",
+      "Only in cities"
+    ],
+    "correct": 1
+  }
+]
