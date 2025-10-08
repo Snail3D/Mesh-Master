@@ -10377,99 +10377,115 @@ def _relay_worker():
                 ack_event = threading.Event()
                 packet_id = None
 
-                # Send with wantAck=True in a thread to avoid blocking the worker
-                # We need wantAck=True so the mesh network generates ACK packets we can track
-                send_result = {'packet_id': None, 'error': None}
+                # Split message into chunks to handle long messages
+                chunks = split_message(relay_text)
+                if not chunks:
+                    failure_msg = f"❌ Failed to prepare relay to {target_shortname}"
+                    send_direct_chunks(interface, failure_msg, sender_id)
+                    continue
 
-                def _send_relay():
-                    try:
-                        mesh_packet = interface.sendText(relay_text, destinationId=target_node_id, wantAck=True)
-                        # Extract packet ID from MeshPacket object
-                        if hasattr(mesh_packet, 'id'):
-                            send_result['packet_id'] = mesh_packet.id
-                        elif isinstance(mesh_packet, int):
-                            send_result['packet_id'] = mesh_packet
-                    except Exception as e:
-                        send_result['error'] = str(e)
+                # Send all chunks and collect packet IDs
+                packet_ids = []
+                send_errors = []
 
-                send_thread = threading.Thread(target=_send_relay, daemon=True)
-                send_thread.start()
+                for chunk_idx, chunk in enumerate(chunks):
+                    send_result = {'packet_id': None, 'error': None}
 
-                # Wait briefly for packet ID (sendText generates ID immediately before waiting for ACK)
-                send_thread.join(timeout=2.0)
+                    def _send_relay_chunk(chunk_text=chunk):
+                        try:
+                            mesh_packet = interface.sendText(chunk_text, destinationId=target_node_id, wantAck=True)
+                            # Extract packet ID from MeshPacket object
+                            if hasattr(mesh_packet, 'id'):
+                                send_result['packet_id'] = mesh_packet.id
+                            elif isinstance(mesh_packet, int):
+                                send_result['packet_id'] = mesh_packet
+                        except Exception as e:
+                            send_result['error'] = str(e)
 
-                packet_id = send_result['packet_id']
+                    send_thread = threading.Thread(target=_send_relay_chunk, daemon=True)
+                    send_thread.start()
+                    send_thread.join(timeout=2.0)
 
-                if send_result['error'] and not packet_id:
-                    # Real send failure before packet was created
+                    if send_result['packet_id']:
+                        packet_ids.append(send_result['packet_id'])
+                        clean_log(f"Relay chunk {chunk_idx + 1}/{len(chunks)} sent (ID={send_result['packet_id']})", "📨", show_always=False)
+                    elif send_result['error']:
+                        send_errors.append(f"Chunk {chunk_idx + 1}: {send_result['error']}")
+
+                    # Small delay between chunks
+                    if chunk_idx < len(chunks) - 1:
+                        time.sleep(0.5)
+
+                if not packet_ids:
+                    # All chunks failed
                     failure_msg = f"❌ Failed to send to {target_shortname}"
                     send_direct_chunks(interface, failure_msg, sender_id)
-                    clean_log(f"Relay send error: {send_result['error']}", "⚠️")
+                    clean_log(f"Relay send error: {'; '.join(send_errors)}", "⚠️")
                     continue
 
-                if packet_id:
-                    clean_log(f"Relay sent (packet_id={packet_id})", "📨", show_always=False)
+                # Create shared ACK tracking event for all chunks
+                ack_events = []
+                for packet_id in packet_ids:
+                    chunk_ack_event = threading.Event()
+                    ack_events.append(chunk_ack_event)
+                    with RELAY_ACK_LOCK:
+                        PENDING_RELAY_ACKS[packet_id] = {
+                            'sender_id': sender_id,
+                            'target_shortname': target_shortname,
+                            'target_node_id': target_node_id,
+                            'message': message,
+                            'ack_event': chunk_ack_event,
+                            'ack_node': None,
+                            'timestamp': time.time()
+                        }
 
-                if not packet_id:
-                    # No packet ID available - can't track ACK
-                    dprint(f"No packet ID for relay tracking")
-                    failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\""
-                    send_direct_chunks(interface, failure_msg, sender_id)
-                    continue
-
-                # Register this packet for ACK tracking
-                with RELAY_ACK_LOCK:
-                    PENDING_RELAY_ACKS[packet_id] = {
-                        'sender_id': sender_id,
-                        'target_shortname': target_shortname,
-                        'target_node_id': target_node_id,
-                        'message': message,
-                        'ack_event': ack_event,
-                        'ack_node': None,  # Will be set by ACK handler
-                        'timestamp': time.time()
-                    }
-
-                # Wait up to 20 seconds for ACK, but check periodically for full ACK
+                # Wait up to 20 seconds for ACKs from all chunks
                 start_time = time.time()
                 final_ack_node = None
-                final_ack_received = False
+                all_acks_received = False
 
                 while (time.time() - start_time) < RELAY_ACK_TIMEOUT:
-                    # Wait 1 second at a time so we can check for full ACK
-                    if ack_event.wait(timeout=1.0):
-                        # Got an ACK - check if it's from intended recipient
+                    # Check if all chunks have ACKed
+                    all_acked = all(event.is_set() for event in ack_events)
+
+                    if all_acked:
+                        # All chunks ACKed - get the ACK node from any chunk
                         with RELAY_ACK_LOCK:
-                            if packet_id in PENDING_RELAY_ACKS:
-                                ack_node = PENDING_RELAY_ACKS[packet_id].get('ack_node')
-                                if ack_node and same_node_id(ack_node, target_node_id):
-                                    # Full ACK from intended recipient - respond immediately!
-                                    final_ack_node = ack_node
-                                    final_ack_received = True
-                                    break
-                                else:
-                                    # Partial ACK from router - keep waiting for full ACK
-                                    final_ack_node = ack_node
-                                    final_ack_received = True
-                                    # Continue waiting in case we get full ACK
-                            else:
-                                # Entry removed, we got ACK
-                                final_ack_received = True
-                                break
+                            for packet_id in packet_ids:
+                                if packet_id in PENDING_RELAY_ACKS:
+                                    ack_node = PENDING_RELAY_ACKS[packet_id].get('ack_node')
+                                    if ack_node:
+                                        final_ack_node = ack_node
+                                        if same_node_id(ack_node, target_node_id):
+                                            # Full ACK from intended recipient
+                                            all_acks_received = True
+                                            break
 
-                # Clean up tracking entry
+                        if all_acks_received:
+                            break
+
+                        # Got ACKs but not from target - keep waiting
+                        if final_ack_node:
+                            all_acks_received = True
+                            break
+
+                    time.sleep(1.0)
+
+                # Clean up tracking entries
                 with RELAY_ACK_LOCK:
-                    ack_info = PENDING_RELAY_ACKS.pop(packet_id, None)
-                    if ack_info and not final_ack_node:
-                        final_ack_node = ack_info.get('ack_node')
+                    for packet_id in packet_ids:
+                        ack_info = PENDING_RELAY_ACKS.pop(packet_id, None)
+                        if ack_info and not final_ack_node:
+                            final_ack_node = ack_info.get('ack_node')
 
-                if final_ack_received and final_ack_node:
-                    # ACK was received - send confirmation
+                if all_acks_received and final_ack_node:
+                    # All chunks ACKed
                     ack_shortname = get_node_shortname(final_ack_node)
                     success_msg = f"✅ ACK by {ack_shortname}"
                     send_direct_chunks(interface, success_msg, sender_id)
-                    clean_log(f"Relay ACK: {ack_shortname}", "✅")
+                    clean_log(f"Relay ACK: {ack_shortname} ({len(packet_ids)} chunks)", "✅")
                 else:
-                    # No ACK received within full 20-second timeout
+                    # Timeout or partial ACKs
                     failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\""
                     send_direct_chunks(interface, failure_msg, sender_id)
                     clean_log(f"Relay timeout: {target_shortname} (no ACK after {RELAY_ACK_TIMEOUT}s)", "⏱️")
@@ -12539,6 +12555,38 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
   elif cmd == "/test":
     sn = get_node_shortname(sender_id)
     return _cmd_reply(cmd, f"Hello {sn}! Received {LOCAL_LOCATION_STRING} by {AI_NODE_NAME}.")
+
+  elif cmd == "/nodes":
+    # Show all nodes seen in the last 24 hours
+    now = time.time()
+    twenty_four_hours = 24 * 60 * 60
+    recent_nodes = []
+
+    for node_key, first_seen_time in NODE_FIRST_SEEN.items():
+      # Check if node was seen in last 24 hours (using current time for last activity)
+      # We'll use the shortname cache to check if we've seen this node recently
+      try:
+        shortname = get_node_shortname(node_key)
+        if shortname:
+          # Check if node is in our cache (means we've seen it)
+          with SHORTNAME_CACHE_LOCK:
+            if node_key in SHORTNAME_TO_NODE_CACHE.values() or shortname.lower() in SHORTNAME_TO_NODE_CACHE:
+              recent_nodes.append(shortname)
+      except Exception:
+        continue
+
+    if not recent_nodes:
+      return _cmd_reply(cmd, "📡 No nodes detected in the last 24 hours.")
+
+    # Sort and create comma-separated list
+    recent_nodes.sort()
+    node_list = ", ".join(recent_nodes)
+
+    # Format response
+    count = len(recent_nodes)
+    response = f"📡 Nodes seen (last 24h): {count}\n\n{node_list}"
+
+    return _cmd_reply(cmd, response)
 
   elif cmd in {"/onboard", "/onboarding", "/onboardme"}:
     if not is_direct:
