@@ -23848,6 +23848,12 @@ def set_radio_names():
         try:
             # Use setOwner method to set long and short names
             node.setOwner(long_name=long_name, short_name=short_name if short_name else None)
+            # Write config to persist the change
+            try:
+                node.writeConfig()
+                clean_log("Writing config to persist node names...", "💾", show_always=True, rate_limit=False)
+            except Exception as e:
+                clean_log(f"Warning: Failed to write config: {e}", "⚠️", show_always=True, rate_limit=False)
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to set node names: {exc}'}), 500
 
