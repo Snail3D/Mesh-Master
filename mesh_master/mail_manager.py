@@ -368,13 +368,16 @@ class MailManager:
     ) -> None:
         if not sender_key:
             return
+        self.clean_log(f"DEBUG: _store_reply_context called for {sender_key}, {len(entries)} entries", "🐛", show_always=True)
         self._prune_reply_contexts()
         usable: List[Dict[str, Any]] = []
         name_map: Dict[str, Dict[str, Any]] = {}
         seen_nodes: Set[str] = set()
         for entry in entries:
-            node_id = str(entry.get('sender_id') or "").strip()
+            node_id = str(entry.get('node_id') or entry.get('sender_id') or "").strip()
+            self.clean_log(f"DEBUG: Entry node_id={node_id}, sender_short={entry.get('sender_short')}", "🐛", show_always=True)
             if not node_id:
+                self.clean_log(f"DEBUG: Skipping entry - no node_id found", "🐛", show_always=True)
                 continue
             short = str(entry.get('sender_short') or node_id).strip()
             index = int(entry.get('index', 0))
@@ -383,7 +386,7 @@ class MailManager:
             key = short.lower()
             record = {
                 'index': index,
-                'short': short,
+                'sender_short': short,
                 'node_id': node_id,
                 'mailbox': entry.get('mailbox'),
                 'message_id': entry.get('message_id'),
@@ -393,6 +396,7 @@ class MailManager:
                 seen_nodes.add(node_id)
                 name_map[key] = record
         if not usable:
+            self.clean_log(f"DEBUG: No usable entries, clearing context for {sender_key}", "🐛", show_always=True)
             with self._reply_lock:
                 self.reply_contexts.pop(sender_key, None)
             return
@@ -403,6 +407,7 @@ class MailManager:
                 'entries': usable,
                 'names': name_map,
             }
+        self.clean_log(f"DEBUG: Stored context for {sender_key} with {len(usable)} entries", "🐛", show_always=True)
 
     def _lookup_reply_context(self, sender_key: Optional[str]) -> Optional[Dict[str, Any]]:
         if not sender_key:
@@ -642,8 +647,10 @@ class MailManager:
                 if msg_id not in unread:
                     unread.append(msg_id)
                     needs_save = True
-                if sub.get('pending_notice') is not True:
-                    sub['pending_notice'] = True
+                # NEW: Always reset pending_notice to False when a new message arrives
+                # This ensures new messages (especially replies) trigger notifications even if previous notifications were paused
+                if sub.get('pending_notice') is not False:
+                    sub['pending_notice'] = False
                     needs_save = True
                 if self.reminders_enabled:
                     self._seed_reminders(sub, now)
@@ -837,7 +844,9 @@ class MailManager:
         if not lower.startswith('reply'):
             return None
 
+        self.clean_log(f"DEBUG: handle_reply_intent called with text='{stripped}'", "🐛", show_always=True)
         context = self._lookup_reply_context(sender_key)
+        self.clean_log(f"DEBUG: context = {context}", "🐛", show_always=True)
         if not context:
             return PendingReply(
                 "No recent inbox senders to reply to. Run `/c <mailbox>` first, then try `reply <number> <message>`.",
@@ -848,7 +857,7 @@ class MailManager:
         parts = stripped.split()
         if len(parts) < 2:
             return PendingReply(
-                "Usage: `reply <number> <message>` or `reply to <name> <message>`.",
+                "Usage: `reply <name> <message>` or `reply to <name> <message>`.",
                 "mail reply",
             )
 
@@ -865,46 +874,36 @@ class MailManager:
         idx += 1
         if idx >= len(parts):
             return PendingReply(
-                "Reply needs a message. Example: `reply 1 Thank you!`.",
+                "Reply needs a message. Example: `reply snmo Thank you!`.",
                 "mail reply",
             )
 
         message_text = " ".join(parts[idx:]).strip()
         if not message_text:
             return PendingReply(
-                "Reply needs a message. Example: `reply 1 Thank you!`.",
+                "Reply needs a message. Example: `reply snmo Thank you!`.",
                 "mail reply",
             )
 
-        entries = context.get('entries', [])
-        entry = None
-        if target_token.isdigit():
-            try:
-                desired = int(target_token)
-            except Exception:
-                desired = None
-            if desired is not None:
-                for item in entries:
-                    if item.get('index') == desired:
-                        entry = item
-                        break
+        # Only use name-based lookup (removed number-based to avoid corruption bug)
+        names = context.get('names', {})
+        lookup = target_token.lower()
+        entry = names.get(lookup)
         if entry is None:
-            names = context.get('names', {})
-            lookup = target_token.lower()
-            entry = names.get(lookup)
-            if entry is None:
-                for key, item in names.items():
-                    if key.startswith(lookup):
-                        entry = item
-                        break
+            for key, item in names.items():
+                if key.startswith(lookup):
+                    entry = item
+                    break
         if not entry:
-            hints = ", ".join(f"{item.get('index')}: {item.get('short')}" for item in entries)
+            available_names = ", ".join(sorted(names.keys()))
             return PendingReply(
-                f"I couldn't match `{target_token}` to a recent sender. Options right now: {hints}.",
+                f"I couldn't match `{target_token}` to a recent sender. Available: {available_names}",
                 "mail reply",
             )
 
         node_id = entry.get('node_id')
+        self.clean_log(f"DEBUG: Reply entry = {entry}", "🐛", show_always=True)
+        self.clean_log(f"DEBUG: node_id = {node_id}", "🐛", show_always=True)
         if not node_id:
             return PendingReply(
                 "I couldn't locate that user's radio ID. Ask them to send another message first.",
@@ -913,7 +912,8 @@ class MailManager:
 
         mailbox_name = entry.get('mailbox') or "their inbox"
         header = f"📬 Reply from {sender_short or sender_key} (via '{mailbox_name}')"
-        outbound = f"{header}\n{message_text}"
+        footer = f"\n\n💤 To stop notifications: /snooze {mailbox_name}"
+        outbound = f"{header}\n{message_text}{footer}"
 
         # Record the reply in the mailbox to trigger notifications
         stored_message = {
@@ -925,21 +925,9 @@ class MailManager:
         }
         self._record_message_append(mailbox_name, stored_message, sender_key, sender_id, sender_short or sender_key)
 
-        # Send immediate notification to recipient about the new reply
-        recipient_short = entry.get('short', 'user')
-        notification_text = f"📬 New reply in '{mailbox_name}' from {sender_short or sender_key}. Check with `/c {mailbox_name}`"
-        self._queue_event({
-            'type': 'dm',
-            'node_id': node_id,
-            'text': notification_text,
-            'meta': {
-                'kind': 'mail-notification-immediate',
-                'from': sender_key,
-                'mailbox': mailbox_name,
-            },
-        })
-
-        # Also send the actual reply message
+        # Send the reply message (removed redundant "New reply in" notification)
+        recipient_short = entry.get('sender_short', 'user')
+        self.clean_log(f"DEBUG: Queueing reply message to node_id={node_id}", "🐛", show_always=True)
         self._queue_event({
             'type': 'dm',
             'node_id': node_id,
@@ -951,14 +939,14 @@ class MailManager:
             },
         })
         ack_lines = [
-            f"📨 Sent your reply directly to {entry.get('short')}.",
+            f"📨 Sent your reply directly to {recipient_short}.",
             "👍 Mail alerts are paused for now. Want more? Try `/games`, `/trivia`, or `/bible`.",
         ]
         self.user_engaged(sender_key, node_id=sender_id, skip_prompt=True)
         self.clean_log(
-            f"Mail reply sent to {entry.get('short')} ({node_id})",
+            f"Mail reply sent to {recipient_short} ({node_id})",
             "✉️📡",
-            show_always=False,
+            show_always=True,
         )
         return PendingReply("\n".join(ack_lines), "mail reply", chunk_delay=2.0)
 
@@ -1197,22 +1185,47 @@ class MailManager:
             )
 
         messages = self.store.get_last(mailbox, self.display_max_messages)
+        # CRITICAL DEBUG: Check sender_id with pure Python access
+        if messages:
+            first_msg = messages[0]
+            print(f"CRITICAL 1: first_msg['sender_id'] = {first_msg['sender_id']}")
+            import sys
+            sys.stdout.flush()
         if not messages:
             replies = MISSING_MAILBOX_RESPONSES if not existed else EMPTY_MAILBOX_RESPONSES
             fun_reply = random.choice(replies).format(mailbox=mailbox)
             return PendingReply(fun_reply, "/c command", chunk_delay=4.0)
+        self.clean_log(f"DEBUG: get_last returned {len(messages)} messages", "🐛", show_always=True)
+        print(f"CRITICAL 2: Before enumerate loop, first_msg['sender_id'] = {messages[0]['sender_id']}")
+        import sys
+        sys.stdout.flush()
+        for i, m in enumerate(messages):
+            self.clean_log(f"DEBUG: Message {i}: sender_id={m.get('sender_id')}, sender_short={m.get('sender_short')}", "🐛", show_always=True)
+        print(f"CRITICAL 3: After enumerate loop, first_msg['sender_id'] = {messages[0]['sender_id']}")
+        sys.stdout.flush()
         ordered = list(reversed(messages))
+        print(f"CRITICAL 4: After reversed, ordered[0]['sender_id'] = {ordered[0]['sender_id']}")
+        sys.stdout.flush()
         lines = [self._format_mail_line(idx, msg) for idx, msg in enumerate(ordered, start=1)]
         mailbox_label = ordered[0].get("mailbox") or mailbox
         header = f"📥 Inbox '{mailbox_label}' (newest first, showing {len(ordered)} messages)"
         response_sections = [header] + lines
         reply_entries: List[Dict[str, Any]] = []
         for idx, msg in enumerate(ordered, start=1):
+            print(f"CRITICAL 5: In build loop idx={idx}, msg['sender_id']={msg['sender_id']}")
+            import sys
+            sys.stdout.flush()
+            sender_id_value = msg.get('sender_id')
+            print(f"CRITICAL 6: After get, sender_id_value={sender_id_value}")
+            sys.stdout.flush()
+            self.clean_log(f"DEBUG: Building entry {idx}, msg sender_id={sender_id_value}, sender_short={msg.get('sender_short')}", "🐛", show_always=True)
+            print(f"CRITICAL 7: After clean_log, sender_id_value={sender_id_value}, msg['sender_id']={msg['sender_id']}")
+            sys.stdout.flush()
             reply_entries.append(
                 {
                     'index': idx,
-                    'sender_id': msg.get('sender_id'),
-                    'sender_short': msg.get('sender_short') or msg.get('sender_id'),
+                    'node_id': sender_id_value,
+                    'sender_short': msg.get('sender_short') or sender_id_value,
                     'message_id': msg.get('id'),
                     'mailbox': mailbox_label,
                 }
@@ -1223,7 +1236,7 @@ class MailManager:
                 ""
             )
             response_sections.append(
-                "Reply with `reply <number> <message>` or `reply to <name> <message>` to DM the sender directly."
+                "Reply with `reply <name> <message>` to DM the sender directly."
             )
         response_sections.append(
             "Checking any inbox pauses all mail alerts until a new message arrives."
@@ -1546,3 +1559,35 @@ class MailManager:
             return PendingReply(f"🧹 Mailbox '{mailbox}' is now empty.", "/wipe command")
         fun_reply = random.choice(MISSING_MAILBOX_RESPONSES).format(mailbox=mailbox)
         return PendingReply(fun_reply, "/wipe command")
+
+    def handle_snooze(
+        self,
+        mailbox: str,
+        sender_key: Optional[str],
+        sender_id: Any,
+    ) -> PendingReply:
+        """Snooze notifications for a mailbox - clears reminders and marks all as read"""
+        if not mailbox:
+            return PendingReply("Mailbox name cannot be empty. Usage: /snooze mailbox", "/snooze command")
+        if not sender_key:
+            return PendingReply("Could not identify sender.", "/snooze command")
+
+        existed = self.store.mailbox_exists(mailbox)
+        if not existed:
+            fun_reply = random.choice(MISSING_MAILBOX_RESPONSES).format(mailbox=mailbox)
+            return PendingReply(fun_reply, "/snooze command")
+
+        entry = self._get_security_entry(mailbox)
+        with self.security_lock:
+            subscribers, messages = self._ensure_mailbox_state(entry)
+            sub = subscribers.get(sender_key)
+            if not sub:
+                return PendingReply(f"You're not subscribed to '{mailbox}'.", "/snooze command")
+
+            # Clear all unread and reminders
+            sub['unread'] = []
+            sub['reminders'] = {}
+            sub['pending_notice'] = False
+            self._save_security()
+
+        return PendingReply(f"💤 Snoozed notifications for '{mailbox}'. You won't get reminders until new messages arrive.", "/snooze command")

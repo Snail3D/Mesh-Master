@@ -1158,7 +1158,7 @@ def _get_command_icon(reason: str) -> str:
         return '🎓'
     if '/admin' in reason_lower or '/reboot' in reason_lower or '/hop' in reason_lower:
         return '🔐'
-    if '/mail' in reason_lower or '/checkmail' in reason_lower or 'email' in reason_lower:
+    if '/mail' in reason_lower or '/check' in reason_lower or '/checkmail' in reason_lower or 'email' in reason_lower:
         return '📬'
     if '/weather' in reason_lower:
         return '🌤️'
@@ -1698,6 +1698,21 @@ RADIO_WATCHDOG_STATE = {
     "stale_tx": 0.0,
     "generic": 0.0,
 }
+
+# Shortname relay cache: maps lowercase shortnames to node_ids
+# Updated automatically whenever a node is seen (heartbeat, message, etc.)
+SHORTNAME_TO_NODE_CACHE: Dict[str, str] = {}
+SHORTNAME_CACHE_LOCK = threading.Lock()
+
+# Relay queue system for robust handling under heavy load
+RELAY_QUEUE: queue.Queue = queue.Queue(maxsize=100)  # Limit queue size to prevent memory issues
+RELAY_WORKERS_COUNT = 3  # Number of concurrent relay worker threads
+RELAY_WORKERS_STARTED = False
+
+# Track pending relay ACKs: {packet_id: {sender_id, target_shortname, message, ack_event, ack_node}}
+PENDING_RELAY_ACKS: Dict[int, Dict[str, Any]] = {}
+RELAY_ACK_LOCK = threading.Lock()
+RELAY_ACK_TIMEOUT = 20  # seconds
 
 
 def _invoke_power_command(cmd):
@@ -7448,7 +7463,9 @@ def _format_meshtastic_context(chunks: List[Dict[str, Any]]) -> str:
 COMMAND_ALIASES: Dict[str, Dict[str, Any]] = {
     "/offline": {"canonical": "/offline", "languages": ["en"]},
     "/mail": {"canonical": "/m", "languages": ["en"]},
+    "/check": {"canonical": "/c", "languages": ["en"]},
     "/checkmail": {"canonical": "/c", "languages": ["en"]},
+    "/snooze": {"canonical": "/snooze", "languages": ["en"]},
     "/momma": {"canonical": "/yomomma", "languages": ["en"]},
     "/mommajoke": {"canonical": "/yomomma", "languages": ["en"]},
     "/yomommajoke": {"canonical": "/yomomma", "languages": ["en"]},
@@ -10337,6 +10354,170 @@ def _handle_pending_save_response(sender_id: Any, sender_key: str, text: str) ->
     return _save_conversation_for_user(origin_id, sender_key, cleaned, lang, auto_title=False)
 
 
+def _relay_worker():
+    """Worker thread that processes relay queue items."""
+    while True:
+        try:
+            # Get relay task from queue (blocks until available)
+            relay_task = RELAY_QUEUE.get(timeout=1)
+
+            sender_id = relay_task['sender_id']
+            target_shortname = relay_task['target_shortname']
+            target_node_id = relay_task['target_node_id']
+            relay_text = relay_task['relay_text']
+            message = relay_task['message']
+
+            # Send message and track packet ID for ACK monitoring
+            try:
+                if not interface:
+                    send_direct_chunks(interface, "❌ Radio interface not available", sender_id)
+                    continue
+
+                # Create threading event to wait for ACK
+                ack_event = threading.Event()
+
+                # Send WITHOUT wantAck to avoid internal timeout blocking
+                # We'll track ACKs ourselves with our own 20-second timeout
+                try:
+                    packet_id = interface.sendText(relay_text, destinationId=target_node_id, wantAck=False)
+                except Exception as send_error:
+                    # Send completely failed
+                    failure_msg = f"❌ Failed to send to {target_shortname}"
+                    send_direct_chunks(interface, failure_msg, sender_id)
+                    clean_log(f"Relay send error: {send_error}", "⚠️")
+                    continue
+
+                if not packet_id:
+                    # No packet ID - immediate failure
+                    failure_msg = f"❌ Failed to send to {target_shortname}"
+                    send_direct_chunks(interface, failure_msg, sender_id)
+                    continue
+
+                # Register this packet for ACK tracking
+                with RELAY_ACK_LOCK:
+                    PENDING_RELAY_ACKS[packet_id] = {
+                        'sender_id': sender_id,
+                        'target_shortname': target_shortname,
+                        'target_node_id': target_node_id,
+                        'message': message,
+                        'ack_event': ack_event,
+                        'ack_node': None,  # Will be set by ACK handler
+                        'timestamp': time.time()
+                    }
+
+                # Wait up to 20 seconds for ACK, but check periodically for full ACK
+                start_time = time.time()
+                final_ack_node = None
+                final_ack_received = False
+
+                while (time.time() - start_time) < RELAY_ACK_TIMEOUT:
+                    # Wait 1 second at a time so we can check for full ACK
+                    if ack_event.wait(timeout=1.0):
+                        # Got an ACK - check if it's from intended recipient
+                        with RELAY_ACK_LOCK:
+                            if packet_id in PENDING_RELAY_ACKS:
+                                ack_node = PENDING_RELAY_ACKS[packet_id].get('ack_node')
+                                if ack_node and same_node_id(ack_node, target_node_id):
+                                    # Full ACK from intended recipient - respond immediately!
+                                    final_ack_node = ack_node
+                                    final_ack_received = True
+                                    break
+                                else:
+                                    # Partial ACK from router - keep waiting for full ACK
+                                    final_ack_node = ack_node
+                                    final_ack_received = True
+                                    # Continue waiting in case we get full ACK
+                            else:
+                                # Entry removed, we got ACK
+                                final_ack_received = True
+                                break
+
+                # Clean up tracking entry
+                with RELAY_ACK_LOCK:
+                    ack_info = PENDING_RELAY_ACKS.pop(packet_id, None)
+                    if ack_info and not final_ack_node:
+                        final_ack_node = ack_info.get('ack_node')
+
+                if final_ack_received and final_ack_node:
+                    # ACK was received - send confirmation
+                    ack_shortname = get_node_shortname(final_ack_node)
+                    success_msg = f"✅ ACK by {ack_shortname}"
+                    send_direct_chunks(interface, success_msg, sender_id)
+                    clean_log(f"Relay ACK: {ack_shortname}", "✅")
+                else:
+                    # No ACK received within full 20-second timeout
+                    failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\""
+                    send_direct_chunks(interface, failure_msg, sender_id)
+                    clean_log(f"Relay timeout: {target_shortname} (no ACK after {RELAY_ACK_TIMEOUT}s)", "⏱️")
+
+            except Exception as e:
+                # Unexpected error in worker
+                dprint(f"Relay worker exception: {e}")
+                failure_msg = f"❌ Relay error to {target_shortname}"
+                send_direct_chunks(interface, failure_msg, sender_id)
+
+        except queue.Empty:
+            # Queue empty, loop will continue
+            continue
+        except Exception as e:
+            dprint(f"Relay worker error: {e}")
+        finally:
+            # Mark task as done
+            try:
+                RELAY_QUEUE.task_done()
+            except Exception:
+                pass
+
+
+def _start_relay_workers():
+    """Start relay worker pool (called once at startup)."""
+    global RELAY_WORKERS_STARTED
+    if RELAY_WORKERS_STARTED:
+        return
+
+    for i in range(RELAY_WORKERS_COUNT):
+        worker = threading.Thread(target=_relay_worker, daemon=True, name=f"RelayWorker-{i+1}")
+        worker.start()
+
+    RELAY_WORKERS_STARTED = True
+    clean_log(f"Started {RELAY_WORKERS_COUNT} relay workers", "📨", show_always=False)
+
+
+def _handle_shortname_relay(
+    sender_id: Any,
+    sender_key: str,
+    target_shortname: str,
+    target_node_id: str,
+    message: str
+) -> Optional[PendingReply]:
+    """Handle shortname-first relay: 'snmo hello' -> relay to SnMo with reply option."""
+    sender_short = get_node_shortname(sender_id)
+
+    # Ensure relay workers are started
+    _start_relay_workers()
+
+    # Send the relay message to target - no mail system involvement
+    relay_text = f"📨 Relay from {sender_short}:\n{message}\n\n💬 To reply: {sender_short.lower()} <your message>"
+
+    # Add to relay queue (non-blocking with timeout)
+    relay_task = {
+        'sender_id': sender_id,
+        'target_shortname': target_shortname,
+        'target_node_id': target_node_id,
+        'relay_text': relay_text,
+        'message': message
+    }
+
+    try:
+        RELAY_QUEUE.put(relay_task, block=False)
+    except queue.Full:
+        # Queue is full - reject relay
+        return PendingReply(f"⚠️ Relay queue full. Try again in a moment.", "shortname relay")
+
+    # Return None - no immediate response
+    # User will get "✅ ACK by {shortname}" or "❌ No ACK from {shortname}" async
+    return None
+
 def _handle_exit_session(sender_key: Optional[str]) -> PendingReply:
     session = _clear_context_session(sender_key)
     if session:
@@ -10862,6 +11043,45 @@ def get_node_shortname(node_id):
         user_dict = interface.nodes[node_id].get("user", {})
         return user_dict.get("shortName", f"Node_{node_id}")
     return f"Node_{node_id}"
+
+def update_shortname_cache(node_id, shortname=None):
+    """Update the shortname-to-node_id cache. Auto-extracts shortname if not provided."""
+    global SHORTNAME_TO_NODE_CACHE
+    if not node_id:
+        return
+
+    # Auto-extract shortname if not provided
+    if shortname is None:
+        shortname = get_node_shortname(node_id)
+
+    # Only cache real shortnames (not "Node_xxx" fallbacks)
+    if shortname and not shortname.startswith("Node_"):
+        with SHORTNAME_CACHE_LOCK:
+            SHORTNAME_TO_NODE_CACHE[shortname.lower()] = str(node_id)
+
+def get_node_id_from_shortname(shortname):
+    """Lookup node_id by shortname (case-insensitive). Returns None if not found."""
+    if not shortname:
+        return None
+
+    # First check cache
+    with SHORTNAME_CACHE_LOCK:
+        cached = SHORTNAME_TO_NODE_CACHE.get(shortname.lower())
+    if cached:
+        return cached
+
+    # Fallback: search interface.nodes directly
+    if interface and hasattr(interface, "nodes"):
+        shortname_lower = shortname.lower()
+        for node_id, node_data in interface.nodes.items():
+            user_dict = node_data.get("user", {})
+            node_short = user_dict.get("shortName", "")
+            if node_short.lower() == shortname_lower:
+                # Cache it for next time
+                update_shortname_cache(node_id, node_short)
+                return str(node_id)
+
+    return None
 
 def _to_int_node(x):
   try:
@@ -12502,6 +12722,20 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
 
     return _cmd_reply(cmd, "Unknown wipe option. Use /wipe mailbox <name> | /wipe chathistory | /wipe personality | /wipe all <name>.")
 
+  elif cmd == "/snooze":
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key:
+      return _cmd_reply(cmd, "⚠️ I couldn't identify your DM session. Try again in a moment.")
+
+    mailbox = full_text[len(cmd):].strip()
+    if not mailbox:
+      return _cmd_reply(cmd, "💤 Usage: /snooze <mailbox> — Stops notifications for that inbox until new messages arrive.")
+
+    reply = MAIL_MANAGER.handle_snooze(mailbox, sender_key, sender_id)
+    return reply
+
   elif cmd == "/emailhelp":
     guide = (
       "📬 Mesh Mail Quickstart (DM only):\n"
@@ -12817,22 +13051,47 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     return _cmd_reply(cmd, f"{summary}\n\nCommand renamed. Use `/vibe` for vibe controls.")
 
   elif cmd == "/help":
-    built_in = [
-      "/about", "/menu", "/mail", "/checkmail", "/emailhelp", "/wipe",
-      "/test",
-      "/motd", "/meshinfo", "/bible", "/biblehelp", "/web", "/wiki", "/find", "/report", "/log", "/drudge", "/chucknorris", "/elpaso", "/blond", "/yomomma",
-      "/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/wordladder", "/adventure", "/rps", "/coinflip", "/cipher", "/quizbattle", "/morse",
-      "/vibe", "/chathistory", "/changemotd", "/changeprompt", "/showprompt", "/printprompt", "/reset"
-    ]
-    admin_note = ""
-    if sender_key and sender_key in AUTHORIZED_ADMINS:
-      built_in.extend(["/showmodel", "/selectmodel"])
-      admin_note = "\nAdmin tools: /showmodel, /selectmodel"
-    custom_cmds = [c.get("command") for c in commands_config.get("commands", [])]
-    help_text = "Commands:\n" + ", ".join(built_in + custom_cmds)
-    help_text += "\nNote: /vibe, /chathistory, /changeprompt, /changemotd, /showprompt, and /printprompt are DM-only."
-    help_text += admin_note
-    help_text += "\nBrowse highlights with /menu."
+    from mesh_master.help_database import search_help, format_help_entry, get_all_categories
+
+    # Extract search query from command
+    search_query = full_text[len(cmd):].strip()
+
+    if not search_query:
+      # No search query - show categories and usage
+      categories = get_all_categories()
+      help_text = "📚 MESH MASTER HELP\n\n"
+      help_text += "Usage: /help <search>\n\n"
+      help_text += "Categories:\n" + ", ".join(categories)
+      help_text += "\n\nExamples:\n"
+      help_text += "  /help mail\n"
+      help_text += "  /help games\n"
+      help_text += "  /help weather\n"
+      help_text += "  /help relay\n\n"
+      help_text += "Or browse with /menu"
+      return _cmd_reply(cmd, help_text)
+
+    # Search help database
+    results = search_help(search_query, max_results=3)
+
+    if not results:
+      help_text = f"❓ No help found for '{search_query}'.\n\n"
+      help_text += "Try: /help (to see all categories)\n"
+      help_text += "Or: /menu (to browse features)"
+      return _cmd_reply(cmd, help_text)
+
+    # Format results
+    if len(results) == 1:
+      # Single result - show full details
+      command, entry = results[0]
+      help_text = format_help_entry(command, entry, include_examples=True)
+    else:
+      # Multiple results - show summaries
+      help_text = f"📚 Help results for '{search_query}':\n\n"
+      for i, (command, entry) in enumerate(results, 1):
+        help_text += f"{i}. {command}\n"
+        help_text += f"   {entry.get('description', 'No description')}\n"
+        help_text += f"   Usage: {entry.get('usage', 'N/A')}\n\n"
+
     return _cmd_reply(cmd, help_text)
 
 
@@ -14300,6 +14559,32 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       if check_only:
         return False
       return _process_admin_password(sender_id, text)
+
+    # Shortname relay: "snmo hello there" -> relay to SnMo
+    # Check if message starts with a known shortname
+    words = text.split(None, 1)  # Split into [shortname, rest_of_message]
+    if len(words) >= 2:
+      potential_shortname = words[0]
+      target_node_id = get_node_id_from_shortname(potential_shortname)
+      dprint(f"[RELAY DEBUG] potential_shortname={potential_shortname}, target_node_id={target_node_id}, sender_id={sender_id}")
+      dprint(f"[RELAY DEBUG] Cache contents: {SHORTNAME_TO_NODE_CACHE}")
+      # Only relay if target exists and is NOT the sender (prevent self-relay)
+      if target_node_id and not same_node_id(target_node_id, sender_id):
+        # Found a match! Relay the message
+        if check_only:
+          return True
+        message_body = words[1]
+        clean_log(f"Relaying message to {potential_shortname}", "📨")
+        return _handle_shortname_relay(
+          sender_id=sender_id,
+          sender_key=sender_key,
+          target_shortname=potential_shortname,
+          target_node_id=target_node_id,
+          message=message_body
+        )
+      else:
+        dprint(f"[RELAY DEBUG] No relay - target_node_id={target_node_id}, same_node={same_node_id(target_node_id, sender_id) if target_node_id else 'N/A'}")
+
   message_mode = get_message_mode()
   # If blocked, suppress everything except 'unblock' handled above
   if sender_key and _is_user_blocked(sender_key):
@@ -14356,6 +14641,30 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   admin_control_preview = False
   if text.startswith("/"):
     raw_cmd_lower = text.split()[0].lower()
+
+    # Check if this is a /shortname relay command (e.g., /snmo hello)
+    if is_direct and sender_key and len(text) > 1:
+      potential_shortname = raw_cmd_lower[1:]  # Remove the '/' to get shortname
+      target_node_id = get_node_id_from_shortname(potential_shortname)
+
+      # Only relay if target exists and is NOT the sender
+      if target_node_id and not same_node_id(target_node_id, sender_id):
+        # This is a /shortname relay command
+        if check_only:
+          return True
+
+        # Extract message (everything after the /shortname)
+        message_body = text[len(raw_cmd_lower):].strip()
+        if message_body:
+          clean_log(f"Relaying message to {potential_shortname}", "📨")
+          return _handle_shortname_relay(
+            sender_id=sender_id,
+            sender_key=sender_key,
+            target_shortname=potential_shortname,
+            target_node_id=target_node_id,
+            message=message_body
+          )
+
     # Admin alias creation: '/new=/old' or '/old = /new' form
     if is_direct and sender_key and sender_key in AUTHORIZED_ADMINS and ('=' in raw_cmd_lower or '=' in text):
       alias_reply = _admin_try_define_command_alias(text, sender_key)
@@ -14725,13 +15034,42 @@ def on_receive(packet=None, interface=None, **kwargs):
   except Exception as exc:
     clean_log(f"Mailbox heartbeat error: {exc}", "⚠️")
 
+  # Update shortname cache whenever we see a node
+  try:
+    update_shortname_cache(sender_node)
+  except Exception as exc:
+    dprint(f"Shortname cache update error: {exc}")
+
   # continue processing
   try:
     globals()['last_rx_time'] = _now()
   except Exception:
     pass
-  
+
   portnum = decoded.get('portnum')
+
+  # Check for ROUTING_APP (ACK/NAK) packets for relay tracking
+  if portnum == 'ROUTING_APP' or (isinstance(portnum, int) and portnum == 3):
+    # This is a routing packet - might be an ACK
+    try:
+      # Get request_id from packet (this is what we're ACKing)
+      request_id = packet.get('requestId') if isinstance(packet, dict) else None
+
+      if request_id:
+        with RELAY_ACK_LOCK:
+          if request_id in PENDING_RELAY_ACKS:
+            # This is an ACK for a relay we're tracking
+            relay_info = PENDING_RELAY_ACKS[request_id]
+            # Convert sender_node to string to avoid unhashable type issues
+            relay_info['ack_node'] = str(sender_node) if sender_node else None
+            ack_event = relay_info.get('ack_event')
+            if ack_event:
+              ack_event.set()  # Signal the waiting relay worker
+            dprint(f"[RELAY ACK] Received ACK from {sender_node} for packet {request_id}")
+    except Exception as e:
+      dprint(f"Error processing routing packet: {e}")
+    return  # Don't process routing packets further
+
   # Accept string or int for TEXT_MESSAGE_APP (1)
   is_text = False
   try:
