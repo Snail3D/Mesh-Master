@@ -9318,9 +9318,14 @@ def process_responses_worker():
                 
             # Unpack the task
             text, sender_node, is_direct, ch_idx, thread_root_ts, interface_ref = task
-            
+
+            # Track processing time
+            start_time = time.time()
+
             # Generate response (can take a long time)
             resp = parse_incoming_text(text, sender_node, is_direct, ch_idx, thread_root_ts=thread_root_ts)
+
+            processing_time = time.time() - start_time
 
             if resp:
                 response_text, pending, already_sent = _normalize_ai_response(resp)
