@@ -13506,7 +13506,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     numbered_context = (
       "MeshTastic reference excerpts (authoritative):\n"
       f"{context}\n\n"
-      "Instructions: rely strictly on these excerpts. If the answer is missing, respond exactly `I don't have enough MeshTastic data for that.`"
+      "Instructions: Use these excerpts as your primary source. You may use general knowledge about Meshtastic and LoRa if needed to fill gaps, but prioritize the excerpts. If you truly don't know, say so."
     )
     system_prompt = MESHTASTIC_KB_SYSTEM_PROMPT
     question_block = f"Question: {query}\nProvide a concise answer. Cite supporting excerpt numbers in square brackets."
@@ -15699,6 +15699,14 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
           remainder = f"{alias_append}{remainder}"
         text = canonical_cmd + remainder
       resp = handle_command(canonical_cmd, text, sender_id, is_direct=is_direct, channel_idx=channel_idx, thread_root_ts=thread_root_ts, language_hint=language_hint)
+      # If command handler returns None, it wants to pass through to AI (e.g., /system command)
+      if resp is None:
+        # Extract the query part after the command for AI processing
+        query = text[len(canonical_cmd):].strip()
+        if is_direct and query:
+          return get_ai_response(query, sender_id=sender_id, is_direct=True, channel_idx=channel_idx, thread_root_ts=thread_root_ts)
+        # If no query or not direct, return None
+        return None
       if notice_reason:
         resp = annotate_command_response(resp, raw_cmd, canonical_cmd, notice_reason, language_hint)
       return resp
