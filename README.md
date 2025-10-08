@@ -10,6 +10,8 @@
 ---
 
 ## 2.1 Headline Upgrades
+- **Network Bridge Relay with ACK Tracking** — Forward messages to any node by shortname: `snmo hello there` or `/snmo hello there`. Real-time ACK confirmation shows which node acknowledged. Multi-chunk support for long messages. Acts as a bridge across multiple mesh networks—if this node sees networks A and B, users on network A can relay to users on network B seamlessly.
+- **Cross-Network Node Discovery** — `/nodes` lists all nodes seen in the last 24 hours across all channels/networks. Comma-separated, sorted display shows who's reachable for relay messaging. Perfect for discovering nodes on other networks.
 - **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard.
 - **Private Logs & Public Reports** — `/log` creates private entries visible only to you; `/report` creates public entries searchable by everyone via `/find`. Perfect for personal notes vs. team-wide information sharing.
 - **Enhanced Dashboard** — Real-time activity feed, radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector.
@@ -25,9 +27,36 @@
 
 ## Feature Overview
 
+### Network Bridge Relay System
+MESH MASTER 2.1 can act as a relay bridge between multiple mesh networks, enabling communication across network boundaries.
+
+**How It Works:**
+- Send messages to any node by shortname: `snmo hello there` or `/snmo hello there`
+- Real-time ACK tracking with 20-second timeout
+- Confirmation shows which node acknowledged: `✅ ACK by NodeName` or `❌ No ACK from NodeName`
+- Multi-chunk support automatically handles long messages (tracks ACKs for all chunks)
+- Queue-based architecture handles relay bursts safely (3 concurrent workers, 100-item queue)
+
+**Cross-Network Bridge:**
+If MESH MASTER is connected to multiple networks (e.g., SnailNet + MainChannel), it acts as a bridge:
+- Users on SnailNet can relay to users on MainChannel and vice versa
+- `/nodes` command shows all reachable nodes across all networks
+- Seamless multi-network communication without manual routing
+
+**Example Use Case:**
+```
+Network A: Alice, Bob, MESH-MASTER
+Network B: Charlie, MESH-MASTER
+
+Alice (on Network A): "charlie how's the weather?"
+MESH-MASTER relays across network boundary
+Charlie receives message, ACKs back
+Alice gets: "✅ ACK by Charlie"
+```
+
 ### Persistent Mesh Intelligence
-- End-to-end message history survives restarts (`messages_archive.json`) with configurable limits.  
-- Background async workers keep RX/TX responsive while Ollama generates replies.  
+- End-to-end message history survives restarts (`messages_archive.json`) with configurable limits.
+- Background async workers keep RX/TX responsive while Ollama generates replies.
 - Tone and personalities can be adjusted at runtime with `/vibe`; the core system prompt is fixed. MOTD can be updated via DM-only admin commands.
 
 ### Mesh Mail & Collaboration
