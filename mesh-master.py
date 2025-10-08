@@ -14101,7 +14101,14 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   if not check_only:
     channel_type = "DM" if is_direct else "Channel"
     incoming_emoji = "📩" if is_direct else "💬"
-    clean_log(f"Incoming {channel_type} message", incoming_emoji)
+    # Check if message is a command and show command with its emoji
+    message_preview = text.strip() if text else ""
+    if message_preview.startswith('/'):
+        command_part = message_preview.split()[0] if message_preview else ""
+        command_icon = _get_command_icon(command_part)
+        clean_log(f"Incoming {channel_type}: {command_part}", command_icon)
+    else:
+        clean_log(f"Incoming {channel_type} message", incoming_emoji)
   text = text.strip()
   if not text:
     return None if not check_only else False
