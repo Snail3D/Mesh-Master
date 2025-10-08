@@ -13057,6 +13057,38 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
         if hops_away is not None:
           node_info.append(f"🔀 Hops: {hops_away}")
 
+        # Battery and Power Status
+        device_metrics = node_data.get("deviceMetrics", {})
+        if isinstance(device_metrics, dict):
+          battery_level = device_metrics.get("batteryLevel")
+          voltage = device_metrics.get("voltage")
+
+          # Check if powered (voltage typically > 4.2V when plugged in, or batteryLevel = 101)
+          if battery_level == 101:
+            node_info.append(f"🔌 Power: Plugged In")
+          elif battery_level is not None and battery_level > 0:
+            # On battery
+            if battery_level >= 75:
+              battery_icon = "🔋"
+            elif battery_level >= 50:
+              battery_icon = "🔋"
+            elif battery_level >= 25:
+              battery_icon = "🪫"
+            else:
+              battery_icon = "🪫"
+
+            # Check if charging (voltage > 4.2V typically means charging)
+            if voltage and voltage > 4.2:
+              node_info.append(f"{battery_icon} Battery: {battery_level}% (Charging)")
+            else:
+              node_info.append(f"{battery_icon} Battery: {battery_level}%")
+          elif voltage is not None:
+            # Only voltage available
+            if voltage > 4.2:
+              node_info.append(f"🔌 Power: {voltage:.2f}V (Plugged In)")
+            else:
+              node_info.append(f"🔋 Voltage: {voltage:.2f}V")
+
         response = "\n".join(node_info)
         return _cmd_reply(cmd, response)
 
