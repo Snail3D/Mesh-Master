@@ -17959,6 +17959,7 @@ def dashboard():
     let logAutoScroll = true;
     let logUserScrolling = false;
     let logScrollTimeout = null;
+    let logAutoResumeTimeout = null;
     let logScrollBound = false;
     let logLastMessageAt = Date.now();
     let heartbeatTimer = null;
@@ -21431,6 +21432,7 @@ def dashboard():
       logbox.addEventListener("scroll", () => {
         logUserScrolling = true;
         clearTimeout(logScrollTimeout);
+        clearTimeout(logAutoResumeTimeout);
         const nearBottom = logbox.scrollHeight - logbox.scrollTop <= logbox.clientHeight + 12;
         if (nearBottom) {
           logAutoScroll = true;
@@ -21438,6 +21440,12 @@ def dashboard():
         } else {
           logAutoScroll = false;
           setActivityScrollLabel("Paused", false);
+          // Auto-resume scrolling after 20 seconds
+          logAutoResumeTimeout = setTimeout(() => {
+            logAutoScroll = true;
+            setActivityScrollLabel("Streaming", true);
+            scrollActivityToBottom(false);
+          }, 20000);
         }
         logScrollTimeout = setTimeout(() => { logUserScrolling = false; }, 600);
       });
