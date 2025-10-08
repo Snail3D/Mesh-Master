@@ -576,21 +576,13 @@ def build_system_context(config: Dict[str, Any], interface=None, user_query: Opt
         Complete context string (~50k tokens)
     """
 
+    # Lightweight context - only commands to avoid Ollama timeout on RPi
     context_parts = [
         "=" * 80,
-        "MESH-MASTER SYSTEM CONTEXT",
+        "MESH-MASTER COMMAND REFERENCE",
         "=" * 80,
         "",
-        "This is comprehensive system documentation to help answer user questions",
-        "about MESH-MASTER features, commands, and architecture.",
-        "",
-        build_settings_section(config, interface),
-        "",
         build_commands_section(),
-        "",
-        build_architecture_section(),
-        "",
-        build_features_section(),
         "",
         "=" * 80,
     ]
