@@ -16,7 +16,7 @@ Context includes:
 
 import time
 from typing import Dict, Any, Optional
-from .help_database import COMMAND_HELP_DB
+from .help_database import HELP_DATABASE
 
 
 def get_github_version() -> str:
@@ -82,7 +82,7 @@ def build_commands_section() -> str:
         "Other": []
     }
 
-    for cmd, info in sorted(COMMAND_HELP_DB.items()):
+    for cmd, info in sorted(HELP_DATABASE.items()):
         category = info.get("category", "Other")
         if category not in sections:
             sections[category] = []
