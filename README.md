@@ -12,7 +12,7 @@
 ## 2.5 Headline Upgrades
 - **Network Bridge Relay with ACK Tracking** — Forward messages to any node by shortname: `snmo hello there` or `/snmo hello there`. Real-time ACK confirmation shows which node acknowledged. Multi-chunk support for long messages. Acts as a bridge across multiple mesh networks—if this node sees networks A and B, users on network A can relay to users on network B seamlessly. **NEW:** Offline message queue stores failed relays and automatically delivers when recipient comes online (up to 3 attempts, 24-hour expiry).
 - **Relay Privacy Controls** — `/optout` disables receiving relays (others can't relay to you), `/optin` re-enables. Privacy preferences persist across reboots and updates in `data/relay_optout.json`.
-- **Cross-Network Node Discovery** — `/nodes` lists all nodes seen in the last 24 hours across all channels/networks (sorted newest first). `/node <shortname>` shows detailed signal info (SNR, signal strength, last heard, hops) with modem-aware thresholds. `/networks` lists all connected channels.
+- **Cross-Network Node Discovery** — `/nodes` lists all nodes seen in the last 24 hours across all channels/networks (sorted newest first). `/node <shortname>` shows detailed signal info (SNR, signal strength, last heard, hops, battery level, power status) with modem-aware thresholds. `/networks` lists all connected channels.
 - **Context-Aware AI Help** — `/system <question>` provides AI responses with full system awareness (~50k token context including all commands, architecture, your settings, network state). Auto-activates during onboarding and after `/help` or `/menu` for seamless learning.
 - **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard. Context-aware help available at any step.
 - **Private Logs & Public Reports** — `/log` creates private entries visible only to you; `/report` creates public entries searchable by everyone via `/find`. **NEW:** Fuzzy matching with "Did you mean" suggestions for misspelled names. Command aliases: `/readlog`, `/readlogs`, `/checklog`, `/checklogs` (logs) and `/readreport`, `/readreports`, `/checkreport`, `/checkreports` (reports).
@@ -20,7 +20,7 @@
 - **Enhanced Dashboard** — Real-time activity feed (20-line mobile-optimized view), radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector. Accessible on mobile devices via `http://<your-ip>:5000/dashboard`.
 - **Data Persistence** — All user data (logs, reports, mail, settings, game states, relay preferences) now protected by `.gitignore` and persists across git updates and system reboots.
 - **Mesh Mail** — PIN-protected inboxes, multi-user notifications, and one-shot llama summaries keep longer messages flowing across the mesh.
-- **Game Hub** — Chess & Checkers duels, Blackjack, Yahtzee rounds, Tic-Tac-Toe, Hangman, Wordle, Word Ladder, Adventure stories, Cipher drills, Bingo, Morse, Rock–Paper–Scissors, Coinflip, Quiz Battle, and more—all DM-friendly and multilingual.
+- **Game Hub** — Chess & Checkers duels, Blackjack, Yahtzee rounds, Tic-Tac-Toe, Hangman, Wordle, Word Ladder, Adventure stories, Cipher drills, Bingo, Morse, Rock–Paper–Scissors, Coinflip, Quiz Battle, **Mesh Master Quiz** (`/masterquiz` - 50 comprehensive questions), **Meshtastic Quiz** (`/meshtasticquiz` - 50 detailed questions), and more—all DM-friendly and multilingual.
 - **Adaptive Personalities & Context Capsules** — `/aipersonality` and `/save`/`/recall` tune the assistant instantly while persistent archives keep continuity across restarts.
 - **Offline Knowledge on Tap** — Trimmed MeshTastic handbook, offline wiki lookups, and cached expert answers deliver verified guidance without leaving the mesh.
 - **Simplified Activity Logs** — Icon-based notifications (📨 incoming, 📖 Bible, 🎮 Game, 🤖 AI, etc.) with no message content or node names for privacy and reduced clutter.
@@ -87,11 +87,15 @@ MESH MASTER 2.5 includes an intelligent help system that provides AI responses w
 - See `docs/mail_readme.md` for deep-dive internals.
 
 ### Game Hub & Morale Tools
-- `/games` lists every title with quick descriptions and command hints.  
-- Story-driven `/adventure` adapts to the chat language and offers branching outcomes.  
-- `/wordladder` teammates can collaboratively bridge start/end words, asking the llama for hints on demand.  
-- Manage risk in `/blackjack`, push streaks in `/yahtzee`, or rally the squad with `/games` for the full list.  
+- `/games` lists every title with quick descriptions and command hints.
+- Story-driven `/adventure` adapts to the chat language and offers branching outcomes.
+- `/wordladder` teammates can collaboratively bridge start/end words, asking the llama for hints on demand.
+- Manage risk in `/blackjack`, push streaks in `/yahtzee`, or rally the squad with `/games` for the full list.
 - Fast laughs with `/rps`, `/coinflip`, and `/quizbattle`; puzzle practice with `/cipher`, `/morse`, `/hangman`, `/wordle`.
+- **Comprehensive Quiz Games:**
+  - `/masterquiz` — 50 questions covering all Mesh Master features (relay, logs, reports, commands, mail, offline queue, dashboard, wiki, games)
+  - `/meshtasticquiz` — 50 questions about Meshtastic (LoRa, mesh networking, node roles, SNR, presets, security, best practices)
+  - Answer with 1-4 or a-d, check score anytime, auto-shuffled questions for replay value
 
 ### Knowledge & Research Aids
 - `/meshtastic <question>` consults a curated ~25k token field guide with a warm cache for instant follow-ups.
