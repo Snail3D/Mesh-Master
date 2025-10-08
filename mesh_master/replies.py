@@ -10,3 +10,4 @@ class PendingReply:
     pre_send_delay: Optional[float] = None
     follow_up_text: Optional[str] = None
     follow_up_delay: Optional[float] = None
+    send_reply: bool = True  # Set to False for silent operations (e.g., relay queuing)
