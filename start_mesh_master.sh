@@ -20,11 +20,19 @@ cleanup_lock() {
 # Set trap to clean up on exit (only applies to foreground mode)
 trap cleanup_lock EXIT
 
+# Check for and clean up any orphaned mesh-master processes
+ORPHANED_PIDS=$(pgrep -f "python.*mesh-master\.py" || true)
+if [ -n "$ORPHANED_PIDS" ]; then
+  echo "Found orphaned mesh-master processes, cleaning up..."
+  pkill -f "python.*mesh-master\.py" || true
+  sleep 2
+fi
+
 # Check if another instance is already running
 if [ -f "$LOCK_FILE" ]; then
   LOCK_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
   if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
-    echo "ERROR: mesh-master is already running (PID: $LOCK_PID)"
+    echo "❌ Another mesh-master instance appears to be running (PID $LOCK_PID). Exiting."
     echo "If this is incorrect, remove the lock file: $LOCK_FILE"
     exit 1
   else
