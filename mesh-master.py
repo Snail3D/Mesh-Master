@@ -1145,6 +1145,39 @@ def clean_log(message, emoji="📝", show_always=False, rate_limit=True):
         smooth_print(f"[Info] {message}")
 
 
+def _get_command_icon(reason: str) -> str:
+    """Get icon emoji based on command/response type"""
+    reason_lower = reason.lower()
+
+    # Command-specific icons
+    if '/bible' in reason_lower or 'bible' in reason_lower:
+        return '📖'
+    if '/game' in reason_lower or 'blackjack' in reason_lower or 'wordle' in reason_lower or 'hangman' in reason_lower or 'yahtzee' in reason_lower:
+        return '🎮'
+    if '/onboard' in reason_lower:
+        return '🎓'
+    if '/admin' in reason_lower or '/reboot' in reason_lower or '/hop' in reason_lower:
+        return '🔐'
+    if '/mail' in reason_lower or '/checkmail' in reason_lower or 'email' in reason_lower:
+        return '📬'
+    if '/weather' in reason_lower:
+        return '🌤️'
+    if '/log' in reason_lower or '/report' in reason_lower:
+        return '📝'
+    if '/web' in reason_lower or 'wiki' in reason_lower:
+        return '🌐'
+    if '/alarm' in reason_lower or '/timer' in reason_lower or '/stopwatch' in reason_lower:
+        return '⏱️'
+    if '/joke' in reason_lower or '/chucknorris' in reason_lower or '/blond' in reason_lower:
+        return '😂'
+    if '/help' in reason_lower or '/menu' in reason_lower:
+        return '❓'
+    if 'ai' in reason_lower or 'assistant' in reason_lower:
+        return '🤖'
+
+    # Default
+    return '📤'
+
 def _cmd_reply(cmd: Optional[str], message: str) -> PendingReply:
     reason = f"{cmd} command" if cmd else "command reply"
     return PendingReply(str(message), reason)
@@ -1356,7 +1389,7 @@ def _classify_log_line(line: str) -> str:
     return 'error'
   if '📨' in line:
     return 'incoming'
-  if '📤' in line or '📡' in line:
+  if any(icon in line for icon in ['📖', '🎮', '🎓', '🔐', '📬', '🌤️', '📝', '🌐', '⏱️', '😂', '❓', '🤖', '📤', '📡']):
     return 'outgoing'
   if 'local time' in lowered or 'uptime' in lowered:
     return 'clock'
@@ -1369,7 +1402,20 @@ _LOG_UUID_PATTERN = re.compile(r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 _LOG_MULTI_SPACE = re.compile(r'\s+')
 
 _LOG_SUMMARY_RULES: Sequence[Tuple[re.Pattern[str], str, Optional[str]]] = (
-    (re.compile(r'📨\s*message from', re.IGNORECASE), '📨 Message received', 'Message received'),
+    (re.compile(r'📨\s*Incoming', re.IGNORECASE), '📨 Incoming message', None),
+    (re.compile(r'📖\s*Automated response', re.IGNORECASE), '📖 Bible response', None),
+    (re.compile(r'🎮\s*Automated response', re.IGNORECASE), '🎮 Game response', None),
+    (re.compile(r'🎓\s*Automated response', re.IGNORECASE), '🎓 Onboarding', None),
+    (re.compile(r'🔐\s*Automated response', re.IGNORECASE), '🔐 Admin command', None),
+    (re.compile(r'📬\s*Automated response', re.IGNORECASE), '📬 Mail response', None),
+    (re.compile(r'🌤️\s*Automated response', re.IGNORECASE), '🌤️ Weather', None),
+    (re.compile(r'📝\s*Automated response', re.IGNORECASE), '📝 Log/Report', None),
+    (re.compile(r'🌐\s*Automated response', re.IGNORECASE), '🌐 Web search', None),
+    (re.compile(r'⏱️\s*Automated response', re.IGNORECASE), '⏱️ Timer/Alarm', None),
+    (re.compile(r'😂\s*Automated response', re.IGNORECASE), '😂 Joke', None),
+    (re.compile(r'❓\s*Automated response', re.IGNORECASE), '❓ Help', None),
+    (re.compile(r'🤖\s*AI response', re.IGNORECASE), '🤖 AI response', None),
+    (re.compile(r'📤\s*Automated response', re.IGNORECASE), '📤 Response sent', None),
     (re.compile(r'notification sent', re.IGNORECASE), '📬 Notification', 'Notification sent'),
     (re.compile(r'mail notification queued', re.IGNORECASE), '📬 Notification queued', None),
     (re.compile(r'mail notification sent', re.IGNORECASE), '📬 Notification sent', None),
@@ -1808,6 +1854,7 @@ MOTD_FILE = "data/motd.json"
 LOG_FILE = "messages.log"
 ARCHIVE_FILE = "messages_archive.json"
 FEATURE_FLAGS_FILE = "data/feature_flags.json"
+ONBOARDING_STATE_FILE = "data/onboarding_state.json"
 
 print("Loading config files...")
 
@@ -1874,7 +1921,7 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
     ),
     (        "mesh_interface",
         {
-            "label": "Mesh Interface",
+            "label": "Serial Connection",
             "keys": ["use_mesh_interface", "serial_port", "serial_baud"],
         },
     ),
@@ -1906,7 +1953,6 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
             "label": "Ollama",
             "keys": [
                 "ollama_url",
-                "ollama_model",
                 "ollama_timeout",
                 "ollama_context_chars",
                 "ollama_num_ctx",
@@ -1933,7 +1979,7 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         "messaging",
         {
             "label": "Messaging",
-            "keys": ["reply_in_channels", "reply_in_directs", "channel_names"],
+            "keys": ["reply_in_channels", "reply_in_directs"],
         },
     ),
     (
@@ -2597,11 +2643,194 @@ def _initialize_feature_flags() -> None:
     data = _load_feature_flags_from_disk()
     with _feature_flags_lock:
         _apply_feature_flags(data)
+    # Ensure config.json admins are persisted to feature flags
+    if _INITIAL_ADMIN_WHITELIST:
+        snapshot = get_feature_flags_snapshot()
+        current = set(snapshot.get("admin_whitelist", []))
+        initial_set = set(_INITIAL_ADMIN_WHITELIST)
+        if not initial_set.issubset(current):
+            combined = current | initial_set
+            update_feature_flags(admin_whitelist=sorted(combined))
 
 
 def get_feature_flags_snapshot() -> Dict[str, Any]:
     with _feature_flags_lock:
         return dict(_feature_flags)
+
+
+# ============================================================================
+# ONBOARDING STATE MANAGEMENT
+# ============================================================================
+
+_onboarding_lock = threading.Lock()
+_onboarding_state: Dict[str, Any] = {
+    "users": {},
+    "settings": {
+        "auto_onboard_new_users": True,
+        "daily_reminders_enabled": True,
+        "reminder_check_hour": 10,
+        "reminder_quiet_start": 20,
+        "reminder_quiet_end": 8,
+        "custom_welcome_message": ""
+    }
+}
+
+ONBOARDING_STEPS = [
+    {
+        "id": "welcome",
+        "title": "Welcome to MESH-MASTER!",
+        "message": "👋 Hi! I'm MESH-MASTER, your helper bot!\n\nWhat can I do?\n• Send messages to people\n• Play games\n• Answer your questions\n• Check the weather\n• And much more!\n\nLet's take a quick tour.\n\nType 'next' to continue or 'skip' to skip."
+    },
+    {
+        "id": "menu",
+        "title": "The Main Menu",
+        "message": "📋 MAIN MENU\n\nType /menu anytime to see all my features!\n\nThe menu shows:\n• All available commands\n• Games you can play\n• Tools you can use\n• Settings you can change\n\nIt's your control center!\n\nType 'next' or 'skip'"
+    },
+    {
+        "id": "email",
+        "title": "Sending Messages",
+        "message": "📬 MESH MAIL\n\nSend messages to anyone on the mesh:\n• Type /mail to send a message\n• Type /m for a shortcut\n• Type /checkmail to see if you have new mail\n• Type /c to quickly check mail\n\nIt's like texting, but on the mesh!\n\nType 'next' or 'skip'"
+    },
+    {
+        "id": "logging",
+        "title": "Logs & Reports",
+        "message": "📝 LOGS & REPORTS\n\nKeep track of things:\n• Type /log to write a private note (only you can see it)\n• Type /checklog to read your private notes\n• Type /report to write a report (everyone can search it)\n• Type /checkreport to read all reports\n\nUse /find to search reports and your logs!\n\nType 'next' or 'skip'"
+    },
+    {
+        "id": "games",
+        "title": "Games",
+        "message": "🎮 GAMES\n\nLots of games to play:\n• Type /games to see all games\n• /wordle - Word puzzle game\n• /hangman - Guess the word\n• /blackjack - Card game\n• /yahtzee - Dice game\n• /jokes - Hear a funny joke\n\nType 'next' or 'skip'"
+    },
+    {
+        "id": "ai",
+        "title": "Ask Me Anything",
+        "message": "🤖 ASK ME ANYTHING\n\nI can answer questions!\n\nJust send me a message like:\n• \"What is the weather?\"\n• \"Tell me about meshtastic\"\n• \"How do I use this?\"\n\nI'm here to help!\n\nType 'next' or 'skip'"
+    },
+    {
+        "id": "utilities",
+        "title": "Helpful Tools",
+        "message": "🌤️ HELPFUL TOOLS\n\n• /weather - See the weather\n• /alarm - Set a reminder\n• /timer - Start a countdown\n• /bible - Read a bible verse\n• /web - Search the internet\n• /wiki - Search Wikipedia\n\nType 'next' or 'skip'"
+    },
+    {
+        "id": "help",
+        "title": "Getting Help",
+        "message": "❓ GETTING HELP\n\nIf you get stuck:\n• Type /help to see all commands\n• Type /menu to see the main menu\n• Just ask me a question!\n\nI'm always here to help you!\n\nType 'next' to finish"
+    },
+    {
+        "id": "complete",
+        "title": "You're Ready!",
+        "message": "🎉 YOU'RE READY!\n\nYou can start using the mesh now!\n\nRemember:\n• Type /menu to see everything\n• Type /help if you need it\n• Just ask me questions anytime\n\nHave fun! 🚀"
+    }
+]
+
+def _load_onboarding_state() -> Dict[str, Any]:
+    return safe_load_json(ONBOARDING_STATE_FILE, {
+        "users": {},
+        "settings": {
+            "auto_onboard_new_users": True,
+            "daily_reminders_enabled": True,
+            "reminder_check_hour": 10,
+            "reminder_quiet_start": 20,
+            "reminder_quiet_end": 8,
+            "custom_welcome_message": ""
+        }
+    })
+
+def _save_onboarding_state(state: Dict[str, Any]) -> None:
+    directory = os.path.dirname(ONBOARDING_STATE_FILE)
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory, exist_ok=True)
+    tmp_path = f"{ONBOARDING_STATE_FILE}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        json.dump(state, fh, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, ONBOARDING_STATE_FILE)
+
+def _initialize_onboarding_state() -> None:
+    global _onboarding_state
+    with _onboarding_lock:
+        _onboarding_state = _load_onboarding_state()
+
+def get_onboarding_state_snapshot() -> Dict[str, Any]:
+    with _onboarding_lock:
+        return dict(_onboarding_state)
+
+def is_user_onboarded(user_key: str) -> bool:
+    with _onboarding_lock:
+        user_data = _onboarding_state.get("users", {}).get(user_key)
+        if not user_data:
+            return False
+        return bool(user_data.get("completed", False))
+
+def start_user_onboarding(user_key: str) -> None:
+    with _onboarding_lock:
+        if "users" not in _onboarding_state:
+            _onboarding_state["users"] = {}
+        _onboarding_state["users"][user_key] = {
+            "started_at": _now(),
+            "current_step": 0,
+            "completed": False,
+            "completed_at": None,
+            "last_reminder_sent": None,
+            "skipped_steps": []
+        }
+        _save_onboarding_state(_onboarding_state)
+
+def get_user_onboarding_step(user_key: str) -> Optional[int]:
+    with _onboarding_lock:
+        user_data = _onboarding_state.get("users", {}).get(user_key)
+        if not user_data or user_data.get("completed"):
+            return None
+        return user_data.get("current_step", 0)
+
+def advance_user_onboarding(user_key: str, skip: bool = False) -> Optional[int]:
+    with _onboarding_lock:
+        user_data = _onboarding_state.get("users", {}).get(user_key)
+        if not user_data:
+            return None
+
+        current_step = user_data.get("current_step", 0)
+        if skip:
+            if "skipped_steps" not in user_data:
+                user_data["skipped_steps"] = []
+            user_data["skipped_steps"].append(current_step)
+
+        next_step = current_step + 1
+        if next_step >= len(ONBOARDING_STEPS):
+            user_data["completed"] = True
+            user_data["completed_at"] = _now()
+            user_data["current_step"] = len(ONBOARDING_STEPS) - 1
+            _save_onboarding_state(_onboarding_state)
+            return None
+
+        user_data["current_step"] = next_step
+        _save_onboarding_state(_onboarding_state)
+        return next_step
+
+def update_onboarding_reminder(user_key: str) -> None:
+    with _onboarding_lock:
+        user_data = _onboarding_state.get("users", {}).get(user_key)
+        if user_data and not user_data.get("completed"):
+            user_data["last_reminder_sent"] = _now()
+            _save_onboarding_state(_onboarding_state)
+
+def get_onboarding_settings() -> Dict[str, Any]:
+    with _onboarding_lock:
+        return dict(_onboarding_state.get("settings", {}))
+
+def update_onboarding_settings(**kwargs) -> None:
+    with _onboarding_lock:
+        if "settings" not in _onboarding_state:
+            _onboarding_state["settings"] = {}
+        _onboarding_state["settings"].update(kwargs)
+        _save_onboarding_state(_onboarding_state)
+
+def get_welcome_message() -> str:
+    """Get the welcome message - custom if set, otherwise default."""
+    settings = get_onboarding_settings()
+    custom_msg = settings.get("custom_welcome_message", "").strip()
+    if custom_msg:
+        return custom_msg
+    return ONBOARDING_STEPS[0]["message"]
 
 
 def update_feature_flags(*, ai_enabled: Optional[bool] = None, disabled_commands: Optional[List[str]] = None, message_mode: Optional[str] = None, admin_passphrase: Optional[str] = None, auto_ping_enabled: Optional[bool] = None, admin_whitelist: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -4019,7 +4248,7 @@ def _store_user_note(
     return True, message
 
 
-def _search_offline_sources(query: str, lang: str, limit: int = FIND_RESULT_LIMIT) -> List[Dict[str, Any]]:
+def _search_offline_sources(query: str, lang: str, limit: int = FIND_RESULT_LIMIT, sender_id: Optional[str] = None) -> List[Dict[str, Any]]:
     query = (query or "").strip()
     if not query:
         return []
@@ -4127,7 +4356,9 @@ def _search_offline_sources(query: str, lang: str, limit: int = FIND_RESULT_LIMI
 
     if LOGS_ENABLED and LOGS_STORE:
         try:
-            entries = LOGS_STORE.list_entries()
+            # Logs are private - only search entries from this user
+            sender_key = _safe_sender_key(sender_id) if sender_id else None
+            entries = LOGS_STORE.list_entries(author_id=sender_key)
         except Exception:
             entries = []
         _collect_entries('log', 'user', entries)
@@ -7361,6 +7592,9 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/about": "Shares version info and connected radio details.",
     "/help": "Lists top commands with short usage notes.",
     "/menu": "Displays a compact menu of frequently used commands.",
+    "/onboard": "Interactive tour of MESH-MASTER features for new users.",
+    "/onboarding": "Alias for /onboard - starts the interactive tour.",
+    "/onboardme": "Alias for /onboard - starts the interactive tour.",
     "/whereami": "Reports the node's mesh ID, channel, and location notes.",
     "/test": "Performs a quick self-check so you know the bot is responsive.",
     "/motd": "Shows the current message of the day announcement.",
@@ -7369,34 +7603,38 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/offline": "Delivers offline wiki and knowledge base snippets.",
     "/stop": "Stops any in-flight AI reply and silences the queue.",
     "/exit": "Shuts down Mesh-Master after saving state (admin only).",
-    "/save": "Saves the latest DM or chat thread so you can recall it later.",
-    "/recall": "Reloads a previously saved conversation transcript.",
+    "/hop": "Shows the current LoRa hop limit setting (admin only).",
+    "/hops": "Sets the LoRa hop limit (0-7, admin only). Usage: /hops <0-7>",
+    "/save": "Saves the latest DM or chat thread so you can recall it later. Usage: /save [name]",
+    "/recall": "Reloads a previously saved conversation transcript. Usage: /recall [name]",
     "/reset": "Clears cached AI context for a clean conversation restart.",
     "/data": "Manages or inspects data capsules saved by /save and other tools.",
     "/ai": "Routes the next prompt straight to the AI assistant.",
     "/bot": "Alias for interacting with the AI assistant.",
-    "/vibe": "Adjusts the AI tone without editing the full prompt.",
-    "/aipersonality": "Lists and selects available AI personas.",
+    "/vibe": "Adjusts the AI tone without editing the full prompt. Usage: /vibe [friendly|professional|creative|etc]",
+    "/aipersonality": "Lists and selects available AI personas. Usage: /aipersonality [persona name]",
     "/chathistory": "Summarizes the latest chatter for the current channel.",
-    "/changeprompt": "Updates the system prompt that guides the AI.",
+    "/changeprompt": "Updates the system prompt that guides the AI. Usage: /changeprompt <new prompt text>",
     "/showprompt": "Displays the current system prompt for review.",
     "/printprompt": "Prints the active prompt with minimal formatting.",
-    "/changemotd": "Updates the global message of the day.",
+    "/changemotd": "Updates the global message of the day. Usage: /changemotd <new message>",
     "/aisettings": "Shows key AI configuration values at a glance.",
     "/showmodel": "Lists the active Ollama model and installed options (admin only).",
     "/selectmodel": "Interactive menu to set the global Ollama model (admin only).",
-    "/mail": "Compose and send a Mesh Mail message to another user.",
-    "/m": "Shortcut for composing Mesh Mail.",
+    "/mail": "Compose and send a Mesh Mail message to another user. Usage: /mail <recipient> <message>",
+    "/m": "Shortcut for composing Mesh Mail. Usage: /m <recipient> <message>",
     "/checkmail": "Check your inbox for pending Mesh Mail.",
     "/c": "Shortcut for checking Mesh Mail.",
     "/emailhelp": "Explains how Mesh Mail works and available options.",
     "/wipe": "Clears stored Mesh Mail data (admin caution).",
-    "/bible": "Shares a curated Bible verse with the channel.",
+    "/bible": "Shares a curated Bible verse with the channel. Usage: /bible [topic]",
     "/biblehelp": "Shows usage tips for the Bible verse command.",
     "/weather": "Fetches the latest weather forecast for your configured location.",
-    "/web": "Performs a live web search when the network allows it.",
-    "/wiki": "Queries Wikipedia for a summary via the AI.",
-    "/find": "Search offline wiki, crawls, DDG, reports, and logs: /find <query>.",
+    "/web": "Search the web or fetch a page. Usage: /web <query> or /web https://example.com",
+    "/wiki": "Search Wikipedia. Usage: /wiki <topic>",
+    "/find": "Search offline wiki, crawls, DDG, reports, and logs. Usage: /find <query>",
+    "/crawl": "Crawl and cache a webpage. Usage: /crawl https://example.com",
+    "/checkcrawl": "View cached crawled pages. Usage: /checkcrawl <query>",
     "/drudge": "Returns current Drudge Report headlines.",
     "/elpaso": "Posts a short historical or local fact about El Paso.",
     "/games": "Lists available interactive games.",
@@ -7418,6 +7656,10 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/alarm": "Set an alarm: /alarm 2:34pm [daily|mm/dd|sunday] [label]",
     "/timer": "Start a countdown: /timer 10m [label]",
     "/stopwatch": "Start/stop a stopwatch: /stopwatch start|stop|status",
+    "/log": "Create a private log entry (only you can see it). Usage: /log <title>",
+    "/checklog": "View your private log entries. Usage: /checklog [title]",
+    "/report": "Create a report entry (searchable by everyone). Usage: /report <title>",
+    "/checkreport": "View all saved reports. Usage: /checkreport [title]",
 }
 
 
@@ -7459,6 +7701,7 @@ BUILTIN_COMMANDS = {
     "/test",
     "/help",
     "/menu",
+    "/onboard",
     "/offline",
     "/m",
     "/c",
@@ -7506,6 +7749,10 @@ BUILTIN_COMMANDS = {
     "/find",
     "/report",
     "/log",
+    "/checklog",
+    "/checklogs",
+    "/checkreport",
+    "/checkreports",
     "/changemotd",
     "/changeprompt",
     "/showprompt",
@@ -7518,9 +7765,10 @@ BUILTIN_COMMANDS = {
     "/alarm",
     "/timer",
     "/stopwatch",
+    "/reboot",
 }
 
-FUZZY_COMMAND_MATCH_THRESHOLD = 0.6
+FUZZY_COMMAND_MATCH_THRESHOLD = 0.75
 
 
 def _normalize_language_code(value: Optional[str]) -> str:
@@ -7902,44 +8150,41 @@ def format_structured_menu(menu_key: str, language: Optional[str]) -> str:
 
 COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
     (
-        "core_ops",
+        "admin",
         {
-            "label": "Core Ops",
+            "label": "Admin Commands",
             "commands": [
-                "/about", "/help", "/menu", "/whereami", "/test", "/motd",
-                "/meshinfo", "/meshtastic", "/offline", "/stop", "/exit",
-                "/save", "/recall", "/reset", "/data",
-                "/alarm", "/timer", "/stopwatch",
-            ],
-        },
-    ),
-    (
-        "ai_tools",
-        {
-            "label": "AI & Personalization",
-            "commands": [
-                "/ai", "/bot", "/data", "/vibe", "/aipersonality", "/chathistory",
-                "/changeprompt", "/showprompt", "/printprompt", "/changemotd", "/aisettings",
+                "/stop", "/exit", "/reboot", "/hop", "/hops",
+                "/changeprompt", "/showprompt", "/printprompt", "/changemotd",
                 "/showmodel", "/selectmodel",
             ],
         },
     ),
     (
-        "mail_ops",
+        "ai",
         {
-            "label": "Mail & Messaging",
+            "label": "AI Settings",
+            "commands": [
+                "/vibe", "/aipersonality", "/aisettings", "/reset", "/chathistory",
+            ],
+        },
+    ),
+    (
+        "email",
+        {
+            "label": "Email",
             "commands": [
                 "/m", "/mail", "/c", "/checkmail", "/emailhelp", "/wipe",
             ],
         },
     ),
     (
-        "information",
+        "reports",
         {
-            "label": "Information & Reference",
+            "label": "Reports & Logs",
             "commands": [
-                "/bible", "/biblehelp", "/weather", "/web", "/wiki", "/find", "/drudge",
-                "/motd", "/meshinfo", "/meshtastic", "/elpaso",
+                "/log", "/checklog", "/report", "/checkreport", "/find",
+                "/save", "/recall", "/data",
             ],
         },
     ),
@@ -7949,16 +8194,55 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
             "label": "Games",
             "commands": [
                 "/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/adventure", "/wordladder",
-                "/rps", "/coinflip", "/cipher", "/quizbattle", "/morse",
+                "/rps", "/coinflip", "/cipher", "/quizbattle", "/morse", "/mathquiz", "/electricalquiz",
             ],
         },
     ),
     (
         "fun",
         {
-            "label": "Fun & Extras",
+            "label": "Fun",
             "commands": [
-                "/jokes", "/chucknorris", "/blond", "/yomomma",
+                "/jokes", "/chucknorris", "/blond", "/yomomma", "/joke",
+                "/alarm", "/timer", "/stopwatch",
+            ],
+        },
+    ),
+    (
+        "web",
+        {
+            "label": "Web & Search",
+            "commands": [
+                "/web", "/wiki", "/crawl", "/checkcrawl", "/find", "/drudge",
+            ],
+        },
+    ),
+    (
+        "books",
+        {
+            "label": "Books & Reference",
+            "commands": [
+                "/bible", "/biblehelp",
+            ],
+        },
+    ),
+    (
+        "files",
+        {
+            "label": "Files & Data",
+            "commands": [
+                "/offline",
+            ],
+        },
+    ),
+    (
+        "info",
+        {
+            "label": "Information",
+            "commands": [
+                "/about", "/help", "/menu", "/whereami", "/test", "/motd",
+                "/meshinfo", "/meshtastic", "/weather", "/elpaso",
+                "/onboard", "/onboarding", "/onboardme",
             ],
         },
     ),
@@ -8089,6 +8373,7 @@ def gather_feature_snapshot() -> Dict[str, Any]:
         "auto_ping_enabled": auto_ping_enabled,
         "admins": _admin_snapshot(),
         "alerts": alerts,
+        "weather_location_name": WEATHER_LOCATION_NAME,
     }
 
 
@@ -8820,6 +9105,7 @@ CHILL_CLEARED_DM = (
 
 # Pending confirmations for user blocklist
 PENDING_BLOCK_CONFIRM: Dict[str, Dict[str, Any]] = {}
+PENDING_REBOOT_CONFIRM: Dict[str, Dict[str, Any]] = {}
 
 def cancel_pending_responses_for_sender(sender_key: Optional[str]) -> int:
     """Remove queued async response tasks for a given sender from the response queue.
@@ -8991,24 +9277,21 @@ def process_responses_worker():
             # Unpack the task
             text, sender_node, is_direct, ch_idx, thread_root_ts, interface_ref = task
             
-            clean_log(f"⚡ [AsyncAI] Processing: {text[:50]}... (queue: {response_queue.qsize()})", "🤖")
-            start_time = time.time()
-            
-            # Generate AI response (this can take a long time)
+            # Generate response (can take a long time)
             resp = parse_incoming_text(text, sender_node, is_direct, ch_idx, thread_root_ts=thread_root_ts)
-            
-            processing_time = time.time() - start_time
-            
+
             if resp:
                 response_text, pending, already_sent = _normalize_ai_response(resp)
                 truncation_notice = False
 
                 if response_text:
-                    target_name = get_node_shortname(sender_node) or str(sender_node)
-                    summary = _truncate_for_log(response_text)
+                    # Determine response type and icon
+                    response_type = "AI response" if pending is None else "Automated response"
+                    reason = pending.reason if pending else "ai response"
+                    icon = _get_command_icon(reason)
                     clean_log(
-                        f"Ollama → {target_name} ({processing_time:.1f}s)",
-                        "🦙",
+                        response_type,
+                        icon,
                         show_always=True,
                         rate_limit=False,
                     )
@@ -11283,7 +11566,10 @@ def _activate_find_result(
             store = REPORTS_STORE if entry_type == 'report' else LOGS_STORE
             if not store:
                 return PendingReply("⚠️ That library is disabled right now.", "/find select")
-            record = store.lookup(lookup_key)
+            # Logs are private - only show to author
+            sender_key = _safe_sender_key(sender_id)
+            author_filter = sender_key if entry_type == 'log' else None
+            record = store.lookup(lookup_key, author_id=author_filter)
             if not record:
                 return PendingReply("⚠️ I couldn't load that entry. Try again or recreate it.", "/find select")
             created_display = _display_timestamp(record.created_at)
@@ -11915,24 +12201,14 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     sn = get_node_shortname(sender_id)
     return _cmd_reply(cmd, f"Hello {sn}! Received {LOCAL_LOCATION_STRING} by {AI_NODE_NAME}.")
 
-  elif cmd == "/onboard":
+  elif cmd in {"/onboard", "/onboarding", "/onboardme"}:
     if not is_direct:
       return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
-    if not sender_key:
-      return _cmd_reply(cmd, "⚠️ I couldn't identify your DM session. Try again in a moment.")
-    remainder = full_text[len(cmd):].strip()
-    restart = remainder.lower() in {"restart", "reset", "start", "again"}
-    try:
-      sender_short = get_node_shortname(sender_id)
-    except Exception:
-      sender_short = str(sender_id)
-    return ONBOARDING_MANAGER.start_session(
-      sender_key=sender_key,
-      sender_id=sender_id,
-      sender_short=sender_short,
-      language_hint=lang,
-      restart=restart,
-    )
+
+    # Start or restart onboarding
+    start_user_onboarding(sender_key)
+    welcome_msg = get_welcome_message()
+    return _cmd_reply(cmd, welcome_msg)
 
   elif cmd == "/m":
     if not is_direct:
@@ -12335,6 +12611,52 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     reply = _process_model_selection(sender_key, remainder)
     return reply or _cmd_reply(cmd, "Send `/selectmodel` and reply with the number to switch globally.")
 
+  elif cmd == "/reboot":
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
+    PENDING_REBOOT_CONFIRM[sender_key] = {"ts": _now()}
+    return PendingReply("⚠️ SYSTEM REBOOT requested.\n\nThis will restart the entire mesh-master server.\n\nReply Y to confirm or N to cancel.", "/reboot confirm")
+
+  elif cmd == "/hop":
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    node = _get_local_node()
+    if interface is None or node is None:
+      return _cmd_reply(cmd, "❌ Radio not connected.")
+    try:
+      interface.waitForConfig()
+      lora = node.localConfig.lora
+      current_hops = int(getattr(lora, 'hop_limit', 0))
+      return _cmd_reply(cmd, f"📡 Current hop limit: {current_hops}\n\nUse /hops <number> to set (max 7).")
+    except Exception as exc:
+      return _cmd_reply(cmd, f"❌ Error reading hop limit: {exc}")
+
+  elif cmd == "/hops":
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    if not remainder:
+      return _cmd_reply(cmd, "Usage: /hops <number>\n\nSet the LoRa hop limit (0-7). Example: /hops 3")
+    try:
+      hop_limit = int(remainder.strip())
+    except ValueError:
+      return _cmd_reply(cmd, "❌ Invalid number. Use /hops <number> where number is 0-7.")
+    if hop_limit < 0 or hop_limit > 7:
+      return _cmd_reply(cmd, "❌ Hop limit must be between 0 and 7.")
+    node = _get_local_node()
+    if interface is None or node is None:
+      return _cmd_reply(cmd, "❌ Radio not connected.")
+    with _RADIO_OPS_LOCK:
+      try:
+        interface.waitForConfig()
+        node.localConfig.lora.hop_limit = int(hop_limit)
+        node.writeConfig('lora')
+        clean_log(f"Radio hop limit set to {hop_limit} by {sender_key}", "🛠️", show_always=True, rate_limit=False)
+        return _cmd_reply(cmd, f"✅ Hop limit set to {hop_limit}")
+      except Exception as exc:
+        return _cmd_reply(cmd, f"❌ Failed to set hop limit: {exc}")
+
   elif cmd == "/biblehelp":
     default_help = (
       "📖 Bible quick tips: `/bible` keeps your place. Jump with `/bible John 3:16`. "
@@ -12502,10 +12824,6 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
       start_url = _extract_direct_url(target) or target
       try:
         pages, contacts, contact_page = _crawl_website(start_url, max_pages=page_limit or WEB_CRAWL_MAX_PAGES)
-      except CrawlStartError as exc:
-        detail = exc.detail or "crawl failed"
-        status_note = f" (HTTP {exc.status_code})" if exc.status_code else ""
-        return _cmd_reply(cmd, f"⚠️ Couldn't start crawl of {exc.url}{status_note}: {detail}")
       except RuntimeError as exc:
         message = str(exc)
         if message == "offline":
@@ -12579,7 +12897,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     query = full_text[len(cmd):].strip()
     if not query:
       return _cmd_reply(cmd, "Use this by typing: /find <keywords>")
-    results = _search_offline_sources(query, lang, limit=FIND_RESULT_LIMIT)
+    results = _search_offline_sources(query, lang, limit=FIND_RESULT_LIMIT, sender_id=sender_id)
     if not results:
       return _cmd_reply(cmd, f"I couldn't find offline results matching '{query}'.")
     type_badge = {
@@ -12645,6 +12963,57 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     }
     clean_log(f"Awaiting {note_type} body: {raw_title}", "🕘", show_always=False)
     return PendingReply(prompt, f"/{note_type} capture")
+
+  elif cmd in {"/checklog", "/checklogs"}:
+    if not is_direct:
+      return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
+    if not LOGS_ENABLED or not LOGS_STORE:
+      return _cmd_reply(cmd, "⚠️ Logs feature is disabled.")
+    sender_key = _safe_sender_key(sender_id)
+    title = full_text[len(cmd):].strip().strip('"').strip("'")
+    if not title:
+      # Logs are private - only show entries from this user
+      entries = LOGS_STORE.list_entries(author_id=sender_key)
+      if not entries:
+        return _cmd_reply(cmd, "📋 No logs found. Create one with /log <title>")
+      lines = ["📋 Your logs:"]
+      for idx, entry in enumerate(entries[:10], 1):
+        lines.append(f"{idx}. {entry['title']}")
+      if len(entries) > 10:
+        lines.append(f"... and {len(entries) - 10} more.")
+      return _cmd_reply(cmd, "\n".join(lines))
+    # Logs are private - only lookup entries from this user
+    record = LOGS_STORE.lookup(title, author_id=sender_key)
+    if not record:
+      return _cmd_reply(cmd, f"🗒️ Log '{title}' not found in your logs.")
+    response = f"🗒️ Log: {record.title}\n{record.content}"
+    if record.author:
+      response = f"{response}\n— {record.author}"
+    return _cmd_reply(cmd, response)
+
+  elif cmd in {"/checkreport", "/checkreports"}:
+    if not is_direct:
+      return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
+    if not REPORTS_ENABLED or not REPORTS_STORE:
+      return _cmd_reply(cmd, "⚠️ Reports feature is disabled.")
+    title = full_text[len(cmd):].strip().strip('"').strip("'")
+    if not title:
+      entries = REPORTS_STORE.list_entries()
+      if not entries:
+        return _cmd_reply(cmd, "📝 No reports found. Create one with /report <title>")
+      lines = ["📝 Available reports:"]
+      for idx, entry in enumerate(entries[:10], 1):
+        lines.append(f"{idx}. {entry['title']}")
+      if len(entries) > 10:
+        lines.append(f"... and {len(entries) - 10} more. Use /find to search.")
+      return _cmd_reply(cmd, "\n".join(lines))
+    record = REPORTS_STORE.lookup(title)
+    if not record:
+      return _cmd_reply(cmd, f"📝 Report '{title}' not found. Use /checkreports to list all.")
+    response = f"📝 Report: {record.title}\n{record.content}"
+    if record.author:
+      response = f"{response}\n— {record.author}"
+    return _cmd_reply(cmd, response)
 
   elif cmd == "/drudge":
     # Fetch current Drudge Report headlines. Not DM-only.
@@ -13681,10 +14050,8 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   sender_key = _safe_sender_key(sender_id)
   lang = _resolve_user_language(None, sender_key)
   if not check_only:
-    channel_type = "DM" if is_direct else f"Ch{channel_idx}"
-    logged_text = text if text is not None else ""
-    short = _node_display_label(sender_id)
-    clean_log(f"Message from {short} ({channel_type}): {_redact_sensitive(logged_text)}", "📨")
+    channel_type = "DM" if is_direct else "Channel"
+    clean_log(f"Incoming {channel_type} message", "📨")
   text = text.strip()
   if not text:
     return None if not check_only else False
@@ -13692,6 +14059,55 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   sender_key = _safe_sender_key(sender_id)
   lower = text.lower().strip()
   if is_direct and sender_key:
+    # Handle pending reboot confirmations
+    # Handle onboarding flow
+    current_step = get_user_onboarding_step(sender_key)
+    if current_step is not None and not lower.startswith('/') and is_direct:
+      choice = lower.strip()
+      if choice in {"next", "n", "continue", "yes", "y"}:
+        next_step_index = advance_user_onboarding(sender_key, skip=False)
+        if next_step_index is None:
+          # Onboarding complete
+          return PendingReply(ONBOARDING_STEPS[-1]["message"], "/onboard")
+        else:
+          step_data = ONBOARDING_STEPS[next_step_index]
+          return PendingReply(step_data["message"], "/onboard")
+      elif choice in {"skip", "s"}:
+        next_step_index = advance_user_onboarding(sender_key, skip=True)
+        if next_step_index is None:
+          return PendingReply(ONBOARDING_STEPS[-1]["message"], "/onboard")
+        else:
+          step_data = ONBOARDING_STEPS[next_step_index]
+          return PendingReply(f"⏭️ Skipped!\n\n{step_data['message']}", "/onboard")
+      elif choice in {"exit", "quit", "stop"}:
+        return PendingReply("👋 Onboarding paused. Reply /onboard anytime to continue where you left off!", "/onboard")
+
+    # Auto-prompt new users for onboarding
+    if is_direct and sender_key:
+      settings = get_onboarding_settings()
+      if settings.get("auto_onboard_new_users", True):
+        if not is_user_onboarded(sender_key) and current_step is None:
+          # First message from this user - offer onboarding
+          start_user_onboarding(sender_key)
+          welcome_msg = f"{get_welcome_message()}\n\n(Your message will be processed after onboarding, or reply 'exit' to skip onboarding for now.)"
+          return PendingReply(welcome_msg, "/onboard auto-start")
+
+    if sender_key in PENDING_REBOOT_CONFIRM and not lower.startswith('/'):
+      choice = lower.strip()
+      if choice in {"y", "yes", "yeah", "yep"}:
+        PENDING_REBOOT_CONFIRM.pop(sender_key, None)
+        try:
+          import subprocess
+          subprocess.Popen(["sudo", "reboot"], start_new_session=True)
+          return PendingReply("🔄 SYSTEM REBOOT initiated. Server will restart now.", "/reboot confirm")
+        except Exception as e:
+          return PendingReply(f"❌ Reboot failed: {str(e)}", "/reboot confirm")
+      elif choice in {"n", "no", "nope"}:
+        PENDING_REBOOT_CONFIRM.pop(sender_key, None)
+        return PendingReply("👍 Reboot cancelled. System remains running.", "/reboot confirm")
+      else:
+        return PendingReply("Please reply Y or N to confirm the reboot.", "/reboot confirm")
+
     # Handle pending blacklist confirmations
     if sender_key in PENDING_BLOCK_CONFIRM and not lower.startswith('/'):
       choice = lower.strip()
@@ -14583,6 +14999,269 @@ def remove_dashboard_admin():
         _refresh_authorized_admins(retain_existing=False)
     clean_log(f"Admin access revoked for {admin_key}", "🛡️", show_always=True, rate_limit=False)
     return jsonify(gather_feature_snapshot())
+
+
+@app.route("/dashboard/onboarding/settings", methods=["GET"])
+def dashboard_onboarding_get():
+    """Get onboarding settings and statistics."""
+    try:
+        settings = get_onboarding_settings()
+        state_snapshot = get_onboarding_state_snapshot()
+        users = state_snapshot.get("users", {})
+
+        total_users = len(users)
+        completed_users = sum(1 for u in users.values() if u.get("completed", False))
+        in_progress = total_users - completed_users
+
+        return jsonify({
+            "success": True,
+            "settings": settings,
+            "stats": {
+                "total": total_users,
+                "completed": completed_users,
+                "in_progress": in_progress
+            }
+        })
+    except Exception as exc:
+        clean_log(f"❌ Onboarding settings get failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/onboarding/settings", methods=["POST"])
+def dashboard_onboarding_update():
+    """Update onboarding settings."""
+    try:
+        data = request.get_json() or {}
+
+        # Validate and update settings
+        updates = {}
+        if "auto_onboard_new_users" in data:
+            updates["auto_onboard_new_users"] = bool(data["auto_onboard_new_users"])
+        if "daily_reminders_enabled" in data:
+            updates["daily_reminders_enabled"] = bool(data["daily_reminders_enabled"])
+        if "custom_welcome_message" in data:
+            updates["custom_welcome_message"] = str(data["custom_welcome_message"])
+
+        if updates:
+            update_onboarding_settings(**updates)
+            clean_log(f"🎓 Onboarding settings updated", show_always=True, rate_limit=False)
+
+        return jsonify({"success": True, "message": "Settings updated"})
+    except Exception as exc:
+        clean_log(f"❌ Onboarding settings update failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/system/reboot", methods=["POST"])
+def dashboard_system_reboot():
+    """Admin-only endpoint to reboot the entire server."""
+    try:
+        import subprocess
+        clean_log("🔄 System reboot requested via dashboard", show_always=True, rate_limit=False)
+        subprocess.Popen(["sudo", "reboot"], start_new_session=True)
+        return jsonify({"success": True, "message": "Reboot initiated"})
+    except Exception as exc:
+        clean_log(f"❌ Reboot failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/weather/validate", methods=["POST"])
+def dashboard_weather_validate():
+    """Validate a weather location (zip code or city) using geocoding API."""
+    try:
+        data = request.get_json() or {}
+        location = (data.get("location") or "").strip()
+
+        if not location:
+            return jsonify({"success": False, "error": "Location cannot be empty"}), 400
+
+        # Use nominatim geocoding API to validate and get coordinates
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            "q": location,
+            "format": "json",
+            "limit": 1,
+            "addressdetails": 1
+        }
+        headers = {"User-Agent": "MeshAI/1.0"}
+
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
+        results = response.json()
+
+        if not results:
+            return jsonify({"success": False, "error": f"Location '{location}' not found. Try a different format (e.g., '79912' or 'Austin, TX')"}), 404
+
+        result = results[0]
+        lat = float(result["lat"])
+        lon = float(result["lon"])
+        display_name = result.get("display_name", location)
+
+        # Extract a cleaner location name if possible
+        address = result.get("address", {})
+        city = address.get("city") or address.get("town") or address.get("village") or ""
+        state = address.get("state", "")
+        country_code = address.get("country_code", "").upper()
+
+        # Build a cleaner name
+        if city and state and country_code == "US":
+            clean_name = f"{city}, {state}"
+        elif city and country_code:
+            clean_name = f"{city}, {country_code}"
+        else:
+            # Fallback to first two parts of display_name
+            parts = display_name.split(",")[:2]
+            clean_name = ", ".join(p.strip() for p in parts)
+
+        return jsonify({
+            "success": True,
+            "lat": lat,
+            "lon": lon,
+            "name": clean_name,
+            "full_name": display_name
+        })
+
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "error": "Geocoding service timed out. Please try again."}), 500
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"success": False, "error": f"Geocoding service error: {str(exc)}"}), 500
+    except Exception as exc:
+        clean_log(f"❌ Weather validation failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/weather/save", methods=["POST"])
+def dashboard_weather_save():
+    """Save validated weather location to config."""
+    try:
+        data = request.get_json() or {}
+        lat = data.get("lat")
+        lon = data.get("lon")
+        name = data.get("name")
+
+        if lat is None or lon is None or not name:
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+
+        # Update config
+        config["weather_lat"] = float(lat)
+        config["weather_lon"] = float(lon)
+        config["weather_location_name"] = str(name)
+
+        # Save to file
+        config_path = Path("config.json")
+        with config_path.open("w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+
+        # Update global variables
+        global WEATHER_LAT, WEATHER_LON, WEATHER_LOCATION_NAME
+        WEATHER_LAT = float(lat)
+        WEATHER_LON = float(lon)
+        WEATHER_LOCATION_NAME = str(name)
+
+        # Clear weather cache so next request uses new location
+        with WEATHER_CACHE_LOCK:
+            WEATHER_CACHE.clear()
+
+        clean_log(f"🌤️ Weather location updated to: {name} ({lat}, {lon})", show_always=True, rate_limit=False)
+        return jsonify({"success": True, "message": f"Weather location updated to {name}"})
+
+    except Exception as exc:
+        clean_log(f"❌ Weather save failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/update/check", methods=["GET"])
+def dashboard_update_check():
+    """Check GitHub for available releases."""
+    try:
+        import subprocess
+
+        # Get current version from git
+        try:
+            result = subprocess.run(
+                ["git", "describe", "--tags", "--abbrev=0"],
+                cwd="/home/snailpi/Programs/mesh-ai",
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            current_version = result.stdout.strip() if result.returncode == 0 else "unknown"
+        except Exception:
+            current_version = "unknown"
+
+        # Fetch available tags from GitHub
+        result = subprocess.run(
+            ["git", "ls-remote", "--tags", "origin"],
+            cwd="/home/snailpi/Programs/mesh-ai",
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+
+        if result.returncode != 0:
+            return jsonify({"success": False, "error": "Failed to fetch releases from GitHub"}), 500
+
+        # Parse tags
+        tags = []
+        for line in result.stdout.strip().split('\n'):
+            if line and 'refs/tags/' in line:
+                tag = line.split('refs/tags/')[-1]
+                # Skip ^{} dereferenced tags
+                if '^{}' not in tag:
+                    tags.append(tag)
+
+        # Sort tags (most recent first)
+        tags.sort(reverse=True)
+
+        return jsonify({
+            "success": True,
+            "current_version": current_version,
+            "available_versions": tags[:10]  # Return top 10 most recent
+        })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Request timed out"}), 500
+    except Exception as exc:
+        clean_log(f"❌ Update check failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/update/apply", methods=["POST"])
+def dashboard_update_apply():
+    """Apply a specific version update from GitHub."""
+    try:
+        import subprocess
+
+        data = request.get_json() or {}
+        version = data.get("version", "").strip()
+
+        if not version:
+            return jsonify({"success": False, "error": "No version specified"}), 400
+
+        clean_log(f"📦 Update requested to version: {version}", show_always=True, rate_limit=False)
+
+        # Create update script that will run after Python exits
+        update_script = """#!/bin/bash
+cd /home/snailpi/Programs/mesh-ai
+git fetch --all --tags
+git checkout {version}
+sudo systemctl restart mesh-ai
+""".format(version=version)
+
+        script_path = "/tmp/mesh_update.sh"
+        with open(script_path, "w") as f:
+            f.write(update_script)
+
+        os.chmod(script_path, 0o755)
+
+        # Launch the update script in the background
+        subprocess.Popen(["/bin/bash", script_path], start_new_session=True)
+
+        return jsonify({"success": True, "message": f"Updating to {version}. Server will restart shortly."})
+
+    except Exception as exc:
+        clean_log(f"❌ Update apply failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @app.route("/logs_stream")
@@ -15812,6 +16491,28 @@ def dashboard():
       opacity: 1;
       transform: translate(-50%, 0);
     }
+    .help-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      margin-left: 6px;
+      background: rgba(86, 156, 214, 0.2);
+      border: 1px solid rgba(86, 156, 214, 0.4);
+      border-radius: 50%;
+      color: #569cd6;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: help;
+      transition: all 0.15s ease;
+      vertical-align: middle;
+    }
+    .help-icon:hover {
+      background: rgba(86, 156, 214, 0.3);
+      border-color: rgba(86, 156, 214, 0.6);
+      transform: scale(1.1);
+    }
     .config-type-badge {
       background: rgba(86, 156, 214, 0.18);
       border: 1px solid rgba(86, 156, 214, 0.4);
@@ -16749,9 +17450,8 @@ def dashboard():
 <body>
   <div class="app-shell" id="appShell" data-initial-metrics="__METRICS__">
     <header class="app-header">
-      <div class="brand">
-        <span class="brand-title">Mesh-Master 🚀</span>
-        <span class="brand-subtitle">Operations Console 🛰️</span>
+      <div class="brand" style="text-align: center; width: 100%;">
+        <span class="brand-title" style="font-size: 2.5em; font-weight: bold; letter-spacing: 0.1em;">MESH-MASTER</span>
       </div>
       <div class="header-actions">
         <span id="metricsTimestamp" class="panel-subtitle">Waiting for metrics…</span>
@@ -16765,7 +17465,7 @@ def dashboard():
         <article class="panel snapshot-panel" data-panel-id="snapshot" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
           <div class="panel-title">
-            <h2>Activity Snapshot 📊</h2>
+            <h2>Activity 📊</h2>
             <span class="panel-subtitle">Mesh visibility</span>
           </div>
           <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
@@ -16818,104 +17518,6 @@ def dashboard():
         </div>
         </article>
 
-        <article class="panel ops-panel" data-panel-id="operations" data-draggable="true">
-        <div class="panel-header">
-          <h2>Operations Center 🛠️</h2>
-          <span id="featuresStatus" class="panel-subtitle">Manage AI and command access</span>
-        </div>
-        <div id="featureAlerts" class="feature-alerts" hidden></div>
-        <div class="toggle-row">
-          <label class="switch">
-            <input type="checkbox" id="aiToggle">
-            <span class="slider"></span>
-          </label>
-          <div class="toggle-copy">
-            <span class="toggle-title">AI Responses 🤖</span>
-            <span id="aiToggleStatus" class="toggle-status">Enabled</span>
-          </div>
-        </div>
-        <div class="toggle-row">
-          <label class="switch">
-            <input type="checkbox" id="autoPingToggle">
-            <span class="slider"></span>
-          </label>
-          <div class="toggle-copy">
-            <span class="toggle-title">Auto Ping Replies 🏓</span>
-            <span id="autoPingToggleStatus" class="toggle-status">Enabled</span>
-          </div>
-        </div>
-        <div class="mode-toggle">
-          <div class="mode-header">
-            <span class="mode-title">Inbound Messaging 📡</span>
-            <span class="mode-status" id="modeStatus">Channels + DMs</span>
-          </div>
-          <div class="mode-buttons" role="radiogroup" aria-label="Inbound messaging mode">
-            <button type="button" class="mode-btn" data-mode="both" aria-pressed="false">Channels + DMs</button>
-            <button type="button" class="mode-btn" data-mode="dm_only" aria-pressed="false">DM only</button>
-            <button type="button" class="mode-btn" data-mode="channel_only" aria-pressed="false">Channels only</button>
-          </div>
-        </div>
-        <div class="passphrase-card">
-          <label for="adminPassphrase">🔑 Admin Handoff Word</label>
-          <div class="passphrase-input">
-            <input type="text" id="adminPassphrase" name="adminPassphrase" placeholder="enter secret word" autocomplete="off" spellcheck="false">
-            <button type="button" id="adminPassphraseSet" class="passphrase-set">Set</button>
-          </div>
-          <p class="passphrase-warning" id="adminPassphraseWarning" hidden>Saving a new word keeps the current admin whitelist. Use the admin list to remove anyone who should no longer have access.</p>
-          <p class="passphrase-hint">Share this word privately; a DM containing only it grants admin powers instantly. <a href="#" id="adminListToggle" class="admin-list-link" role="button">admin list</a></p>
-          <div class="admin-popover" id="adminListPopover" role="dialog" aria-labelledby="adminListTitle" hidden>
-            <div class="admin-popover-header">
-              <h3 id="adminListTitle">Admin Access</h3>
-              <button type="button" class="admin-popover-close" id="adminListClose" aria-label="Close admin list">✕</button>
-            </div>
-            <div class="admin-popover-body">
-              <p class="admin-empty" id="adminListEmpty">No admins currently authorized.</p>
-              <ul class="admin-list" id="adminList"></ul>
-            </div>
-          </div>
-        </div>
-        <div class="command-groups" id="commandGroups"></div>
-        </article>
-
-        <article class="panel radio-panel" data-panel-id="radio-settings" data-draggable="true" data-collapsible="true">
-        <div class="panel-header">
-          <div class="panel-title">
-            <h2>Radio Settings 📻</h2>
-            <span class="panel-subtitle">LoRa hop limit and channels</span>
-          </div>
-          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
-        </div>
-        <div class="panel-body" id="radioPanelBody">
-          <div class="config-section" aria-live="polite">
-            <div class="config-row">
-              <div class="config-key">
-                <div class="config-key-heading">
-                  <strong>Hop Limit</strong>
-                </div>
-              </div>
-              <div class="config-value">
-                <div class="config-display-line">
-                  <input type="number" min="0" max="7" id="radioHopLimit" class="config-input" style="width: 100px; display: inline-block;" aria-label="Hop limit">
-                  <button type="button" id="radioHopSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
-                  <span class="config-status" id="radioHopStatus"></span>
-                </div>
-              </div>
-            </div>
-
-            <div class="config-row config-row-stack" id="radioChannelsRow">
-              <div class="config-key-heading"><strong>Channels</strong></div>
-              <div class="config-value">
-                <div id="radioChannelsList" class="config-table"></div>
-                <div style="margin-top: 8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
-                  <button type="button" id="radioAddChannel" class="config-save-btn">Add Channel</button>
-                  <span class="config-status" id="radioChannelsStatus"></span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        </article>
-
         <article class="panel config-panel" data-panel-id="config-overview" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
           <div class="panel-title">
@@ -16927,7 +17529,7 @@ def dashboard():
         <div class="panel-body" id="configOverviewBody">
         <div class="model-selector" id="ollamaModelSelector">
           <div class="model-selector-header">
-            <label for="ollamaModelSelect">Ollama model</label>
+            <label for="ollamaModelSelect">Ollama model<span class="help-icon" data-explainer="Select the AI model to use for responses. Smaller models (1b-3b) are faster but less accurate. Larger models (7b+) are smarter but slower. Search to find and download new models from the Ollama registry." data-explainer-placement="right">?</span></label>
             <span class="model-status" id="ollamaModelStatus"></span>
           </div>
           <div class="model-picker">
@@ -16956,6 +17558,244 @@ def dashboard():
         </div>
           <div class="config-table" id="configSettingsList">
             <p class="config-empty">Config snapshot unavailable.</p>
+          </div>
+        </div>
+        </article>
+
+        <article class="panel ops-panel" data-panel-id="operations" data-draggable="true">
+        <div class="panel-header">
+          <h2>Operations Center 🛠️</h2>
+          <span id="featuresStatus" class="panel-subtitle">Manage AI and command access</span>
+        </div>
+        <div id="featureAlerts" class="feature-alerts" hidden></div>
+        <div class="toggle-row">
+          <label class="switch">
+            <input type="checkbox" id="aiToggle">
+            <span class="slider"></span>
+          </label>
+          <div class="toggle-copy">
+            <span class="toggle-title">AI Responses 🤖<span class="help-icon" data-explainer="Toggle AI-powered responses on or off. When enabled, users can ask questions and get intelligent replies from the configured AI model." data-explainer-placement="right">?</span></span>
+            <span id="aiToggleStatus" class="toggle-status">Enabled</span>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <label class="switch">
+            <input type="checkbox" id="autoPingToggle">
+            <span class="slider"></span>
+          </label>
+          <div class="toggle-copy">
+            <span class="toggle-title">Auto Ping Replies 🏓<span class="help-icon" data-explainer="Automatically respond to ping messages with pong. Useful for network connectivity testing." data-explainer-placement="right">?</span></span>
+            <span id="autoPingToggleStatus" class="toggle-status">Enabled</span>
+          </div>
+        </div>
+        <div class="mode-toggle">
+          <div class="mode-header">
+            <span class="mode-title">Inbound Messaging 📡<span class="help-icon" data-explainer="Control which message types are processed:\n• Channels + DMs: Process all messages\n• DM only: Only respond to direct messages\n• Channels only: Only respond in public channels" data-explainer-placement="right">?</span></span>
+            <span class="mode-status" id="modeStatus">Channels + DMs</span>
+          </div>
+          <div class="mode-buttons" role="radiogroup" aria-label="Inbound messaging mode">
+            <button type="button" class="mode-btn" data-mode="both" aria-pressed="false">Channels + DMs</button>
+            <button type="button" class="mode-btn" data-mode="dm_only" aria-pressed="false">DM only</button>
+            <button type="button" class="mode-btn" data-mode="channel_only" aria-pressed="false">Channels only</button>
+          </div>
+        </div>
+        <div class="passphrase-card">
+          <label for="adminPassphrase">🔑 Admin Handoff Word<span class="help-icon" data-explainer="Set a secret passphrase. When a user sends this exact word in a DM, they instantly gain admin privileges. Share this carefully!" data-explainer-placement="right">?</span></label>
+          <div class="passphrase-input">
+            <input type="text" id="adminPassphrase" name="adminPassphrase" placeholder="enter secret word" autocomplete="off" spellcheck="false">
+            <button type="button" id="adminPassphraseSet" class="passphrase-set">Set</button>
+          </div>
+          <p class="passphrase-warning" id="adminPassphraseWarning" hidden>Saving a new word keeps the current admin whitelist. Use the admin list to remove anyone who should no longer have access.</p>
+          <p class="passphrase-hint">Share this word privately; a DM containing only it grants admin powers instantly. <a href="#" id="adminListToggle" class="admin-list-link" role="button">admin list</a></p>
+          <div class="admin-popover" id="adminListPopover" role="dialog" aria-labelledby="adminListTitle" hidden>
+            <div class="admin-popover-header">
+              <h3 id="adminListTitle">Admin Access</h3>
+              <button type="button" class="admin-popover-close" id="adminListClose" aria-label="Close admin list">✕</button>
+            </div>
+            <div class="admin-popover-body">
+              <p class="admin-empty" id="adminListEmpty">No admins currently authorized.</p>
+              <ul class="admin-list" id="adminList"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="passphrase-card">
+          <label>🌤️ Weather Location<span class="help-icon" data-explainer="Configure the location for weather forecasts. Enter a zip code (e.g., 79912) or city name (e.g., Austin, TX). Click Validate to verify, then Save to apply." data-explainer-placement="right">?</span></label>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <input type="text" id="weatherLocationInput" placeholder="Enter zip code or city (e.g., 79912 or Austin, TX)" style="flex: 1; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+            <button type="button" id="weatherValidateBtn" class="config-save-btn" style="padding: 8px 16px;">Validate</button>
+          </div>
+          <p class="passphrase-hint" id="weatherLocationHint" style="margin-top: 8px; color: #888;">Current: <span id="weatherCurrentLocation">Loading...</span></p>
+          <div id="weatherValidationResult" style="margin-top: 8px; display: none;">
+            <p style="color: #4CAF50; margin: 4px 0;"><strong>✓ Valid location:</strong> <span id="weatherValidatedName"></span></p>
+            <p style="color: #888; font-size: 12px; margin: 4px 0;">Coordinates: <span id="weatherValidatedCoords"></span></p>
+            <button type="button" id="weatherSaveBtn" class="config-save-btn" style="margin-top: 8px; width: 100%;">Save Weather Location</button>
+          </div>
+        </div>
+        <div class="passphrase-card">
+          <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
+          <button type="button" id="systemRebootBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🔄 Reboot Server</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Restarts the entire mesh-master server. Admin only.</p>
+        </div>
+        <div class="passphrase-card">
+          <label>📦 Software Updates<span class="help-icon" data-explainer="Check for and install updates from GitHub. You can upgrade to the latest version or roll back to a previous release. Service restarts automatically after update." data-explainer-placement="right">?</span></label>
+          <div style="margin-top: 8px;">
+            <button type="button" id="updateCheckBtn" class="config-save-btn" style="width: 100%;">Check for Updates</button>
+          </div>
+          <div id="updateAvailable" style="margin-top: 8px; display: none;">
+            <p style="color: #4CAF50; margin: 4px 0;"><strong>✓ Update available:</strong> <span id="updateVersionName"></span></p>
+            <p style="color: #888; font-size: 12px; margin: 4px 0;">Current: <span id="updateCurrentVersion"></span></p>
+            <select id="updateVersionSelect" class="config-select" style="width: 100%; margin-top: 8px;">
+              <option value="">Select version...</option>
+            </select>
+            <button type="button" id="updateApplyBtn" class="config-save-btn" style="margin-top: 8px; width: 100%;">Apply Update</button>
+          </div>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
+        </div>
+        <div class="passphrase-card">
+          <label>🎓 Onboarding Settings<span class="help-icon" data-explainer="Configure how new users are welcomed and onboarded to the mesh network. Customize the welcome message and enable automatic prompts." data-explainer-placement="right">?</span></label>
+          <div class="toggle-row" style="margin-top: 12px;">
+            <label class="switch">
+              <input type="checkbox" id="autoOnboardToggle">
+              <span class="slider"></span>
+            </label>
+            <div class="toggle-copy">
+              <span class="toggle-title">Auto-onboard new users</span>
+              <span id="autoOnboardStatus" class="toggle-status">Enabled</span>
+            </div>
+          </div>
+          <div style="margin-top: 12px;">
+            <label for="onboardWelcomeMsg" style="display: block; margin-bottom: 4px; font-weight: 500;">Custom Welcome Message</label>
+            <textarea id="onboardWelcomeMsg" rows="6" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: inherit; font-size: 13px; resize: vertical;" placeholder="Leave blank to use default message..."></textarea>
+            <p class="passphrase-hint" style="margin-top: 4px;">This message greets new users when they first DM the bot or type /onboard</p>
+          </div>
+          <button type="button" id="onboardSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">Save Onboarding Settings</button>
+          <p class="passphrase-hint" style="margin-top: 8px;">
+            Stats: <span id="onboardStatsTotal">0</span> total users,
+            <span id="onboardStatsCompleted">0</span> completed,
+            <span id="onboardStatsProgress">0</span> in progress
+          </p>
+        </div>
+        <div class="command-groups" id="commandGroups"></div>
+        </article>
+
+        <article class="panel radio-panel" data-panel-id="radio-settings" data-draggable="true" data-collapsible="true">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>Radio Settings 📻</h2>
+            <span class="panel-subtitle">LoRa hop limit and channels</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body" id="radioPanelBody">
+          <div class="config-section" aria-live="polite">
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Long Name<span class="help-icon" data-explainer="The full name of this node as it appears on the mesh network (max 39 characters)." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="text" maxlength="39" id="radioLongName" class="config-input" style="width: 100%;" placeholder="My Node Name" aria-label="Long name">
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Short Name<span class="help-icon" data-explainer="Short identifier for this node (max 4 characters, typically used in UI displays)." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="text" maxlength="4" id="radioShortName" class="config-input" style="width: 100px; display: inline-block;" placeholder="NODE" aria-label="Short name">
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key"></div>
+              <div class="config-value">
+                <button type="button" id="radioNameSave" class="config-save-btn">Apply Node Names</button>
+                <span class="config-status" id="radioNameStatus" style="margin-left: 8px;"></span>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Node Role<span class="help-icon" data-explainer="The role/type of this node determines its behavior on the mesh network. Client for normal use, Router for relaying messages, Repeater for store-and-forward, etc." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <select id="radioRoleSelect" class="config-select" style="width: 200px;" aria-label="Node role">
+                    <option value="">Loading...</option>
+                  </select>
+                  <button type="button" id="radioRoleSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioRoleStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Hop Limit<span class="help-icon" data-explainer="Maximum number of hops (retransmissions) a message can make across the mesh network. Lower values save bandwidth but reduce range. Typical range: 3-7." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="number" min="0" max="7" id="radioHopLimit" class="config-input" style="width: 100px; display: inline-block;" aria-label="Hop limit">
+                  <button type="button" id="radioHopSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioHopStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Modem Preset<span class="help-icon" data-explainer="Controls spreading factor and bandwidth. Long/Slow = better range, slower speed. Short/Fast = shorter range, faster speed. Choose based on your needs." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <select id="radioModemSelect" class="config-select" style="width: 200px;" aria-label="Modem preset">
+                    <option value="">Loading...</option>
+                  </select>
+                  <button type="button" id="radioModemSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioModemStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Frequency Slot<span class="help-icon" data-explainer="LoRa frequency channel number. Default is 20. Must match across all nodes on your network. Range: 0-255." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="number" min="0" max="255" id="radioFrequencySlot" class="config-input" style="width: 100px; display: inline-block;" aria-label="Frequency slot">
+                  <button type="button" id="radioFrequencySave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioFrequencyStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row config-row-stack" id="radioChannelsRow">
+              <div class="config-key-heading"><strong>Channels<span class="help-icon" data-explainer="Configure your LoRa mesh network channels. Each channel has a name, PSK (encryption key), and uplink/downlink settings. Add Channel to create new ones." data-explainer-placement="right">?</span></strong></div>
+              <div class="config-value">
+                <div id="radioChannelsList" class="config-table"></div>
+                <div style="margin-top: 8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
+                  <button type="button" id="radioAddChannel" class="config-save-btn">Add Channel</button>
+                  <span class="config-status" id="radioChannelsStatus"></span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         </article>
@@ -17045,6 +17885,10 @@ def dashboard():
     const JS_ERROR_URL = "/dashboard/js-error";
     const RADIO_STATE_URL = "/dashboard/radio/state";
     const RADIO_HOPS_URL = "/dashboard/radio/hops";
+    const RADIO_NAMES_URL = "/dashboard/radio/names";
+    const RADIO_ROLE_URL = "/dashboard/radio/role";
+    const RADIO_MODEM_URL = "/dashboard/radio/modem";
+    const RADIO_FREQUENCY_URL = "/dashboard/radio/frequency";
     const RADIO_ADD_CHANNEL_URL = "/dashboard/radio/channel/add";
     const RADIO_UPDATE_CHANNEL_URL = "/dashboard/radio/channel/update";
     const RADIO_REMOVE_CHANNEL_URL = "/dashboard/radio/channel/remove";
@@ -17581,7 +18425,44 @@ def dashboard():
     function renderRadioPanel(state) {
       const hop = $("radioHopLimit");
       const hopStatus = $("radioHopStatus");
+      const longName = $("radioLongName");
+      const shortName = $("radioShortName");
+      const nameBtn = $("radioNameSave");
+      const roleSelect = $("radioRoleSelect");
+      const roleBtn = $("radioRoleSave");
+
       setRadioHopWidgetsEnabled(!!state.connected);
+
+      if (longName) {
+        longName.value = (state && state.long_name) ? state.long_name : '';
+        longName.disabled = !state.connected;
+      }
+      if (shortName) {
+        shortName.value = (state && state.short_name) ? state.short_name : '';
+        shortName.disabled = !state.connected;
+      }
+      if (nameBtn) {
+        nameBtn.disabled = !state.connected;
+      }
+
+      // Populate role dropdown dynamically
+      if (roleSelect && state && Array.isArray(state.available_roles)) {
+        roleSelect.innerHTML = '';
+        state.available_roles.forEach(role => {
+          const opt = document.createElement('option');
+          opt.value = role.value;
+          opt.textContent = role.label;
+          if (state.role === role.value) {
+            opt.selected = true;
+          }
+          roleSelect.appendChild(opt);
+        });
+        roleSelect.disabled = !state.connected;
+      }
+      if (roleBtn) {
+        roleBtn.disabled = !state.connected;
+      }
+
       if (hop) {
         hop.value = (state && typeof state.hops === 'number') ? String(state.hops) : '';
       }
@@ -17589,6 +18470,38 @@ def dashboard():
         hopStatus.textContent = state.connected ? '' : 'Disconnected';
         hopStatus.removeAttribute('data-tone');
       }
+
+      // Populate modem preset dropdown dynamically
+      const modemSelect = $("radioModemSelect");
+      const modemBtn = $("radioModemSave");
+      if (modemSelect && state && Array.isArray(state.available_modem_presets)) {
+        modemSelect.innerHTML = '';
+        state.available_modem_presets.forEach(preset => {
+          const opt = document.createElement('option');
+          opt.value = preset.value;
+          opt.textContent = preset.label;
+          if (state.modem_preset === preset.value) {
+            opt.selected = true;
+          }
+          modemSelect.appendChild(opt);
+        });
+        modemSelect.disabled = !state.connected;
+      }
+      if (modemBtn) {
+        modemBtn.disabled = !state.connected;
+      }
+
+      // Populate frequency slot input
+      const freqSlot = $("radioFrequencySlot");
+      const freqBtn = $("radioFrequencySave");
+      if (freqSlot) {
+        freqSlot.value = (state && typeof state.frequency_slot === 'number') ? String(state.frequency_slot) : '20';
+        freqSlot.disabled = !state.connected;
+      }
+      if (freqBtn) {
+        freqBtn.disabled = !state.connected;
+      }
+
       renderRadioChannels(state && Array.isArray(state.channels) ? state.channels : []);
     }
 
@@ -18110,7 +19023,116 @@ def dashboard():
     function initRadioPanel() {
       const hopBtn = $("radioHopSave");
       const hopInput = $("radioHopLimit");
+      const nameBtn = $("radioNameSave");
+      const longNameInput = $("radioLongName");
+      const shortNameInput = $("radioShortName");
+      const roleBtn = $("radioRoleSave");
+      const roleSelect = $("radioRoleSelect");
+      const modemBtn = $("radioModemSave");
+      const modemSelect = $("radioModemSelect");
+      const freqBtn = $("radioFrequencySave");
+      const freqInput = $("radioFrequencySlot");
       const addBtn = $("radioAddChannel");
+
+      if (freqBtn && freqInput) {
+        freqBtn.addEventListener('click', async () => {
+          const value = Number(freqInput && freqInput.value !== '' ? freqInput.value : NaN);
+          const status = $("radioFrequencyStatus");
+          if (!Number.isFinite(value)) {
+            if (status) { status.textContent = 'Enter a value 0–255'; status.setAttribute('data-tone', 'error'); }
+            return;
+          }
+          if (status) { status.textContent = 'Saving…'; status.removeAttribute('data-tone'); }
+          try {
+            const res = await fetch(RADIO_FREQUENCY_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frequency_slot: value }) });
+            const data = await res.json();
+            if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Save failed');
+            if (status) { status.textContent = 'Saved'; status.removeAttribute('data-tone'); }
+            renderRadioStateDeferred();
+          } catch (err) {
+            if (status) { status.textContent = String(err.message || err); status.setAttribute('data-tone', 'error'); }
+          }
+        });
+      }
+
+      if (modemBtn && modemSelect) {
+        modemBtn.addEventListener('click', async () => {
+          const modemValue = modemSelect.value;
+          const status = $("radioModemStatus");
+
+          if (!modemValue || modemValue === '') {
+            if (status) { status.textContent = 'Select a preset'; status.setAttribute('data-tone', 'error'); }
+            return;
+          }
+
+          if (status) { status.textContent = 'Saving…'; status.removeAttribute('data-tone'); }
+          try {
+            const res = await fetch(RADIO_MODEM_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modem_preset: parseInt(modemValue) }) });
+            const data = await res.json();
+            if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Save failed');
+            if (status) { status.textContent = 'Saved'; status.removeAttribute('data-tone'); }
+            renderRadioStateDeferred();
+          } catch (err) {
+            if (status) { status.textContent = String(err.message || err); status.setAttribute('data-tone', 'error'); }
+          }
+        });
+      }
+
+      if (roleBtn && roleSelect) {
+        roleBtn.addEventListener('click', async () => {
+          const roleValue = roleSelect.value;
+          const status = $("radioRoleStatus");
+
+          if (!roleValue || roleValue === '') {
+            if (status) { status.textContent = 'Select a role'; status.setAttribute('data-tone', 'error'); }
+            return;
+          }
+
+          if (status) { status.textContent = 'Saving…'; status.removeAttribute('data-tone'); }
+          try {
+            const res = await fetch(RADIO_ROLE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: parseInt(roleValue) }) });
+            const data = await res.json();
+            if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Save failed');
+            if (status) { status.textContent = 'Saved'; status.removeAttribute('data-tone'); }
+            renderRadioStateDeferred();
+          } catch (err) {
+            if (status) { status.textContent = String(err.message || err); status.setAttribute('data-tone', 'error'); }
+          }
+        });
+      }
+
+      if (nameBtn) {
+        nameBtn.addEventListener('click', async () => {
+          const longName = (longNameInput && longNameInput.value) ? longNameInput.value.trim() : '';
+          const shortName = (shortNameInput && shortNameInput.value) ? shortNameInput.value.trim() : '';
+          const status = $("radioNameStatus");
+
+          if (!longName) {
+            if (status) { status.textContent = 'Long name required'; status.setAttribute('data-tone', 'error'); }
+            return;
+          }
+          if (longName.length > 39) {
+            if (status) { status.textContent = 'Long name max 39 chars'; status.setAttribute('data-tone', 'error'); }
+            return;
+          }
+          if (shortName.length > 4) {
+            if (status) { status.textContent = 'Short name max 4 chars'; status.setAttribute('data-tone', 'error'); }
+            return;
+          }
+
+          if (status) { status.textContent = 'Saving…'; status.removeAttribute('data-tone'); }
+          try {
+            const res = await fetch(RADIO_NAMES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ long_name: longName, short_name: shortName || undefined }) });
+            const data = await res.json();
+            if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Save failed');
+            if (status) { status.textContent = 'Saved'; status.removeAttribute('data-tone'); }
+            renderRadioStateDeferred();
+          } catch (err) {
+            if (status) { status.textContent = String(err.message || err); status.setAttribute('data-tone', 'error'); }
+          }
+        });
+      }
+
       if (hopBtn) {
         hopBtn.addEventListener('click', async () => {
           const value = Number(hopInput && hopInput.value !== '' ? hopInput.value : NaN);
@@ -19783,6 +20805,274 @@ def dashboard():
       await commitFeatureSave({ force: true });
     }
 
+    let weatherValidatedData = null;
+
+    async function onWeatherValidate() {
+      const input = $("weatherLocationInput");
+      const resultDiv = $("weatherValidationResult");
+      const validateBtn = $("weatherValidateBtn");
+
+      if (!input || !resultDiv || !validateBtn) return;
+
+      const location = input.value.trim();
+      if (!location) {
+        alert('Please enter a zip code or city name.');
+        return;
+      }
+
+      validateBtn.disabled = true;
+      validateBtn.textContent = 'Validating...';
+      resultDiv.style.display = 'none';
+
+      try {
+        const response = await fetch('/dashboard/weather/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          weatherValidatedData = { lat: data.lat, lon: data.lon, name: data.name };
+          $("weatherValidatedName").textContent = data.name;
+          $("weatherValidatedCoords").textContent = `${data.lat.toFixed(4)}, ${data.lon.toFixed(4)}`;
+          resultDiv.style.display = 'block';
+        } else {
+          alert(`❌ Validation failed: ${data.error || 'Unknown error'}`);
+          weatherValidatedData = null;
+        }
+      } catch (err) {
+        alert(`❌ Validation request failed: ${err.message}`);
+        weatherValidatedData = null;
+      } finally {
+        validateBtn.disabled = false;
+        validateBtn.textContent = 'Validate';
+      }
+    }
+
+    async function onWeatherSave() {
+      if (!weatherValidatedData) {
+        alert('Please validate a location first.');
+        return;
+      }
+
+      const saveBtn = $("weatherSaveBtn");
+      if (!saveBtn) return;
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        const response = await fetch('/dashboard/weather/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(weatherValidatedData)
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Weather location updated to ${weatherValidatedData.name}`);
+          $("weatherCurrentLocation").textContent = weatherValidatedData.name;
+          $("weatherLocationInput").value = '';
+          $("weatherValidationResult").style.display = 'none';
+          weatherValidatedData = null;
+        } else {
+          alert(`❌ Save failed: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`❌ Save request failed: ${err.message}`);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Weather Location';
+      }
+    }
+
+    function updateWeatherLocationDisplay(snapshot) {
+      const currentLocationSpan = $("weatherCurrentLocation");
+      if (currentLocationSpan && snapshot && snapshot.weather_location_name) {
+        currentLocationSpan.textContent = snapshot.weather_location_name;
+      }
+    }
+
+    let availableUpdates = [];
+
+    async function onUpdateCheck() {
+      const checkBtn = $("updateCheckBtn");
+      const updateAvailableDiv = $("updateAvailable");
+      const versionSelect = $("updateVersionSelect");
+
+      if (!checkBtn || !updateAvailableDiv || !versionSelect) return;
+
+      checkBtn.disabled = true;
+      checkBtn.textContent = 'Checking...';
+      updateAvailableDiv.style.display = 'none';
+
+      try {
+        const response = await fetch('/dashboard/update/check');
+        const data = await response.json();
+
+        if (data.success) {
+          availableUpdates = data.available_versions || [];
+          const currentVersion = data.current_version || 'unknown';
+
+          $("updateCurrentVersion").textContent = currentVersion;
+
+          // Populate version dropdown
+          versionSelect.innerHTML = '<option value="">Select version...</option>';
+          availableUpdates.forEach(version => {
+            const option = document.createElement('option');
+            option.value = version;
+            option.textContent = version + (version === currentVersion ? ' (current)' : '');
+            versionSelect.appendChild(option);
+          });
+
+          if (availableUpdates.length > 0) {
+            $("updateVersionName").textContent = availableUpdates[0];
+            updateAvailableDiv.style.display = 'block';
+          } else {
+            alert('No updates available.');
+          }
+        } else {
+          alert(`❌ Update check failed: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`❌ Update check request failed: ${err.message}`);
+      } finally {
+        checkBtn.disabled = false;
+        checkBtn.textContent = 'Check for Updates';
+      }
+    }
+
+    async function onUpdateApply() {
+      const versionSelect = $("updateVersionSelect");
+      const applyBtn = $("updateApplyBtn");
+
+      if (!versionSelect || !applyBtn) return;
+
+      const selectedVersion = versionSelect.value;
+      if (!selectedVersion) {
+        alert('Please select a version to install.');
+        return;
+      }
+
+      if (!confirm(`⚠️ UPDATE TO ${selectedVersion}\n\nThis will update the software and restart the server.\n\nAre you sure?`)) {
+        return;
+      }
+
+      applyBtn.disabled = true;
+      applyBtn.textContent = 'Applying...';
+
+      try {
+        const response = await fetch('/dashboard/update/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: selectedVersion })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Update to ${selectedVersion} initiated. Server will restart shortly.`);
+        } else {
+          alert(`❌ Update failed: ${data.error || 'Unknown error'}`);
+          applyBtn.disabled = false;
+          applyBtn.textContent = 'Apply Update';
+        }
+      } catch (err) {
+        alert(`❌ Update request failed: ${err.message}`);
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Apply Update';
+      }
+    }
+
+    async function loadOnboardingSettings() {
+      try {
+        const response = await fetch('/dashboard/onboarding/settings');
+        const data = await response.json();
+
+        if (data.success) {
+          const settings = data.settings || {};
+          const stats = data.stats || {};
+
+          // Update toggle
+          const autoToggle = $("autoOnboardToggle");
+          if (autoToggle) {
+            autoToggle.checked = settings.auto_onboard_new_users !== false;
+            $("autoOnboardStatus").textContent = autoToggle.checked ? 'Enabled' : 'Disabled';
+          }
+
+          // Update custom message
+          const msgField = $("onboardWelcomeMsg");
+          if (msgField) {
+            msgField.value = settings.custom_welcome_message || '';
+          }
+
+          // Update stats
+          if ($("onboardStatsTotal")) $("onboardStatsTotal").textContent = stats.total || 0;
+          if ($("onboardStatsCompleted")) $("onboardStatsCompleted").textContent = stats.completed || 0;
+          if ($("onboardStatsProgress")) $("onboardStatsProgress").textContent = stats.in_progress || 0;
+        }
+      } catch (err) {
+        console.error('Failed to load onboarding settings:', err);
+      }
+    }
+
+    async function saveOnboardingSettings() {
+      const saveBtn = $("onboardSaveBtn");
+      if (!saveBtn) return;
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        const autoToggle = $("autoOnboardToggle");
+        const msgField = $("onboardWelcomeMsg");
+
+        const payload = {
+          auto_onboard_new_users: autoToggle ? autoToggle.checked : true,
+          custom_welcome_message: msgField ? msgField.value.trim() : ''
+        };
+
+        const response = await fetch('/dashboard/onboarding/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          alert('✅ Onboarding settings saved!');
+          loadOnboardingSettings(); // Reload to get updated stats
+        } else {
+          alert(`❌ Save failed: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`❌ Save request failed: ${err.message}`);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Onboarding Settings';
+      }
+    }
+
+    async function onSystemReboot() {
+      if (!confirm('⚠️ SYSTEM REBOOT\n\nThis will restart the entire mesh-master server.\n\nAre you sure you want to reboot?')) {
+        return;
+      }
+      try {
+        const response = await fetch('/dashboard/system/reboot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.success) {
+          alert('✅ Reboot command sent. Server will restart now.');
+        } else {
+          alert(`❌ Reboot failed: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`❌ Reboot request failed: ${err.message}`);
+      }
+    }
+
     function renderCommandGroups(categories) {
       const container = $("commandGroups");
       if (!container) return;
@@ -19807,7 +21097,7 @@ def dashboard():
         details.className = 'command-group';
         const catId = cat.id || `cat-${index}`;
         details.dataset.categoryId = catId;
-        const shouldOpen = previousOpen.size ? previousOpen.has(catId) : true;
+        const shouldOpen = previousOpen.size ? previousOpen.has(catId) : false;
         if (shouldOpen) {
           details.open = true;
         }
@@ -19921,6 +21211,8 @@ def dashboard():
       featureState.baselineAdminPassphrase = featureState.adminPassphrase;
       featureState.autoPingEnabled = data.auto_ping_enabled === undefined ? true : !!data.auto_ping_enabled;
       featureState.adminWhitelist = Array.isArray(data.admin_whitelist) ? data.admin_whitelist.slice() : [];
+
+      updateWeatherLocationDisplay(data);
 
       const aiToggle = $("aiToggle");
       if (aiToggle) {
@@ -20282,7 +21574,7 @@ def dashboard():
       const ts = metrics.timestamp ? new Date(metrics.timestamp) : null;
       const timestampEl = $("metricsTimestamp");
       if (timestampEl) {
-        timestampEl.textContent = ts && !isNaN(ts) ? `Snapshot · ${ts.toLocaleTimeString()}` : "Snapshot time unavailable";
+        timestampEl.textContent = ts && !isNaN(ts) ? ts.toLocaleTimeString() : "Time unavailable";
       }
       updateConnectionBanner(metrics.connection_status);
 
@@ -20389,7 +21681,7 @@ def dashboard():
         updateMetrics(initialMetrics);
         const statusEl = $("metricsStatus");
         if (statusEl) {
-          statusEl.textContent = "Snapshot ready";
+          statusEl.textContent = "Ready";
         }
       }
       document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -20431,6 +21723,36 @@ def dashboard():
       if (passInput) {
         passInput.addEventListener('input', onAdminPassphraseInput);
       }
+      const weatherValidateBtn = $("weatherValidateBtn");
+      if (weatherValidateBtn) {
+        weatherValidateBtn.addEventListener('click', onWeatherValidate);
+      }
+      const weatherSaveBtn = $("weatherSaveBtn");
+      if (weatherSaveBtn) {
+        weatherSaveBtn.addEventListener('click', onWeatherSave);
+      }
+      const updateCheckBtn = $("updateCheckBtn");
+      if (updateCheckBtn) {
+        updateCheckBtn.addEventListener('click', onUpdateCheck);
+      }
+      const updateApplyBtn = $("updateApplyBtn");
+      if (updateApplyBtn) {
+        updateApplyBtn.addEventListener('click', onUpdateApply);
+      }
+      const rebootBtn = $("systemRebootBtn");
+      if (rebootBtn) {
+        rebootBtn.addEventListener('click', onSystemReboot);
+      }
+      const onboardSaveBtn = $("onboardSaveBtn");
+      if (onboardSaveBtn) {
+        onboardSaveBtn.addEventListener('click', saveOnboardingSettings);
+      }
+      const autoOnboardToggle = $("autoOnboardToggle");
+      if (autoOnboardToggle) {
+        autoOnboardToggle.addEventListener('change', (e) => {
+          $("autoOnboardStatus").textContent = e.target.checked ? 'Enabled' : 'Disabled';
+        });
+      }
       loadMetrics();
       setInterval(loadMetrics, METRICS_POLL_MS);
       initRadioPanel();
@@ -20440,6 +21762,13 @@ def dashboard():
       bindOfflineModal();
       setupOfflineControls();
       loadOfflineList();
+      loadOnboardingSettings();
+      // Bind all help icons to tooltips
+      document.querySelectorAll('.help-icon[data-explainer]').forEach(icon => {
+        const text = icon.dataset.explainer;
+        const placement = icon.dataset.explainerPlacement || 'top';
+        bindExplainer(icon, text, { placement });
+      });
     });
   </script>
 </body>
@@ -20952,6 +22281,13 @@ def _build_radio_state_dict() -> Dict[str, Any]:
         'long_name': None,
         'short_name': None,
         'hops': None,
+        'role': None,
+        'role_name': None,
+        'available_roles': [],
+        'modem_preset': None,
+        'modem_preset_name': None,
+        'available_modem_presets': [],
+        'frequency_slot': None,
         'channels': [],
         'max_channels': 8,
     }
@@ -20976,12 +22312,69 @@ def _build_radio_state_dict() -> Dict[str, Any]:
             state['short_name'] = interface.getShortName()
         except Exception:
             pass
-        # Hop limit lives under localConfig.lora.hop_limit
+        # Hop limit and modem preset from LoRa config
         try:
+            from meshtastic import config_pb2
             lora = node.localConfig.lora
             state['hops'] = int(getattr(lora, 'hop_limit', 0))
+
+            # Modem preset (spreading factor)
+            modem_preset_value = getattr(lora, 'modem_preset', 0)
+            state['modem_preset'] = modem_preset_value
+
+            # Get modem preset name dynamically
+            try:
+                state['modem_preset_name'] = config_pb2.Config.LoRaConfig.ModemPreset.Name(modem_preset_value)
+            except:
+                state['modem_preset_name'] = 'UNKNOWN'
+
+            # Get all available modem presets dynamically
+            modem_enum = config_pb2.Config.LoRaConfig.ModemPreset
+            available_presets = []
+            for enum_value in modem_enum.DESCRIPTOR.values:
+                available_presets.append({
+                    'value': enum_value.number,
+                    'name': enum_value.name,
+                    'label': enum_value.name.replace('_', ' ').title()
+                })
+            state['available_modem_presets'] = sorted(available_presets, key=lambda x: x['value'])
+
+            # Frequency slot (channel_num)
+            state['frequency_slot'] = int(getattr(lora, 'channel_num', 20))
         except Exception:
             state['hops'] = None
+            state['modem_preset'] = None
+            state['modem_preset_name'] = None
+            state['available_modem_presets'] = []
+            state['frequency_slot'] = None
+
+        # Node role from device config
+        try:
+            from meshtastic import config_pb2
+            device = node.localConfig.device
+            role_value = getattr(device, 'role', 0)
+            state['role'] = role_value
+
+            # Get role name dynamically from enum
+            role_enum = config_pb2.Config.DeviceConfig.Role
+            try:
+                state['role_name'] = config_pb2.Config.DeviceConfig.Role.Name(role_value)
+            except:
+                state['role_name'] = 'UNKNOWN'
+
+            # Get all available roles dynamically
+            available = []
+            for enum_value in role_enum.DESCRIPTOR.values:
+                available.append({
+                    'value': enum_value.number,
+                    'name': enum_value.name,
+                    'label': enum_value.name.replace('_', ' ').title()
+                })
+            state['available_roles'] = sorted(available, key=lambda x: x['value'])
+        except Exception as exc:
+            state['role'] = None
+            state['role_name'] = None
+            state['available_roles'] = []
 
         # Channels
         _ensure_channels(node)
@@ -21068,6 +22461,145 @@ def set_radio_hops():
             return jsonify({'ok': False, 'error': f'Failed to set hop limit: {exc}'}), 500
     clean_log(f"Radio hop limit set to {hop_limit}", "🛠️", show_always=True, rate_limit=False)
     return jsonify({'ok': True, 'hop_limit': hop_limit})
+
+
+@app.route('/dashboard/radio/names', methods=['POST'])
+def set_radio_names():
+    data = request.get_json(force=True) or {}
+    long_name = str(data.get('long_name', '')).strip()
+    short_name = str(data.get('short_name', '')).strip()
+
+    if not long_name:
+        return jsonify({'ok': False, 'error': 'long_name is required'}), 400
+    if len(long_name) > 39:
+        return jsonify({'ok': False, 'error': 'long_name must be 39 characters or less'}), 400
+    if len(short_name) > 4:
+        return jsonify({'ok': False, 'error': 'short_name must be 4 characters or less'}), 400
+
+    node = _get_local_node()
+    if interface is None or node is None:
+        return jsonify({'ok': False, 'error': 'Radio not connected'}), 503
+
+    with _RADIO_OPS_LOCK:
+        try:
+            interface.waitForConfig()
+        except Exception:
+            pass
+        try:
+            # Use setOwner method to set long and short names
+            node.setOwner(long_name=long_name, short_name=short_name if short_name else None)
+        except Exception as exc:
+            return jsonify({'ok': False, 'error': f'Failed to set node names: {exc}'}), 500
+
+    clean_log(f"Node names updated: '{long_name}' / '{short_name or '(unchanged)'}'", "🛠️", show_always=True, rate_limit=False)
+    return jsonify({'ok': True, 'long_name': long_name, 'short_name': short_name})
+
+
+@app.route('/dashboard/radio/role', methods=['POST'])
+def set_radio_role():
+    data = request.get_json(force=True) or {}
+    try:
+        role_value = int(data.get('role'))
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Invalid role value'}), 400
+
+    node = _get_local_node()
+    if interface is None or node is None:
+        return jsonify({'ok': False, 'error': 'Radio not connected'}), 503
+
+    # Validate role is in valid range
+    try:
+        from meshtastic import config_pb2
+        role_enum = config_pb2.Config.DeviceConfig.Role
+        valid_values = [v.number for v in role_enum.DESCRIPTOR.values]
+        if role_value not in valid_values:
+            return jsonify({'ok': False, 'error': f'Invalid role value. Must be one of {valid_values}'}), 400
+        role_name = config_pb2.Config.DeviceConfig.Role.Name(role_value)
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': f'Role validation failed: {exc}'}), 400
+
+    with _RADIO_OPS_LOCK:
+        try:
+            interface.waitForConfig()
+        except Exception:
+            pass
+        try:
+            node.localConfig.device.role = role_value
+            node.writeConfig('device')
+        except Exception as exc:
+            return jsonify({'ok': False, 'error': f'Failed to set role: {exc}'}), 500
+
+    clean_log(f"Node role set to {role_name} ({role_value})", "🛠️", show_always=True, rate_limit=False)
+    return jsonify({'ok': True, 'role': role_value, 'role_name': role_name})
+
+
+@app.route('/dashboard/radio/modem', methods=['POST'])
+def set_radio_modem_preset():
+    data = request.get_json(force=True) or {}
+    try:
+        modem_preset = int(data.get('modem_preset'))
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Invalid modem_preset value'}), 400
+
+    node = _get_local_node()
+    if interface is None or node is None:
+        return jsonify({'ok': False, 'error': 'Radio not connected'}), 503
+
+    # Validate modem preset is in valid range
+    try:
+        from meshtastic import config_pb2
+        modem_enum = config_pb2.Config.LoRaConfig.ModemPreset
+        valid_values = [v.number for v in modem_enum.DESCRIPTOR.values]
+        if modem_preset not in valid_values:
+            return jsonify({'ok': False, 'error': f'Invalid modem preset. Must be one of {valid_values}'}), 400
+        modem_name = config_pb2.Config.LoRaConfig.ModemPreset.Name(modem_preset)
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': f'Modem preset validation failed: {exc}'}), 400
+
+    with _RADIO_OPS_LOCK:
+        try:
+            interface.waitForConfig()
+        except Exception:
+            pass
+        try:
+            node.localConfig.lora.modem_preset = modem_preset
+            node.writeConfig('lora')
+        except Exception as exc:
+            return jsonify({'ok': False, 'error': f'Failed to set modem preset: {exc}'}), 500
+
+    clean_log(f"Modem preset set to {modem_name} ({modem_preset})", "🛠️", show_always=True, rate_limit=False)
+    return jsonify({'ok': True, 'modem_preset': modem_preset, 'modem_preset_name': modem_name})
+
+
+@app.route('/dashboard/radio/frequency', methods=['POST'])
+def set_radio_frequency_slot():
+    data = request.get_json(force=True) or {}
+    try:
+        frequency_slot = int(data.get('frequency_slot'))
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Invalid frequency_slot value'}), 400
+
+    # Validate frequency slot is in reasonable range (typically 0-83 for US/902MHz)
+    if frequency_slot < 0 or frequency_slot > 255:
+        return jsonify({'ok': False, 'error': 'Frequency slot must be between 0 and 255'}), 400
+
+    node = _get_local_node()
+    if interface is None or node is None:
+        return jsonify({'ok': False, 'error': 'Radio not connected'}), 503
+
+    with _RADIO_OPS_LOCK:
+        try:
+            interface.waitForConfig()
+        except Exception:
+            pass
+        try:
+            node.localConfig.lora.channel_num = frequency_slot
+            node.writeConfig('lora')
+        except Exception as exc:
+            return jsonify({'ok': False, 'error': f'Failed to set frequency slot: {exc}'}), 500
+
+    clean_log(f"Frequency slot set to {frequency_slot}", "🛠️", show_always=True, rate_limit=False)
+    return jsonify({'ok': True, 'frequency_slot': frequency_slot})
 
 
 def _psk_from_text(text: Optional[str]) -> Optional[bytes]:
@@ -21468,7 +23000,10 @@ def main():
     add_script_log(f"Server restarted. Restart count: {restart_count}")
     clean_log("Starting MESH-MASTER server...", "🚀", show_always=True)
     load_archive()
-    
+
+    # Initialize onboarding state
+    _initialize_onboarding_state()
+
     # Start the async response worker
     start_response_worker()
 
