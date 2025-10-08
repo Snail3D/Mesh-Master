@@ -1714,6 +1714,10 @@ PENDING_RELAY_ACKS: Dict[int, Dict[str, Any]] = {}
 RELAY_ACK_LOCK = threading.Lock()
 RELAY_ACK_TIMEOUT = 20  # seconds
 
+# Track last relay sender for auto-route replies: {recipient_key: sender_node_id}
+LAST_RELAY_SENDER: Dict[str, str] = {}
+LAST_RELAY_LOCK = threading.Lock()
+
 
 def _invoke_power_command(cmd):
     if isinstance(cmd, str):
@@ -7777,6 +7781,10 @@ BUILTIN_COMMANDS = {
     "/whereami",
     "/test",
     "/nodes",
+    "/node",
+    "/networks",
+    "/optout",
+    "/optin",
     "/help",
     "/menu",
     "/onboard",
@@ -12609,6 +12617,198 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
 
     return _cmd_reply(cmd, response)
 
+  elif cmd == "/node":
+    # Show detailed info about a specific node: /node snmo
+    remainder = full_text[len(cmd):].strip()
+    if not remainder:
+      return _cmd_reply(cmd, "Usage: /node <shortname>\n\nExample: /node snmo")
+
+    target_shortname = remainder
+    target_node_id = get_node_id_from_shortname(target_shortname)
+
+    if not target_node_id:
+      return _cmd_reply(cmd, f"❌ Node '{target_shortname}' not found.\n\nUse /nodes to see available nodes.")
+
+    # Get node data from interface
+    node_info = []
+    if interface and hasattr(interface, "nodes") and interface.nodes:
+      node_data = interface.nodes.get(target_node_id)
+      if node_data:
+        # Get user info
+        user_dict = node_data.get("user", {})
+        longname = user_dict.get("longName", "Unknown")
+        shortname = user_dict.get("shortName", target_shortname)
+
+        node_info.append(f"📍 Node: {longname} ({shortname})")
+
+        # Last heard
+        last_heard = node_data.get("lastHeard")
+        if last_heard:
+          try:
+            time_ago = int(time.time() - last_heard)
+            if time_ago < 60:
+              time_str = f"{time_ago}s ago"
+            elif time_ago < 3600:
+              time_str = f"{time_ago // 60}m ago"
+            else:
+              time_str = f"{time_ago // 3600}h ago"
+            node_info.append(f"⏱️ Last heard: {time_str}")
+          except Exception:
+            pass
+
+        # SNR
+        snr = node_data.get("snr")
+        if snr is not None:
+          node_info.append(f"📶 SNR: {snr} dB")
+
+          # Estimate signal strength based on modem preset
+          # Different spreading factors have different SNR requirements
+          # Based on Meshtastic link budget calculations
+          try:
+            # Try to get current modem preset
+            modem_preset = None
+            if interface and hasattr(interface, "localNode"):
+              local_node = interface.localNode
+              if hasattr(local_node, "localConfig"):
+                lora_config = getattr(local_node.localConfig, "lora", None)
+                if lora_config:
+                  modem_preset = getattr(lora_config, "modem_preset", None)
+
+            # SNR thresholds vary by preset (spreading factor)
+            # Preset values: LONG_FAST=0, LONG_SLOW=1, VERY_LONG_SLOW=2, MEDIUM_SLOW=3,
+            #                MEDIUM_FAST=4, SHORT_SLOW=5, SHORT_FAST=6, LONG_MODERATE=7, SHORT_TURBO=8
+            #
+            # LONG presets (SF11/12): High sensitivity, needs good SNR
+            # MEDIUM presets (SF9/10): Medium sensitivity
+            # SHORT presets (SF7/8): Low sensitivity, tolerates poor SNR
+
+            if modem_preset in [0, 1, 2, 7]:  # LONG_FAST, LONG_SLOW, VERY_LONG_SLOW, LONG_MODERATE
+              # High spreading factor - needs better SNR
+              if snr >= 10:
+                signal_str = "Excellent"
+              elif snr >= 5:
+                signal_str = "Good"
+              elif snr >= 0:
+                signal_str = "Fair"
+              elif snr >= -5:
+                signal_str = "Weak"
+              else:
+                signal_str = "Very Weak"
+            elif modem_preset in [3, 4]:  # MEDIUM_SLOW, MEDIUM_FAST
+              # Medium spreading factor
+              if snr >= 5:
+                signal_str = "Excellent"
+              elif snr >= 0:
+                signal_str = "Good"
+              elif snr >= -5:
+                signal_str = "Fair"
+              elif snr >= -10:
+                signal_str = "Weak"
+              else:
+                signal_str = "Very Weak"
+            elif modem_preset in [5, 6, 8]:  # SHORT_SLOW, SHORT_FAST, SHORT_TURBO
+              # Low spreading factor - tolerates worse SNR
+              if snr >= 0:
+                signal_str = "Excellent"
+              elif snr >= -5:
+                signal_str = "Good"
+              elif snr >= -10:
+                signal_str = "Fair"
+              elif snr >= -15:
+                signal_str = "Weak"
+              else:
+                signal_str = "Very Weak"
+            else:
+              # Unknown preset - use LONG_FAST defaults
+              if snr >= 10:
+                signal_str = "Excellent"
+              elif snr >= 5:
+                signal_str = "Good"
+              elif snr >= 0:
+                signal_str = "Fair"
+              elif snr >= -5:
+                signal_str = "Weak"
+              else:
+                signal_str = "Very Weak"
+          except Exception:
+            # Fallback to LONG_FAST defaults if we can't determine preset
+            if snr >= 10:
+              signal_str = "Excellent"
+            elif snr >= 5:
+              signal_str = "Good"
+            elif snr >= 0:
+              signal_str = "Fair"
+            elif snr >= -5:
+              signal_str = "Weak"
+            else:
+              signal_str = "Very Weak"
+
+          node_info.append(f"📡 Signal: {signal_str}")
+
+        # Distance (if available from position)
+        position = node_data.get("position", {})
+        if isinstance(position, dict):
+          lat = position.get("latitude") or position.get("latitudeI")
+          lon = position.get("longitude") or position.get("longitudeI")
+
+          # If we have coords, try to calculate distance to our node
+          # (Would need our own coords - for now just show if coords exist)
+          if lat and lon:
+            node_info.append(f"📍 Has GPS position")
+
+        # Hop count
+        hops_away = node_data.get("hopsAway")
+        if hops_away is not None:
+          node_info.append(f"🔀 Hops: {hops_away}")
+
+        response = "\n".join(node_info)
+        return _cmd_reply(cmd, response)
+
+    return _cmd_reply(cmd, f"❌ No data available for '{target_shortname}'.")
+
+  elif cmd == "/networks":
+    # Show all channels/networks this node is connected to
+    channel_names = []
+
+    # Get channels from interface
+    if interface and hasattr(interface, "channels") and interface.channels:
+      channels = interface.channels
+      if isinstance(channels, dict):
+        for ch_idx, ch_data in channels.items():
+          try:
+            # Get channel name
+            if isinstance(ch_data, dict):
+              settings = ch_data.get("settings", {})
+              if isinstance(settings, dict):
+                ch_name = settings.get("name", "")
+                if ch_name and ch_name not in channel_names:
+                  channel_names.append(ch_name)
+            # Fallback to CHANNEL_NAME_MAP
+            if not ch_name and ch_idx in CHANNEL_NAME_MAP:
+              ch_name = CHANNEL_NAME_MAP[ch_idx]
+              if ch_name and ch_name not in channel_names:
+                channel_names.append(ch_name)
+          except Exception:
+            continue
+
+    # Also check CHANNEL_NAME_MAP as fallback
+    if not channel_names:
+      for ch_name in CHANNEL_NAME_MAP.values():
+        if ch_name and ch_name not in channel_names:
+          channel_names.append(ch_name)
+
+    if not channel_names:
+      return _cmd_reply(cmd, "📡 No networks/channels detected.")
+
+    # Create comma-separated list (no need to sort, preserve order)
+    network_list = ", ".join(channel_names)
+
+    # Format response
+    count = len(channel_names)
+    response = f"📡 Connected networks: {count}\n\n{network_list}"
+
+    return _cmd_reply(cmd, response)
+
   elif cmd in {"/onboard", "/onboarding", "/onboardme"}:
     if not is_direct:
       return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
@@ -14653,6 +14853,39 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
         return False
       return _process_admin_password(sender_id, text)
 
+    # Auto-relay: if user recently received a relay, auto-route their next plain message back
+    # This ONLY happens if the message doesn't start with a known shortname
+    words = text.split(None, 1)  # Split into [first_word, rest_of_message]
+    auto_relay_triggered = False
+
+    if len(words) >= 1:
+      first_word = words[0]
+      # Check if first word is a known shortname
+      potential_target = get_node_id_from_shortname(first_word)
+
+      if not potential_target:
+        # First word is NOT a shortname - check for auto-relay
+        with LAST_RELAY_LOCK:
+          last_sender_id = LAST_RELAY_SENDER.get(sender_key)
+
+        if last_sender_id:
+          # User has a pending auto-relay target - route entire message to them
+          last_sender_shortname = get_node_shortname(last_sender_id)
+          if last_sender_shortname:
+            clean_log(f"Auto-relaying to {last_sender_shortname} (last relay sender)", "📨")
+
+            # Clear the auto-relay after using it
+            with LAST_RELAY_LOCK:
+              LAST_RELAY_SENDER.pop(sender_key, None)
+
+            return _handle_shortname_relay(
+              sender_id=sender_id,
+              sender_key=sender_key,
+              target_shortname=last_sender_shortname,
+              target_node_id=last_sender_id,
+              message=text  # Send entire message, not just words[1]
+            )
+
     # Shortname relay: "snmo hello there" -> relay to SnMo
     # Check if message starts with a known shortname
     words = text.split(None, 1)  # Split into [shortname, rest_of_message]
@@ -15197,6 +15430,28 @@ def on_receive(packet=None, interface=None, **kwargs):
       return
     sender_display = _node_display_label(sender_node)
     normalized_text = (text or "").strip()
+
+    # Check if this is a relay message and track the sender for auto-reply
+    if normalized_text.startswith("📨 Relay from "):
+      try:
+        # Extract original sender from relay header
+        lines = normalized_text.split("\n")
+        if len(lines) > 0:
+          first_line = lines[0]  # "📨 Relay from SenderName:"
+          # Extract sender name between "from " and ":"
+          if "from " in first_line and ":" in first_line:
+            sender_name = first_line.split("from ")[1].split(":")[0].strip()
+            # Look up node_id from shortname
+            original_sender_id = get_node_id_from_shortname(sender_name)
+            if original_sender_id:
+              # Track this so recipient can auto-reply
+              recipient_key = _safe_sender_key(to_node_int)  # The person receiving the relay
+              if recipient_key:
+                with LAST_RELAY_LOCK:
+                  LAST_RELAY_SENDER[recipient_key] = original_sender_id
+      except Exception as e:
+        dprint(f"Error tracking relay sender: {e}")
+
     try:
       _maybe_queue_topic_prefetch(normalized_text)
     except Exception:
