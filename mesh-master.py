@@ -12004,7 +12004,9 @@ def send_to_ollama(
             full_text = _format_ai_error("Ollama", "no content returned")
         elapsed = max(0.01, time.perf_counter() - start_time)
         clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
-        return StreamingResult(full_text[:MAX_RESPONSE_LENGTH], sent_chunks=streamed_chunks, truncated=truncated)
+        # Append processing time to response
+        full_text_with_time = f"{full_text}\n\n⏱️ {elapsed:.1f}s"
+        return StreamingResult(full_text_with_time[:MAX_RESPONSE_LENGTH], sent_chunks=streamed_chunks, truncated=truncated)
 
     try:
         try:
@@ -12046,7 +12048,9 @@ def send_to_ollama(
                 resp = _format_ai_error("Ollama", "no content returned")
             elapsed = max(0.01, time.perf_counter() - start_time)
             clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
-            return (resp or "")[:MAX_RESPONSE_LENGTH]
+            # Append processing time to response
+            resp_with_time = f"{resp}\n\n⏱️ {elapsed:.1f}s"
+            return (resp_with_time or "")[:MAX_RESPONSE_LENGTH]
         else:
             status = getattr(r, 'status_code', 'no response')
             body_preview = r.text[:120] if r is not None and hasattr(r, 'text') else ''
