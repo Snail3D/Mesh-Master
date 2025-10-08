@@ -12004,8 +12004,12 @@ def send_to_ollama(
             full_text = _format_ai_error("Ollama", "no content returned")
         elapsed = max(0.01, time.perf_counter() - start_time)
         clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
-        # Append processing time to response
-        full_text_with_time = f"{full_text}\n\n⏱️ {elapsed:.1f}s"
+        # Send timing as final chunk if we were streaming
+        timing_text = f"⏱️ {elapsed:.1f}s"
+        if streamed_chunks > 0:
+            _send_stream_chunk(timing_text)
+        # Append processing time to response text
+        full_text_with_time = f"{full_text}\n\n{timing_text}"
         return StreamingResult(full_text_with_time[:MAX_RESPONSE_LENGTH], sent_chunks=streamed_chunks, truncated=truncated)
 
     try:
