@@ -27,12 +27,12 @@
     "subscribers": {
       "!376be684": {
         "first_seen": 1759103875.7552705,
-        "last_check": 1759399879.454478,
+        "last_check": 1759902094.8971152,
         "node_id": "!376be684",
         "short": "SnMo",
         "unread": [],
         "pending_notice": false,
-        "last_heartbeat": 1759399879.447572,
+        "last_heartbeat": 1759902100.6233547,
         "trusted": true
       }
     },
@@ -58,25 +58,50 @@
     "subscribers": {
       "!376be684": {
         "first_seen": 1759178148.42542,
-        "last_check": 1759399879.454478,
+        "last_check": 1759902094.8971152,
         "node_id": "!376be684",
         "short": "SnMo",
-        "unread": [],
+        "unread": [
+          "5732f83232c4c3d04a790214e3e769f39eaa8620",
+          "0e3e9242d76e304862e139106aee648a21e2688b",
+          "958b533fa597345ee2fffa89002b723de8f0b020",
+          "6f32a00e8fb81d16c668aa507be34f72a4b58eab",
+          "a73b349eacb9c899f62ece8395ab761fa08b2070",
+          "a776ef212f50194a68bb3b3041911fdc2d71be19",
+          "4014090102e7372e2e30efb2040b139b6cf1cb61",
+          "910cae31b7b13c316492a1ed11ac0f9bb1affbd3",
+          "eddf9c77e28b2d1d1affe30c579f316eab130207",
+          "8f9807ae93a8e7d4ab595ba40018f070397ca582",
+          "df203a8233fd3365a8bb8b370694fb9c13b74f85",
+          "3f433368f944eb74ece20e0452229ae1159d0314",
+          "23cb7738f64f2ac9b40941f0ef2923a9b7417193",
+          "5dad923216e570879ffdb509b77e5f3b5ea2d8d6",
+          "c0364eb3ffc3bd9a932b20fddd1f6d178a6f4572",
+          "ddc19ee856996174330202d4742802f062adcdc7",
+          "6a0e3614f046fb314dd971d30721281316f036fe"
+        ],
         "pending_notice": false,
-        "reminders": {},
+        "reminders": {
+          "base_ts": 1759902100.6233547,
+          "next_ts": 1759932000.0,
+          "count": 0,
+          "last_sent_ts": null,
+          "expiry_ts": 1760161300.6233547,
+          "node_id": "!376be684"
+        },
         "trusted": true,
-        "last_heartbeat": 1759399879.447572
+        "last_heartbeat": 1759902100.6233547
       },
       "!a3cb5c4e": {
         "first_seen": 1759178322.7911708,
-        "last_check": 1759178733.3398132,
+        "last_check": 1759902058.489525,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1759399830.9263577
+        "last_heartbeat": 1759902058.4654195
       }
     },
     "messages": {
@@ -103,6 +128,218 @@
         "readers": {
           "!a3cb5c4e": 1759178733.3398132
         }
+      },
+      "5732f83232c4c3d04a790214e3e769f39eaa8620": {
+        "id": "5732f83232c4c3d04a790214e3e769f39eaa8620",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T04:08:37.875490+00:00",
+        "body": "ok sounds good",
+        "readers": {
+          "!a3cb5c4e": 1759896756.4527469
+        }
+      },
+      "0e3e9242d76e304862e139106aee648a21e2688b": {
+        "id": "0e3e9242d76e304862e139106aee648a21e2688b",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T04:13:02.824503+00:00",
+        "body": "ok sounds good thanks",
+        "readers": {
+          "!a3cb5c4e": 1759896983.1818175
+        }
+      },
+      "958b533fa597345ee2fffa89002b723de8f0b020": {
+        "id": "958b533fa597345ee2fffa89002b723de8f0b020",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T04:17:41.926505+00:00",
+        "body": "yes",
+        "readers": {
+          "!a3cb5c4e": 1759898701.3337371
+        }
+      },
+      "6f32a00e8fb81d16c668aa507be34f72a4b58eab": {
+        "id": "6f32a00e8fb81d16c668aa507be34f72a4b58eab",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T04:59:45.275185+00:00",
+        "body": "sounds like a plan",
+        "readers": {
+          "!a3cb5c4e": 1759899725.7607534
+        }
+      },
+      "a73b349eacb9c899f62ece8395ab761fa08b2070": {
+        "id": "a73b349eacb9c899f62ece8395ab761fa08b2070",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:02:37.622273+00:00",
+        "body": "testing for Claude, do you get the joke?",
+        "readers": {
+          "!a3cb5c4e": 1759899898.1882114
+        }
+      },
+      "a776ef212f50194a68bb3b3041911fdc2d71be19": {
+        "id": "a776ef212f50194a68bb3b3041911fdc2d71be19",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:05:21.058295+00:00",
+        "body": "ok man does this work yet?",
+        "readers": {
+          "!a3cb5c4e": 1759900068.4144957
+        }
+      },
+      "4014090102e7372e2e30efb2040b139b6cf1cb61": {
+        "id": "4014090102e7372e2e30efb2040b139b6cf1cb61",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:08:08.568373+00:00",
+        "body": "please finally work",
+        "readers": {
+          "!a3cb5c4e": 1759900241.1979783
+        }
+      },
+      "910cae31b7b13c316492a1ed11ac0f9bb1affbd3": {
+        "id": "910cae31b7b13c316492a1ed11ac0f9bb1affbd3",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:11:01.082860+00:00",
+        "body": "Claude, you got this buddy",
+        "readers": {
+          "!a3cb5c4e": 1759900541.0737572
+        }
+      },
+      "eddf9c77e28b2d1d1affe30c579f316eab130207": {
+        "id": "eddf9c77e28b2d1d1affe30c579f316eab130207",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:15:59.468462+00:00",
+        "body": "sounds excellent trackin all",
+        "readers": {
+          "!a3cb5c4e": 1759900629.418586
+        }
+      },
+      "0f3e565b-0bce-4b8d-b909-14ff733dd257": {
+        "id": "0f3e565b-0bce-4b8d-b909-14ff733dd257",
+        "mailbox": "qas",
+        "sender_key": "!376be684",
+        "sender_node": "!376be684",
+        "sender_short": "SnMo",
+        "timestamp": "2025-10-08T05:16:58.464700+00:00",
+        "body": "sup wit it? Fixed?",
+        "readers": {
+          "!a3cb5c4e": 1759900629.418586
+        }
+      },
+      "8f9807ae93a8e7d4ab595ba40018f070397ca582": {
+        "id": "8f9807ae93a8e7d4ab595ba40018f070397ca582",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:17:55.542575+00:00",
+        "body": "ok she’s purrin or not",
+        "readers": {
+          "!a3cb5c4e": 1759901103.5143957
+        }
+      },
+      "df203a8233fd3365a8bb8b370694fb9c13b74f85": {
+        "id": "df203a8233fd3365a8bb8b370694fb9c13b74f85",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:25:17.697516+00:00",
+        "body": "Roger that",
+        "readers": {
+          "!a3cb5c4e": 1759901313.0795305
+        }
+      },
+      "3f433368f944eb74ece20e0452229ae1159d0314": {
+        "id": "3f433368f944eb74ece20e0452229ae1159d0314",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:28:51.430482+00:00",
+        "body": "got this?",
+        "readers": {
+          "!a3cb5c4e": 1759901780.784412
+        }
+      },
+      "23cb7738f64f2ac9b40941f0ef2923a9b7417193": {
+        "id": "23cb7738f64f2ac9b40941f0ef2923a9b7417193",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:29:28.563733+00:00",
+        "body": "yo yo",
+        "readers": {
+          "!a3cb5c4e": 1759901780.784412
+        }
+      },
+      "5dad923216e570879ffdb509b77e5f3b5ea2d8d6": {
+        "id": "5dad923216e570879ffdb509b77e5f3b5ea2d8d6",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:36:34.454807+00:00",
+        "body": "I gotcha yep",
+        "readers": {
+          "!a3cb5c4e": 1759901958.8336713
+        }
+      },
+      "c0364eb3ffc3bd9a932b20fddd1f6d178a6f4572": {
+        "id": "c0364eb3ffc3bd9a932b20fddd1f6d178a6f4572",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:37:09.752005+00:00",
+        "body": "I hear ya loud and clear",
+        "readers": {
+          "!a3cb5c4e": 1759901958.8336713
+        }
+      },
+      "ddc19ee856996174330202d4742802f062adcdc7": {
+        "id": "ddc19ee856996174330202d4742802f062adcdc7",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:39:30.935512+00:00",
+        "body": "you got it man.",
+        "readers": {}
+      },
+      "6a0e3614f046fb314dd971d30721281316f036fe": {
+        "id": "6a0e3614f046fb314dd971d30721281316f036fe",
+        "mailbox": "qas",
+        "sender_key": "!a3cb5c4e",
+        "sender_node": "!a3cb5c4e",
+        "sender_short": "Lucy",
+        "timestamp": "2025-10-08T05:40:58.489731+00:00",
+        "body": "howdy",
+        "readers": {}
       }
     },
     "mailbox_name": "qas"
@@ -126,13 +363,13 @@
       },
       "!376be684": {
         "first_seen": 1759399854.2388463,
-        "last_check": 1759399879.454478,
+        "last_check": 1759902094.8971152,
         "node_id": "!376be684",
         "short": "!376be684",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
-        "last_heartbeat": 1759399879.447572,
+        "last_heartbeat": 1759902100.6233547,
         "trusted": true
       }
     },

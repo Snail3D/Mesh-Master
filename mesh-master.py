@@ -10375,21 +10375,45 @@ def _relay_worker():
 
                 # Create threading event to wait for ACK
                 ack_event = threading.Event()
+                packet_id = None
 
-                # Send WITHOUT wantAck to avoid internal timeout blocking
-                # We'll track ACKs ourselves with our own 20-second timeout
-                try:
-                    packet_id = interface.sendText(relay_text, destinationId=target_node_id, wantAck=False)
-                except Exception as send_error:
-                    # Send completely failed
+                # Send with wantAck=True in a thread to avoid blocking the worker
+                # We need wantAck=True so the mesh network generates ACK packets we can track
+                send_result = {'packet_id': None, 'error': None}
+
+                def _send_relay():
+                    try:
+                        mesh_packet = interface.sendText(relay_text, destinationId=target_node_id, wantAck=True)
+                        # Extract packet ID from MeshPacket object
+                        if hasattr(mesh_packet, 'id'):
+                            send_result['packet_id'] = mesh_packet.id
+                        elif isinstance(mesh_packet, int):
+                            send_result['packet_id'] = mesh_packet
+                    except Exception as e:
+                        send_result['error'] = str(e)
+
+                send_thread = threading.Thread(target=_send_relay, daemon=True)
+                send_thread.start()
+
+                # Wait briefly for packet ID (sendText generates ID immediately before waiting for ACK)
+                send_thread.join(timeout=2.0)
+
+                packet_id = send_result['packet_id']
+
+                if send_result['error'] and not packet_id:
+                    # Real send failure before packet was created
                     failure_msg = f"❌ Failed to send to {target_shortname}"
                     send_direct_chunks(interface, failure_msg, sender_id)
-                    clean_log(f"Relay send error: {send_error}", "⚠️")
+                    clean_log(f"Relay send error: {send_result['error']}", "⚠️")
                     continue
 
+                if packet_id:
+                    clean_log(f"Relay sent (packet_id={packet_id})", "📨", show_always=False)
+
                 if not packet_id:
-                    # No packet ID - immediate failure
-                    failure_msg = f"❌ Failed to send to {target_shortname}"
+                    # No packet ID available - can't track ACK
+                    dprint(f"No packet ID for relay tracking")
+                    failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\""
                     send_direct_chunks(interface, failure_msg, sender_id)
                     continue
 
@@ -15052,8 +15076,8 @@ def on_receive(packet=None, interface=None, **kwargs):
   if portnum == 'ROUTING_APP' or (isinstance(portnum, int) and portnum == 3):
     # This is a routing packet - might be an ACK
     try:
-      # Get request_id from packet (this is what we're ACKing)
-      request_id = packet.get('requestId') if isinstance(packet, dict) else None
+      # Get request_id from decoded (not packet)
+      request_id = decoded.get('requestId') if isinstance(decoded, dict) else None
 
       if request_id:
         with RELAY_ACK_LOCK:
@@ -15065,7 +15089,6 @@ def on_receive(packet=None, interface=None, **kwargs):
             ack_event = relay_info.get('ack_event')
             if ack_event:
               ack_event.set()  # Signal the waiting relay worker
-            dprint(f"[RELAY ACK] Received ACK from {sender_node} for packet {request_id}")
     except Exception as e:
       dprint(f"Error processing routing packet: {e}")
     return  # Don't process routing packets further
