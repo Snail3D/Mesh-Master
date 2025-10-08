@@ -7429,6 +7429,7 @@ def _format_meshtastic_context(chunks: List[Dict[str, Any]]) -> str:
 
 COMMAND_ALIASES: Dict[str, Dict[str, Any]] = {
     "/offline": {"canonical": "/offline", "languages": ["en"]},
+    "/mail": {"canonical": "/m", "languages": ["en"]},
     "/checkmail": {"canonical": "/c", "languages": ["en"]},
     "/momma": {"canonical": "/yomomma", "languages": ["en"]},
     "/mommajoke": {"canonical": "/yomomma", "languages": ["en"]},
