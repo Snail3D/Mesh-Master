@@ -9633,7 +9633,11 @@ def process_responses_worker():
                 response_text, pending, already_sent = _normalize_ai_response(resp)
                 truncation_notice = False
 
-                if response_text:
+                # Check if this is a silent operation (e.g., relay queuing)
+                if pending and not pending.send_reply:
+                    # Silent operation - don't send any response, just mark as complete
+                    pass
+                elif response_text:
                     # Determine response type and icon
                     response_type = "AI response" if pending is None else "Automated response"
                     reason = pending.reason if pending else "ai response"
@@ -10833,9 +10837,9 @@ def _handle_shortname_relay(
         # Queue is full - reject relay
         return PendingReply(f"⚠️ Relay queue full. Try again in a moment.", "shortname relay")
 
-    # Return None - no immediate response
-    # User will get "✅ ACK by {shortname}" or "❌ No ACK from {shortname}" async
-    return None
+    # Return special PendingReply to indicate relay was queued (prevents "[no response]" log)
+    # This is a silent relay confirmation - actual ACK will come async
+    return PendingReply("", "shortname relay queued", send_reply=False)
 
 def _handle_exit_session(sender_key: Optional[str]) -> PendingReply:
     session = _clear_context_session(sender_key)
@@ -12609,6 +12613,11 @@ def send_to_ollama(
         if not full_text:
             full_text = _format_ai_error("Ollama", "no content returned")
         elapsed = max(0.01, time.perf_counter() - start_time)
+
+        # ALWAYS log response length for debugging
+        resp_preview = (full_text[:80] + "...") if full_text and len(full_text) > 80 else (full_text or "[EMPTY]")
+        clean_log(f"🐛 Ollama STREAMING response ({len(full_text) if full_text else 0} chars): {resp_preview}", "🔍", show_always=True, rate_limit=False)
+
         clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
         # Append processing time to buffer before final flush
         timing_text = f" ({int(round(elapsed))}s)"
@@ -12655,7 +12664,14 @@ def send_to_ollama(
                 # choices may contain dicts with 'text' or 'content'
                 first = jr.get("choices")[0]
                 resp = first.get('text') or first.get('content') or resp
+
+            # ALWAYS log response length for debugging
+            resp_preview = (resp[:80] + "...") if resp and len(resp) > 80 else (resp or "[EMPTY]")
+            clean_log(f"🐛 Ollama response ({len(resp) if resp else 0} chars): {resp_preview}", "🔍", show_always=True, rate_limit=False)
+
             if not resp:
+                # Log the full JSON response for debugging empty responses
+                clean_log(f"⚠️ Ollama returned empty response. Full JSON: {jr}", "🐛", show_always=True, rate_limit=False)
                 resp = _format_ai_error("Ollama", "no content returned")
             elapsed = max(0.01, time.perf_counter() - start_time)
             clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
@@ -23225,6 +23241,13 @@ def update_dashboard_config():
     if key == 'cooldown_enabled':
         try:
             globals()['COOLDOWN_ENABLED'] = bool(new_value)
+        except Exception:
+            pass
+    # Apply ollama_model immediately so dashboard selector is global
+    if key == 'ollama_model':
+        try:
+            globals()['OLLAMA_MODEL'] = str(new_value)
+            clean_log(f"Ollama model set to {new_value}", "🧠", show_always=True, rate_limit=False)
         except Exception:
             pass
     # Apply select offline wiki settings at runtime
