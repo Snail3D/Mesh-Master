@@ -10245,11 +10245,17 @@ def _handle_pending_mailbox_selection(sender_id: Any, sender_key: str, text: str
         return PendingReply("⚠️ No linked mailboxes found. Try `/mail <name> <message>` to create one.", "/c select")
 
     cleaned = text.strip()
+
+    # Allow user to exit mail selection
+    if cleaned.lower() in {"cancel", "exit", "quit", "stop", "nevermind"}:
+        PENDING_MAILBOX_SELECTIONS.pop(sender_key, None)
+        return PendingReply("👍 Mailbox selection cancelled. You can now use other commands.", "/c cancel")
+
     if not cleaned:
         choices = ", ".join(f"{idx}) {name}" for idx, name in enumerate(mailboxes, 1))
         prompt = (
             f"Reply with 1-{len(mailboxes)} or send `/c <mailbox>`. "
-            f"Add your PIN after the inbox name if it requires one. Choices: {choices}"
+            f"Add your PIN after the inbox name if it requires one. Type 'cancel' to exit. Choices: {choices}"
         )
         return PendingReply(prompt, "/c select")
 
@@ -10268,7 +10274,7 @@ def _handle_pending_mailbox_selection(sender_id: Any, sender_key: str, text: str
     if not selected_mailbox:
         choices = ", ".join(f"{idx}) {name}" for idx, name in enumerate(mailboxes, 1))
         return PendingReply(
-            f"I didn't recognize that choice. Reply with 1-{len(mailboxes)} or type the inbox name (include your PIN if needed). Options: {choices}",
+            f"I didn't recognize that choice. Reply with 1-{len(mailboxes)} or type the inbox name (include your PIN if needed). Type 'cancel' to exit. Options: {choices}",
             "/c select",
         )
 
