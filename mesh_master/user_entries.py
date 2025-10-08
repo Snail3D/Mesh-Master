@@ -63,12 +63,15 @@ class UserEntryStore:
     def error_message(self) -> Optional[str]:
         return self._load_error
 
-    def list_entries(self) -> List[Dict[str, object]]:
+    def list_entries(self, author_id: Optional[str] = None) -> List[Dict[str, object]]:
         with self._lock:
             if not self._loaded:
                 self._load_index()
             result: List[Dict[str, object]] = []
             for entry in sorted(self._entries.values(), key=lambda e: e.created_at, reverse=True):
+                # Filter by author_id if specified
+                if author_id is not None and entry.author_id != author_id:
+                    continue
                 try:
                     st = entry.path.stat()
                     size = int(getattr(st, "st_size", 0))
@@ -95,7 +98,7 @@ class UserEntryStore:
                 )
             return result
 
-    def lookup(self, key: str) -> Optional[UserEntryRecord]:
+    def lookup(self, key: str, author_id: Optional[str] = None) -> Optional[UserEntryRecord]:
         normalized = _normalize(key)
         if not normalized:
             return None
@@ -104,6 +107,9 @@ class UserEntryStore:
                 self._load_index()
             entry = self._entries.get(normalized)
             if not entry:
+                return None
+            # Filter by author_id if specified
+            if author_id is not None and entry.author_id != author_id:
                 return None
             try:
                 with entry.path.open("r", encoding="utf-8") as f:

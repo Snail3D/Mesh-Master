@@ -190,6 +190,23 @@ data/mesh_mailboxes.json
 data/user_ai_settings.json
 data/bible_progress.json
 data/meshtastic_kb_sources/
+data/mail_security.json
+data/logs/
+data/reports/
+data/onboarding_state.json
+data/saved_contexts.json
+data/feature_flags.json
+data/user_access.json
+data/user_languages.json
+data/alarms_timers.json
+data/trivia_state.json
+data/wordle_state.json
+data/cavalry_game_states.json
+data/weather_reports.json
+data/offline_wiki/*.json
+!data/offline_wiki/index.json
+data/offline_ddg/
+data/offline_crawl/
 
 # Node.js distributions
 node-v*.tar.xz
