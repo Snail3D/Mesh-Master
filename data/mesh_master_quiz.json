@@ -1,0 +1,297 @@
+[
+  {
+    "question": "What command do you use to send a message to a mailbox?",
+    "answers": ["/m", "/mail", "/message", "/send"],
+    "correct": 0
+  },
+  {
+    "question": "How do you relay a message to another user named 'lucy'?",
+    "answers": ["relay lucy hello", "lucy hello", "/relay lucy hello", "/dm lucy hello"],
+    "correct": 1
+  },
+  {
+    "question": "What's the difference between /log and /report?",
+    "answers": [
+      "No difference",
+      "Logs are private, reports are public",
+      "Reports are private, logs are public",
+      "Both are public"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Which command lists all nodes seen in the last 24 hours?",
+    "answers": ["/nodes", "/network", "/mesh", "/list"],
+    "correct": 0
+  },
+  {
+    "question": "How do you opt out of receiving relay messages?",
+    "answers": ["/relay off", "/optout", "/block relay", "/disable relay"],
+    "correct": 1
+  },
+  {
+    "question": "What command searches both your logs and public reports?",
+    "answers": ["/search", "/find", "/lookup", "/query"],
+    "correct": 1
+  },
+  {
+    "question": "Which command shows detailed info about a specific node?",
+    "answers": ["/nodeinfo", "/node", "/info", "/status"],
+    "correct": 1
+  },
+  {
+    "question": "How do you check your mail?",
+    "answers": ["/checkmail", "/c", "/check", "all of these"],
+    "correct": 3
+  },
+  {
+    "question": "What happens to relay messages when the recipient is offline?",
+    "answers": [
+      "They are lost",
+      "They are queued for up to 24 hours",
+      "They bounce back immediately",
+      "They are saved forever"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "Which command starts the onboarding tutorial?",
+    "answers": ["/tutorial", "/start", "/onboard", "/help"],
+    "correct": 2
+  },
+  {
+    "question": "How many times will the system retry a failed relay?",
+    "answers": ["1", "3", "5", "unlimited"],
+    "correct": 1
+  },
+  {
+    "question": "What command browses the interactive menu?",
+    "answers": ["/browse", "/menu", "/commands", "/list"],
+    "correct": 1
+  },
+  {
+    "question": "Which command searches the offline Wikipedia?",
+    "answers": ["/wiki", "/wikipedia", "/search", "/offline"],
+    "correct": 0
+  },
+  {
+    "question": "How do you get help about a specific topic like 'mail'?",
+    "answers": ["/help mail", "/? mail", "/info mail", "/manual mail"],
+    "correct": 0
+  },
+  {
+    "question": "What command fetches and summarizes web content?",
+    "answers": ["/fetch", "/web", "/url", "/crawl"],
+    "correct": 1
+  },
+  {
+    "question": "Which command pauses all responses from the bot?",
+    "answers": ["/pause", "/stop", "/mute", "/quiet"],
+    "correct": 1
+  },
+  {
+    "question": "How do you save your current conversation?",
+    "answers": ["/save", "/store", "/remember", "/keep"],
+    "correct": 0
+  },
+  {
+    "question": "What command recalls a previously saved conversation?",
+    "answers": ["/load", "/recall", "/restore", "/get"],
+    "correct": 1
+  },
+  {
+    "question": "Which command sets the AI's personality?",
+    "answers": ["/personality", "/vibe", "/mood", "/tone"],
+    "correct": 1
+  },
+  {
+    "question": "How do you set an alarm for 3:00pm?",
+    "answers": ["/alarm 3pm", "/alarm 3:00pm", "/alarm 15:00", "all of these"],
+    "correct": 3
+  },
+  {
+    "question": "What command sets a countdown timer?",
+    "answers": ["/countdown", "/timer", "/wait", "/delay"],
+    "correct": 1
+  },
+  {
+    "question": "Which command shows your current location?",
+    "answers": ["/location", "/gps", "/whereami", "/position"],
+    "correct": 2
+  },
+  {
+    "question": "How do you get weather information?",
+    "answers": ["/forecast", "/weather", "/climate", "/temp"],
+    "correct": 1
+  },
+  {
+    "question": "What command looks up Bible verses?",
+    "answers": ["/scripture", "/bible", "/verse", "/kjv"],
+    "correct": 1
+  },
+  {
+    "question": "Which command lists available games?",
+    "answers": ["/play", "/games", "/fun", "/entertainment"],
+    "correct": 1
+  },
+  {
+    "question": "How do you start a blackjack game?",
+    "answers": ["/cards", "/21", "/blackjack", "/casino"],
+    "correct": 2
+  },
+  {
+    "question": "What's the maximum offline relay queue size per user?",
+    "answers": ["5 messages", "10 messages", "20 messages", "unlimited"],
+    "correct": 1
+  },
+  {
+    "question": "How long do offline relay messages persist?",
+    "answers": ["1 hour", "6 hours", "24 hours", "forever"],
+    "correct": 2
+  },
+  {
+    "question": "Which command shows all channels/networks you're connected to?",
+    "answers": ["/channels", "/networks", "/mesh", "/connections"],
+    "correct": 1
+  },
+  {
+    "question": "What happens when you send 'reply lucy thanks'?",
+    "answers": [
+      "Nothing",
+      "Sends 'thanks' to lucy via relay",
+      "Sends mail to lucy",
+      "Creates a report"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How do you stop mail notifications for a specific mailbox?",
+    "answers": ["/mute", "/snooze", "/pause", "/quiet"],
+    "correct": 1
+  },
+  {
+    "question": "Which command resets your AI conversation memory?",
+    "answers": ["/clear", "/reset", "/restart", "/new"],
+    "correct": 1
+  },
+  {
+    "question": "What command searches the Meshtastic knowledge base?",
+    "answers": ["/mesh", "/meshtastic", "/kb", "/docs"],
+    "correct": 1
+  },
+  {
+    "question": "How many relay attempts are made before queueing for offline?",
+    "answers": ["1", "3", "5", "10"],
+    "correct": 1
+  },
+  {
+    "question": "What's the activity feed limit for mobile-friendly display?",
+    "answers": ["10 lines", "20 lines", "50 lines", "100 lines"],
+    "correct": 1
+  },
+  {
+    "question": "Which command creates a private log entry?",
+    "answers": ["/note", "/log", "/private", "/memo"],
+    "correct": 1
+  },
+  {
+    "question": "Which command creates a public report?",
+    "answers": ["/announce", "/report", "/public", "/broadcast"],
+    "correct": 1
+  },
+  {
+    "question": "How do you read a specific log by name?",
+    "answers": ["/readlog <name>", "/checklog <name>", "both of these", "neither"],
+    "correct": 2
+  },
+  {
+    "question": "What feature allows you to crawl and store web pages?",
+    "answers": ["wiki system", "web cache", "offline storage", "all of these"],
+    "correct": 0
+  },
+  {
+    "question": "Where can you access the dashboard?",
+    "answers": [
+      "http://localhost:5000",
+      "http://<your-ip>:5000",
+      "both of these",
+      "dashboard is not available"
+    ],
+    "correct": 2
+  },
+  {
+    "question": "What does ACK tracking do in the relay system?",
+    "answers": [
+      "Tracks message delivery",
+      "Counts messages",
+      "Measures speed",
+      "Nothing"
+    ],
+    "correct": 0
+  },
+  {
+    "question": "How do messages get chunked for transmission?",
+    "answers": [
+      "At 100 chars",
+      "At word boundaries when near limit",
+      "At sentence boundaries",
+      "Not chunked"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "What command shows help categories?",
+    "answers": ["/help", "/categories", "/topics", "/index"],
+    "correct": 0
+  },
+  {
+    "question": "Which game can you play with /wordle?",
+    "answers": ["Word guessing", "Crossword", "Scrabble", "Spelling"],
+    "correct": 0
+  },
+  {
+    "question": "What does fuzzy matching do for logs/reports?",
+    "answers": [
+      "Nothing",
+      "Suggests similar titles when misspelled",
+      "Searches content",
+      "Sorts alphabetically"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How do you opt back into relay after opting out?",
+    "answers": ["/relay on", "/optin", "/enable", "/accept"],
+    "correct": 1
+  },
+  {
+    "question": "What's the default chunk delay between relay messages?",
+    "answers": ["Immediate", "1 second", "Configurable", "5 seconds"],
+    "correct": 2
+  },
+  {
+    "question": "Which command plays hangman?",
+    "answers": ["/word", "/guess", "/hangman", "/letters"],
+    "correct": 2
+  },
+  {
+    "question": "What does the frustration detection feature do?",
+    "answers": [
+      "Nothing",
+      "Suggests /reset when user seems stuck",
+      "Blocks messages",
+      "Changes AI tone"
+    ],
+    "correct": 1
+  },
+  {
+    "question": "How are relay opt-out preferences stored?",
+    "answers": [
+      "In memory only",
+      "In relay_optout.json",
+      "In database",
+      "Not stored"
+    ],
+    "correct": 1
+  }
+]
