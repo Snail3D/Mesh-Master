@@ -1,6 +1,13 @@
 {
   "alarms": {},
-  "stopwatches": {},
+  "stopwatches": {
+    "!a3cb5c4e": {
+      "node_id": "!a3cb5c4e",
+      "paused": false,
+      "running": true,
+      "start_ts": 1759877831.0007157
+    }
+  },
   "timers": {
     "!376be684": [
       {
