@@ -11107,7 +11107,7 @@ def send_direct_chunks(interface, text, destinationId, chunk_delay: Optional[flo
         if success and idx < len(chunks) - 1:
             time.sleep(delay)
     if sent_any:
-        clean_log("DM message sent 📤", emoji="")
+        clean_log("DM sent", "✉️")
     # For callers interested in granular ACK feedback
     return {"chunks": chunks, "acks": ack_results, "sent": sent_any}
 
