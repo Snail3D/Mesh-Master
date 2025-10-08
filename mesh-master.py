@@ -10239,6 +10239,12 @@ def _handle_pending_mailbox_selection(sender_id: Any, sender_key: str, text: str
     if not state:
         return None
 
+    # Check for 5-minute timeout
+    timestamp = state.get('timestamp', 0)
+    if time.time() - timestamp > 300:  # 5 minutes
+        PENDING_MAILBOX_SELECTIONS.pop(sender_key, None)
+        return PendingReply("⏱️ Mailbox selection timed out. You can now use other commands or type `/c` to check mail again.", "/c timeout")
+
     mailboxes: List[str] = state.get('mailboxes') or []
     if not mailboxes:
         PENDING_MAILBOX_SELECTIONS.pop(sender_key, None)
@@ -12338,6 +12344,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
       PENDING_MAILBOX_SELECTIONS[sender_key] = {
         'mailboxes': mailboxes,
         'language': lang,
+        'timestamp': time.time(),
       }
       comma_list = ", ".join(mailboxes)
       numbered = [f"{idx}) {name}" for idx, name in enumerate(mailboxes, 1)]
