@@ -12005,11 +12005,11 @@ def send_to_ollama(
         elapsed = max(0.01, time.perf_counter() - start_time)
         clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
         # Send timing as final chunk if we were streaming
-        timing_text = f"⏱️ {elapsed:.1f}s"
+        timing_text = f"({int(round(elapsed))}s)"
         if streamed_chunks > 0:
             _send_stream_chunk(timing_text)
         # Append processing time to response text
-        full_text_with_time = f"{full_text}\n\n{timing_text}"
+        full_text_with_time = f"{full_text} {timing_text}"
         return StreamingResult(full_text_with_time[:MAX_RESPONSE_LENGTH], sent_chunks=streamed_chunks, truncated=truncated)
 
     try:
@@ -12053,7 +12053,7 @@ def send_to_ollama(
             elapsed = max(0.01, time.perf_counter() - start_time)
             clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
             # Append processing time to response
-            resp_with_time = f"{resp}\n\n⏱️ {elapsed:.1f}s"
+            resp_with_time = f"{resp} ({int(round(elapsed))}s)"
             return (resp_with_time or "")[:MAX_RESPONSE_LENGTH]
         else:
             status = getattr(r, 'status_code', 'no response')
