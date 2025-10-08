@@ -7776,6 +7776,7 @@ BUILTIN_COMMANDS = {
     "/data",
     "/whereami",
     "/test",
+    "/nodes",
     "/help",
     "/menu",
     "/onboard",
@@ -12557,29 +12558,49 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     return _cmd_reply(cmd, f"Hello {sn}! Received {LOCAL_LOCATION_STRING} by {AI_NODE_NAME}.")
 
   elif cmd == "/nodes":
-    # Show all nodes seen in the last 24 hours
+    # Show all nodes seen in last 24 hours, newest first
     now = time.time()
     twenty_four_hours = 24 * 60 * 60
-    recent_nodes = []
+    cutoff_time = now - twenty_four_hours
 
+    # Collect nodes with their last seen time
+    nodes_with_time = []
+
+    # Get all nodes from NODE_FIRST_SEEN (tracks when first seen)
     for node_key, first_seen_time in NODE_FIRST_SEEN.items():
-      # Check if node was seen in last 24 hours (using current time for last activity)
-      # We'll use the shortname cache to check if we've seen this node recently
-      try:
-        shortname = get_node_shortname(node_key)
-        if shortname:
-          # Check if node is in our cache (means we've seen it)
-          with SHORTNAME_CACHE_LOCK:
-            if node_key in SHORTNAME_TO_NODE_CACHE.values() or shortname.lower() in SHORTNAME_TO_NODE_CACHE:
-              recent_nodes.append(shortname)
-      except Exception:
-        continue
+      # For now, use first_seen as a proxy for activity
+      # (ideally we'd track last_seen separately)
+      if first_seen_time >= cutoff_time:
+        try:
+          shortname = get_node_shortname(node_key)
+          if shortname:
+            nodes_with_time.append((shortname, first_seen_time))
+        except Exception:
+          continue
 
-    if not recent_nodes:
-      return _cmd_reply(cmd, "📡 No nodes detected in the last 24 hours.")
+    # Also check interface.nodes for any active nodes
+    if interface and hasattr(interface, "nodes"):
+      for node_id, node_data in interface.nodes.items():
+        try:
+          user_dict = node_data.get("user", {})
+          node_short = user_dict.get("shortName", "")
+          # Check if already added
+          if node_short and not any(n[0] == node_short for n in nodes_with_time):
+            # Use lastHeard if available, otherwise use now as fallback
+            last_heard = node_data.get("lastHeard", now)
+            if last_heard >= cutoff_time:
+              nodes_with_time.append((node_short, last_heard))
+        except Exception:
+          continue
 
-    # Sort and create comma-separated list
-    recent_nodes.sort()
+    if not nodes_with_time:
+      return _cmd_reply(cmd, "📡 No nodes detected in last 24 hours.")
+
+    # Sort by time (newest first)
+    nodes_with_time.sort(key=lambda x: x[1], reverse=True)
+
+    # Extract just the shortnames
+    recent_nodes = [node[0] for node in nodes_with_time]
     node_list = ", ".join(recent_nodes)
 
     # Format response
