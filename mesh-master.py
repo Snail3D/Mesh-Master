@@ -12738,7 +12738,7 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
       clean_log("[AI] System context active - building", "🔧", show_always=True, rate_limit=False)
       # Build and inject system context
       try:
-        sys_context = build_system_context(config=CONFIG, interface=interface, user_query=prompt)
+        sys_context = build_system_context(config=config, interface=interface, user_query=prompt)
         clean_log(f"[AI] Context built: {len(sys_context)} chars", "📦", show_always=True, rate_limit=False)
         # Prepend system context to extra_context
         if extra_context:
