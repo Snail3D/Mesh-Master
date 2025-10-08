@@ -1312,8 +1312,7 @@ def _viewer_should_show(line: str) -> bool:
   whitelist_markers = (
     "📨 Message from ",
     "📨 ",
-    "📩 Incoming DM",
-    "💬 Incoming Channel",
+    # Removed "📩 Incoming DM" and "💬 Incoming Channel" - can contain sensitive text
     "✉️ DM sent",
     "📡 Chat message sent",
     "📬 Incoming DM:",
