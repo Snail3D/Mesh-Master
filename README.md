@@ -1,6 +1,6 @@
-# MESH MASTER v2.0 — Off-Grid AI Operations Suite
+# MESH MASTER v2.1 — Off-Grid AI Operations Suite
 
-**MESH MASTER 2.0** is the next evolution of the Mesh-AI project: a resilient AI copilot for Meshtastic LoRa meshes that remembers conversations, coordinates teams, and keeps the network moving even when the wider internet is gone. Version 2.0 introduces an interactive onboarding system, private logs with public reports, comprehensive dashboard controls, and enhanced user privacy—all while maintaining the Mesh Mail hub, llama-powered games for morale and training, rich offline knowledge, and a refreshed web command center.
+**MESH MASTER 2.1** is the next evolution of the Mesh-AI project: a resilient AI copilot for Meshtastic LoRa meshes that remembers conversations, coordinates teams, and keeps the network moving even when the wider internet is gone. Version 2.1 introduces an interactive onboarding system, private logs with public reports, comprehensive dashboard controls, and enhanced user privacy—all while maintaining the Mesh Mail hub, llama-powered games for morale and training, rich offline knowledge, and a refreshed web command center.
 
 > **Disclaimer**  
 > This project is an independent community effort and is **not associated** with the official Meshtastic project. Always maintain backup communication paths for real emergencies.
@@ -9,7 +9,7 @@
 
 ---
 
-## 2.0 Headline Upgrades
+## 2.1 Headline Upgrades
 - **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard.
 - **Private Logs & Public Reports** — `/log` creates private entries visible only to you; `/report` creates public entries searchable by everyone via `/find`. Perfect for personal notes vs. team-wide information sharing.
 - **Enhanced Dashboard** — Real-time activity feed, radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector.

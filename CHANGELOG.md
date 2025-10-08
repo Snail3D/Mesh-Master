@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.0.0] - 2025-10-07
+## [2.1.0] - 2025-10-07
 
 Highlights
 - **Interactive Onboarding**: New 9-step guided tour via `/onboard`, `/onboarding`, or `/onboardme` (DM only)
