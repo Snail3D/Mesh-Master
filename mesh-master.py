@@ -15333,11 +15333,18 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
     if lower == "/stop":
       if check_only:
         return True
+      # Check if Bible auto-scroll is active - if so, just stop that without muting
       bible_stopped = False
       try:
         bible_stopped = _stop_bible_autoscroll(sender_key)
       except Exception:
         bible_stopped = False
+
+      # If Bible was stopped, ONLY stop Bible (don't mute user)
+      if bible_stopped:
+        return PendingReply("✅ Bible auto-scroll stopped. Reply 22 to resume.", "/stop")
+
+      # No Bible active - do the full stop (mute everything)
       _set_user_muted(sender_key, True)
       _cancel_auto_resume(sender_key)
       RESEND_MANAGER.cancel_for_sender(sender_key)
@@ -15351,7 +15358,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
           ALARM_TIMER_MANAGER.pause_for_user(sender_key)
       except Exception:
         pass
-      if bible_stopped:
+      if False:  # bible_stopped will always be False here now
         extra_note = " Reply 22 to resume Bible auto-scroll."
       else:
         if AUTO_RESUME_DELAY_SECONDS % 60 == 0:
