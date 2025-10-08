@@ -12611,7 +12611,7 @@ def send_to_ollama(
 
         full_text = "".join(total_parts)
         if not full_text:
-            full_text = _format_ai_error("Ollama", "no content returned")
+            full_text = "Mongo no know... Mongo only pawn in game of life"
         elapsed = max(0.01, time.perf_counter() - start_time)
 
         # ALWAYS log response length for debugging
@@ -12672,7 +12672,7 @@ def send_to_ollama(
             if not resp:
                 # Log the full JSON response for debugging empty responses
                 clean_log(f"⚠️ Ollama returned empty response. Full JSON: {jr}", "🐛", show_always=True, rate_limit=False)
-                resp = _format_ai_error("Ollama", "no content returned")
+                resp = "Mongo no know... Mongo only pawn in game of life"
             elapsed = max(0.01, time.perf_counter() - start_time)
             clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
             # Append processing time to response
