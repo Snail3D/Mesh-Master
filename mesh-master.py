@@ -1046,6 +1046,94 @@ def _truncate_for_log(text: Optional[str], limit: int = 160) -> str:
     return stripped[: limit - 1].rstrip() + "…"
 
 
+def _redact_message_content(text: Optional[str]) -> str:
+    """Redact message content for privacy in logs, showing only length."""
+    if text is None:
+        return "[empty]"
+    text_len = len(str(text).strip())
+    if text_len == 0:
+        return "[empty]"
+    return f"[{text_len} chars]"
+
+
+def _is_blocked_url(url: str) -> bool:
+    """
+    Check if URL contains blocked adult/warez content.
+
+    Returns:
+        True if URL should be blocked, False if allowed
+    """
+    if not url:
+        return False
+
+    url_lower = url.lower()
+
+    # Adult content domains and extensions
+    adult_extensions = [
+        '.xxx', '.adult', '.porn', '.sex', '.sexy', '.cam', '.webcam',
+        'pornhub', 'xvideos', 'xhamster', 'youporn', 'redtube', 'xnxx',
+        'brazzers', 'onlyfans', 'chaturbate', 'livejasmin', 'myfreecams',
+        'stripchat', 'bongacams', 'cam4', 'camsoda'
+    ]
+
+    # Warez/piracy domains and keywords
+    warez_keywords = [
+        'torrent', 'piratebay', 'kickass', 'rarbg', '1337x', 'thepiratebay',
+        'limewire', 'kazaa', 'napster', 'warez', 'crack', 'keygen', 'serial',
+        'nulled', 'cracked', 'pirated', 'iso-hunt', 'demonoid', 'torrentz',
+        'extratorrent', 'yify', 'eztv', 'torrentgalaxy', 'limetorrents',
+        'zooqle', 'torrentdownload', 'magnetdl', 'btdig', 'torlock'
+    ]
+
+    # Check for adult content
+    for term in adult_extensions:
+        if term in url_lower:
+            return True
+
+    # Check for warez content
+    for term in warez_keywords:
+        if term in url_lower:
+            return True
+
+    return False
+
+
+def _fuzzy_match_titles(search_term: str, available_titles: List[str], threshold: float = 0.6, max_suggestions: int = 3) -> List[str]:
+    """
+    Find fuzzy matches for a search term against available titles.
+
+    Args:
+        search_term: User's search query
+        available_titles: List of available log/report titles
+        threshold: Minimum similarity ratio (0.0 to 1.0)
+        max_suggestions: Maximum number of suggestions to return
+
+    Returns:
+        List of suggested titles sorted by similarity
+    """
+    if not search_term or not available_titles:
+        return []
+
+    # Use difflib's SequenceMatcher for fuzzy matching
+    matches = []
+    search_lower = search_term.lower()
+
+    for title in available_titles:
+        title_lower = title.lower()
+        ratio = difflib.SequenceMatcher(None, search_lower, title_lower).ratio()
+
+        # Also check if search term is a substring (boost score)
+        if search_lower in title_lower:
+            ratio = max(ratio, 0.8)
+
+        if ratio >= threshold:
+            matches.append((ratio, title))
+
+    # Sort by similarity (highest first) and return top matches
+    matches.sort(reverse=True, key=lambda x: x[0])
+    return [title for _, title in matches[:max_suggestions]]
+
+
 def _beautify_log_text(message: str) -> str:
     if not message:
         return message
@@ -1718,6 +1806,143 @@ RELAY_ACK_TIMEOUT = 20  # seconds
 LAST_RELAY_SENDER: Dict[str, str] = {}
 LAST_RELAY_LOCK = threading.Lock()
 
+# Offline relay queue: Store failed relays for retry when recipient comes online
+# Structure: {target_node_id: [{'sender_id': str, 'target_shortname': str, 'message': str, 'timestamp': float, 'attempts': int}]}
+OFFLINE_RELAY_QUEUE: Dict[str, List[Dict[str, Any]]] = {}
+OFFLINE_RELAY_LOCK = threading.Lock()
+OFFLINE_RELAY_MAX_PER_USER = 10  # Maximum queued messages per recipient
+OFFLINE_RELAY_MAX_AGE = 86400  # 24 hours in seconds
+OFFLINE_RELAY_MAX_ATTEMPTS = 3  # Maximum delivery attempts
+
+# Relay opt-out tracking: {node_id: True} for users who have opted out
+RELAY_OPT_OUT: Dict[str, bool] = {}
+RELAY_OPT_OUT_FILE = Path("data/relay_optout.json")
+
+
+def _load_relay_opt_out():
+    """Load relay opt-out preferences from disk."""
+    global RELAY_OPT_OUT
+    try:
+        if RELAY_OPT_OUT_FILE.exists():
+            with open(RELAY_OPT_OUT_FILE, 'r') as f:
+                RELAY_OPT_OUT = json.load(f)
+    except Exception as e:
+        dprint(f"Error loading relay opt-out preferences: {e}")
+        RELAY_OPT_OUT = {}
+
+
+def _save_relay_opt_out():
+    """Save relay opt-out preferences to disk."""
+    try:
+        RELAY_OPT_OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(RELAY_OPT_OUT_FILE, 'w') as f:
+            json.dump(RELAY_OPT_OUT, f, indent=2)
+    except Exception as e:
+        dprint(f"Error saving relay opt-out preferences: {e}")
+
+
+def _is_relay_opted_out(node_id: str) -> bool:
+    """Check if a node has opted out of relay."""
+    return RELAY_OPT_OUT.get(node_id, False)
+
+
+def _queue_offline_relay(sender_id: str, target_node_id: str, target_shortname: str, message: str) -> bool:
+    """
+    Queue a relay message for later delivery when recipient comes online.
+
+    Returns:
+        True if queued successfully, False if queue is full or message rejected
+    """
+    with OFFLINE_RELAY_LOCK:
+        # Clean old messages first
+        _clean_offline_relay_queue()
+
+        if target_node_id not in OFFLINE_RELAY_QUEUE:
+            OFFLINE_RELAY_QUEUE[target_node_id] = []
+
+        # Check if queue for this user is full
+        if len(OFFLINE_RELAY_QUEUE[target_node_id]) >= OFFLINE_RELAY_MAX_PER_USER:
+            return False
+
+        # Add message to queue
+        OFFLINE_RELAY_QUEUE[target_node_id].append({
+            'sender_id': sender_id,
+            'target_shortname': target_shortname,
+            'message': message,
+            'timestamp': time.time(),
+            'attempts': 0
+        })
+
+        return True
+
+
+def _clean_offline_relay_queue():
+    """Remove expired messages from offline queue (must be called with lock held)."""
+    now = time.time()
+    for target_id in list(OFFLINE_RELAY_QUEUE.keys()):
+        OFFLINE_RELAY_QUEUE[target_id] = [
+            msg for msg in OFFLINE_RELAY_QUEUE[target_id]
+            if (now - msg['timestamp']) < OFFLINE_RELAY_MAX_AGE
+        ]
+        # Remove empty queues
+        if not OFFLINE_RELAY_QUEUE[target_id]:
+            del OFFLINE_RELAY_QUEUE[target_id]
+
+
+def _try_deliver_offline_relays(target_node_id: str):
+    """
+    Attempt to deliver queued offline relays when a node comes online.
+
+    Called when we detect a node has come online (e.g., received packet from them).
+    """
+    with OFFLINE_RELAY_LOCK:
+        if target_node_id not in OFFLINE_RELAY_QUEUE:
+            return
+
+        pending_messages = OFFLINE_RELAY_QUEUE.pop(target_node_id, [])
+
+    if not pending_messages:
+        return
+
+    target_shortname = get_node_shortname(target_node_id)
+    clean_log(f"Attempting delivery of {len(pending_messages)} queued relay(s) to {target_shortname}", "📬")
+
+    for msg_data in pending_messages:
+        if msg_data['attempts'] >= OFFLINE_RELAY_MAX_ATTEMPTS:
+            # Max attempts reached, notify sender of permanent failure
+            sender_id = msg_data['sender_id']
+            failure_msg = f"❌ Relay to {target_shortname} failed after {OFFLINE_RELAY_MAX_ATTEMPTS} attempts (message expired)"
+            try:
+                send_direct_chunks(interface, failure_msg, sender_id)
+            except Exception:
+                pass
+            continue
+
+        # Increment attempt counter
+        msg_data['attempts'] += 1
+
+        # Queue for immediate delivery
+        relay_task = {
+            'sender_id': msg_data['sender_id'],
+            'target_shortname': target_shortname,
+            'target_node_id': target_node_id,
+            'relay_text': f"📨 Relay from {get_node_shortname(msg_data['sender_id'])}:\n{msg_data['message']}\n\n💬 To reply: {get_node_shortname(msg_data['sender_id']).lower()} <your message>",
+            'message': msg_data['message'],
+            'is_retry': True,
+            'attempt': msg_data['attempts']
+        }
+
+        try:
+            RELAY_QUEUE.put(relay_task, block=False)
+            clean_log(f"Queued offline relay delivery to {target_shortname} (attempt {msg_data['attempts']})", "📬")
+        except queue.Full:
+            # Relay queue full, put back in offline queue
+            with OFFLINE_RELAY_LOCK:
+                if target_node_id not in OFFLINE_RELAY_QUEUE:
+                    OFFLINE_RELAY_QUEUE[target_node_id] = []
+                if len(OFFLINE_RELAY_QUEUE[target_node_id]) < OFFLINE_RELAY_MAX_PER_USER:
+                    OFFLINE_RELAY_QUEUE[target_node_id].append(msg_data)
+
 
 def _invoke_power_command(cmd):
     if isinstance(cmd, str):
@@ -1855,7 +2080,7 @@ BANNER = (
 ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
 \033[36mMesh Master Operations Console\033[38;5;214m
-\033[32mMessaging Dashboard Access: http://localhost:5000/dashboard\033[38;5;214m
+\033[32mMessaging Dashboard: http://localhost:5000/dashboard (or http://<your-ip>:5000/dashboard)\033[38;5;214m
 """
     "\033[0m"
     "\033[31m"
@@ -2850,6 +3075,13 @@ def start_user_onboarding(user_key: str) -> None:
         }
         _save_onboarding_state(_onboarding_state)
 
+    # Activate system context for onboarding questions
+    try:
+        from mesh_master.system_context import activate_system_context
+        activate_system_context()
+    except Exception as e:
+        dprint(f"Error activating system context for onboarding: {e}")
+
 def get_user_onboarding_step(user_key: str) -> Optional[int]:
     with _onboarding_lock:
         user_data = _onboarding_state.get("users", {}).get(user_key)
@@ -2875,6 +3107,14 @@ def advance_user_onboarding(user_key: str, skip: bool = False) -> Optional[int]:
             user_data["completed_at"] = _now()
             user_data["current_step"] = len(ONBOARDING_STEPS) - 1
             _save_onboarding_state(_onboarding_state)
+
+            # Deactivate system context when onboarding completes
+            try:
+                from mesh_master.system_context import deactivate_system_context
+                deactivate_system_context()
+            except Exception as e:
+                dprint(f"Error deactivating system context: {e}")
+
             return None
 
         user_data["current_step"] = next_step
@@ -4784,6 +5024,9 @@ def _web_search_duckduckgo(query: str, max_results: int = WEB_SEARCH_MAX_RESULTS
         def add_result(title: Optional[str], url: Optional[str], snippet: Optional[str]) -> None:
             if not url or not title:
                 return
+            # Filter blocked URLs
+            if _is_blocked_url(url):
+                return
             title_clean = title.strip()
             if not title_clean:
                 return
@@ -6066,8 +6309,16 @@ def _reset_user_personality(sender_key: str) -> None:
 
 def build_system_prompt_for_sender(sender_id: Any) -> str:
     base = _sanitize_prompt_text(SYSTEM_PROMPT) or "You are a helpful assistant responding to mesh network chats."
+
+    # Add frustration detection guidance
+    frustration_guidance = (
+        "If the user seems frustrated with your responses (e.g., repeated questions, expressing confusion, "
+        "saying you're not helping), you may gently suggest they use /reset to clear conversation memory "
+        "and start fresh. Only mention this when it would genuinely help - don't be overt or pushy about it."
+    )
+
     # Only use the configured system prompt (plus optional persona and web context).
-    segments = [base]
+    segments = [base, frustration_guidance]
     persona_id: Optional[str] = None
     web_context: List[str] = []
     if sender_id is not None:
@@ -7786,6 +8037,7 @@ BUILTIN_COMMANDS = {
     "/optout",
     "/optin",
     "/help",
+    "/system",
     "/menu",
     "/onboard",
     "/offline",
@@ -7837,8 +8089,12 @@ BUILTIN_COMMANDS = {
     "/log",
     "/checklog",
     "/checklogs",
+    "/readlog",
+    "/readlogs",
     "/checkreport",
     "/checkreports",
+    "/readreport",
+    "/readreports",
     "/changemotd",
     "/changeprompt",
     "/showprompt",
@@ -10494,10 +10750,15 @@ def _relay_worker():
                     send_direct_chunks(interface, success_msg, sender_id)
                     clean_log(f"Relay ACK: {ack_shortname} ({len(packet_ids)} chunks)", "✅")
                 else:
-                    # Timeout or partial ACKs
-                    failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\""
+                    # Timeout or partial ACKs - queue for offline delivery
+                    queued = _queue_offline_relay(sender_id, target_node_id, target_shortname, message)
+                    if queued:
+                        failure_msg = f"❌ No ACK from {target_shortname}\n\n📬 Message queued for delivery when they come online."
+                        clean_log(f"Relay timeout: {target_shortname} - queued for offline delivery", "📬")
+                    else:
+                        failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\"\n\n⚠️ Offline queue full - message not saved."
+                        clean_log(f"Relay timeout: {target_shortname} - offline queue full", "⚠️")
                     send_direct_chunks(interface, failure_msg, sender_id)
-                    clean_log(f"Relay timeout: {target_shortname} (no ACK after {RELAY_ACK_TIMEOUT}s)", "⏱️")
 
             except Exception as e:
                 # Unexpected error in worker
@@ -10541,6 +10802,13 @@ def _handle_shortname_relay(
 ) -> Optional[PendingReply]:
     """Handle shortname-first relay: 'snmo hello' -> relay to SnMo with reply option."""
     sender_short = get_node_shortname(sender_id)
+
+    # Check if target has opted out of relay
+    if _is_relay_opted_out(target_node_id):
+        return PendingReply(
+            f"❌ {target_shortname} has opted out of relay.\n\nThey've chosen not to receive relayed messages.",
+            "relay opt-out"
+        )
 
     # Ensure relay workers are started
     _start_relay_workers()
@@ -11253,7 +11521,7 @@ def split_message(text):
     return chunks[:MAX_CHUNKS]
 
 def send_broadcast_chunks(interface, text, channelIndex, chunk_delay: Optional[float] = None):
-    dprint(f"send_broadcast_chunks: text='{text}', channelIndex={channelIndex}")
+    dprint(f"send_broadcast_chunks: text={_redact_message_content(text)}, channelIndex={channelIndex}")
     if interface is None:
         print("❌ Cannot send broadcast: interface is None.")
         return
@@ -11319,7 +11587,7 @@ def send_broadcast_chunks(interface, text, channelIndex, chunk_delay: Optional[f
 
 
 def send_direct_chunks(interface, text, destinationId, chunk_delay: Optional[float] = None):
-    dprint(f"send_direct_chunks: text='{text}', destId={destinationId}")
+    dprint(f"send_direct_chunks: text={_redact_message_content(text)}, destId={destinationId}")
     dest_display = get_node_shortname(destinationId)
     if not dest_display:
         dest_display = str(destinationId)
@@ -12115,7 +12383,7 @@ def send_to_ollama(
     extra_context: Optional[str] = None,
     allow_streaming: bool = True,
 ): 
-    dprint(f"send_to_ollama: user_message='{user_message}' sender_id={sender_id} is_direct={is_direct} channel={channel_idx}")
+    dprint(f"send_to_ollama: user_message={_redact_message_content(user_message)} sender_id={sender_id} is_direct={is_direct} channel={channel_idx}")
     if not is_ai_enabled():
         ai_log("Blocked: AI responses disabled", "ollama")
         return AI_DISABLED_MESSAGE
@@ -12392,7 +12660,7 @@ def send_to_ollama(
         return _format_ai_error("Ollama", str(e))
 
 def send_to_home_assistant(user_message):
-    dprint(f"send_to_home_assistant: user_message='{user_message}'")
+    dprint(f"send_to_home_assistant: user_message={_redact_message_content(user_message)}")
     ai_log("Processing message...", "home_assistant")
     if not HOME_ASSISTANT_URL:
         return _format_ai_error("Home Assistant", "endpoint URL not configured")
@@ -12440,6 +12708,23 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
       system_prompt = override_prompt
     elif session.get('prompt_addendum'):
       system_prompt = f"{system_prompt}\n\n{session['prompt_addendum']}"
+
+  # Check if system context should be injected (/system, /help, /menu follow-ups, onboarding)
+  try:
+    from mesh_master.system_context import consume_system_context, build_system_context
+    if consume_system_context():
+      # Build and inject system context
+      try:
+        sys_context = build_system_context(config=CONFIG, interface=interface, user_query=prompt)
+        # Prepend system context to extra_context
+        if extra_context:
+          extra_context = f"{sys_context}\n\n{extra_context}"
+        else:
+          extra_context = sys_context
+      except Exception as e:
+        dprint(f"Error building system context: {e}")
+  except Exception as e:
+    dprint(f"Error checking system context: {e}")
   provider = AI_PROVIDER
   if provider == "home_assistant":
     return send_to_home_assistant(prompt)
@@ -12509,7 +12794,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
   # Globals modified by DM-only commands
   global motd_content, SYSTEM_PROMPT, config, MESHTASTIC_KB_WARM_CACHE
   cmd = cmd.lower()
-  dprint(f"handle_command => cmd='{cmd}', full_text='{full_text}', sender_id={sender_id}, is_direct={is_direct}, language={language_hint}")
+  dprint(f"handle_command => cmd='{cmd}', full_text={_redact_message_content(full_text)}, sender_id={sender_id}, is_direct={is_direct}, language={language_hint}")
   if not is_command_enabled(cmd):
     clean_log(f"Command {cmd} blocked (disabled)", "⛔", show_always=True, rate_limit=False)
     return _cmd_reply(cmd, f"⚠️ {cmd} is currently disabled by the operator.")
@@ -12808,6 +13093,36 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     response = f"📡 Connected networks: {count}\n\n{network_list}"
 
     return _cmd_reply(cmd, response)
+
+  elif cmd == "/optout":
+    # Opt out of relay - others can't relay TO you
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
+
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key:
+      return _cmd_reply(cmd, "⚠️ I couldn't identify your session. Try again in a moment.")
+
+    RELAY_OPT_OUT[sender_id] = True
+    _save_relay_opt_out()
+
+    return _cmd_reply(cmd, "✅ Relay opt-out enabled.\n\nOthers can no longer relay messages to you.\nYou can still send relays to others.\n\nUse /optin to re-enable.")
+
+  elif cmd == "/optin":
+    # Opt back in to relay
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
+
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key:
+      return _cmd_reply(cmd, "⚠️ I couldn't identify your session. Try again in a moment.")
+
+    if sender_id in RELAY_OPT_OUT:
+      del RELAY_OPT_OUT[sender_id]
+      _save_relay_opt_out()
+      return _cmd_reply(cmd, "✅ Relay opt-in enabled.\n\nOthers can now relay messages to you again.")
+    else:
+      return _cmd_reply(cmd, "ℹ️ You're already opted in to relay.\n\nUse /optout to disable relay.")
 
   elif cmd in {"/onboard", "/onboarding", "/onboardme"}:
     if not is_direct:
@@ -13385,11 +13700,45 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
         help_text += f"   {entry.get('description', 'No description')}\n"
         help_text += f"   Usage: {entry.get('usage', 'N/A')}\n\n"
 
+    # Activate system context for potential follow-up questions (single-use)
+    from mesh_master.system_context import activate_system_context_singleuse
+    activate_system_context_singleuse()
+
     return _cmd_reply(cmd, help_text)
 
+  elif cmd == "/system":
+    from mesh_master.system_context import activate_system_context, refresh_system_context_timeout
+
+    # Extract query from command
+    query = full_text[len(cmd):].strip()
+
+    if not query:
+      help_text = "🔧 SYSTEM CONTEXT HELP\n\n"
+      help_text += "Ask questions with full system awareness.\n\n"
+      help_text += "Usage: /system <your question>\n\n"
+      help_text += "Examples:\n"
+      help_text += "  /system how does the relay work?\n"
+      help_text += "  /system what LLM am I using?\n"
+      help_text += "  /system how do I search logs?\n\n"
+      help_text += "The AI will have full context about your settings,\n"
+      help_text += "all commands, architecture, and features."
+      return _cmd_reply(cmd, help_text)
+
+    # Activate system context - will be injected by parse_incoming_text
+    activate_system_context()
+    refresh_system_context_timeout()
+
+    # Route query to AI (system context will be injected automatically)
+    # Return None to signal "no direct command response, continue to AI"
+    return None
 
   elif cmd == "/menu":
     menu_text = format_structured_menu("menu", lang)
+
+    # Activate system context for potential follow-up questions (single-use)
+    from mesh_master.system_context import activate_system_context_singleuse
+    activate_system_context_singleuse()
+
     return _cmd_reply(cmd, menu_text)
 
   elif cmd == "/weather":
@@ -13471,6 +13820,11 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
           target = argument  # treat entire argument as part of the URL if second token not numeric
           page_limit = None
       start_url = _extract_direct_url(target) or target
+
+      # Check for blocked content
+      if _is_blocked_url(start_url):
+        return _cmd_reply(cmd, "🚫 You naughty boy! NOT ON THIS SYSTEM!")
+
       try:
         pages, contacts, contact_page = _crawl_website(start_url, max_pages=page_limit or WEB_CRAWL_MAX_PAGES)
       except RuntimeError as exc:
@@ -13500,6 +13854,10 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
 
     direct_url = _extract_direct_url(remainder)
     if direct_url:
+      # Check for blocked content
+      if _is_blocked_url(direct_url):
+        return _cmd_reply(cmd, "🚫 You naughty boy! NOT ON THIS SYSTEM!")
+
       try:
         preview = _fetch_url_preview(direct_url)
       except RuntimeError as exc:
@@ -13613,7 +13971,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     clean_log(f"Awaiting {note_type} body: {raw_title}", "🕘", show_always=False)
     return PendingReply(prompt, f"/{note_type} capture")
 
-  elif cmd in {"/checklog", "/checklogs"}:
+  elif cmd in {"/checklog", "/checklogs", "/readlog", "/readlogs"}:
     if not is_direct:
       return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
     if not LOGS_ENABLED or not LOGS_STORE:
@@ -13634,13 +13992,21 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     # Logs are private - only lookup entries from this user
     record = LOGS_STORE.lookup(title, author_id=sender_key)
     if not record:
+      # Try fuzzy matching to suggest similar titles
+      all_user_logs = LOGS_STORE.list_entries(author_id=sender_key)
+      if all_user_logs:
+        all_titles = [entry['title'] for entry in all_user_logs]
+        suggestions = _fuzzy_match_titles(title, all_titles, threshold=0.5, max_suggestions=3)
+        if suggestions:
+          suggestion_text = "\n".join(f"  • {s}" for s in suggestions)
+          return _cmd_reply(cmd, f"🗒️ Log '{title}' not found.\n\nDid you mean:\n{suggestion_text}")
       return _cmd_reply(cmd, f"🗒️ Log '{title}' not found in your logs.")
     response = f"🗒️ Log: {record.title}\n{record.content}"
     if record.author:
       response = f"{response}\n— {record.author}"
     return _cmd_reply(cmd, response)
 
-  elif cmd in {"/checkreport", "/checkreports"}:
+  elif cmd in {"/checkreport", "/checkreports", "/readreport", "/readreports"}:
     if not is_direct:
       return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
     if not REPORTS_ENABLED or not REPORTS_STORE:
@@ -13658,6 +14024,14 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
       return _cmd_reply(cmd, "\n".join(lines))
     record = REPORTS_STORE.lookup(title)
     if not record:
+      # Try fuzzy matching to suggest similar titles
+      all_reports = REPORTS_STORE.list_entries()
+      if all_reports:
+        all_titles = [entry['title'] for entry in all_reports]
+        suggestions = _fuzzy_match_titles(title, all_titles, threshold=0.5, max_suggestions=3)
+        if suggestions:
+          suggestion_text = "\n".join(f"  • {s}" for s in suggestions)
+          return _cmd_reply(cmd, f"📝 Report '{title}' not found.\n\nDid you mean:\n{suggestion_text}")
       return _cmd_reply(cmd, f"📝 Report '{title}' not found. Use /checkreports to list all.")
     response = f"📝 Report: {record.title}\n{record.content}"
     if record.author:
@@ -14695,7 +15069,7 @@ def _admin_control_command(text: str, sender_id: Any, sender_key: str, channel_i
 
 
 def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=None, check_only=False):
-  dprint(f"parse_incoming_text => text='{text}' is_direct={is_direct} channel={channel_idx} check_only={check_only}")
+  dprint(f"parse_incoming_text => text={_redact_message_content(text)} is_direct={is_direct} channel={channel_idx} check_only={check_only}")
   sender_key = _safe_sender_key(sender_id)
   lang = _resolve_user_language(None, sender_key)
   if not check_only:
@@ -15366,6 +15740,13 @@ def on_receive(packet=None, interface=None, **kwargs):
   except Exception as exc:
     dprint(f"Shortname cache update error: {exc}")
 
+  # Check for offline relay deliveries when node comes online
+  if sender_node:
+    try:
+      _try_deliver_offline_relays(sender_node)
+    except Exception as exc:
+      dprint(f"Offline relay delivery error: {exc}")
+
   # continue processing
   try:
     globals()['last_rx_time'] = _now()
@@ -15532,7 +15913,7 @@ def on_receive(packet=None, interface=None, **kwargs):
         return
 
       # Queue the response for async processing instead of blocking here
-      info_print(f"🤖 [AsyncAI] Queueing response for {sender_node}: {text[:50]}...")
+      info_print(f"🤖 [AsyncAI] Queueing response for {sender_node}: {_redact_message_content(text)}")
       try:
         current_depth = response_queue.qsize()
       except Exception:
@@ -16615,7 +16996,7 @@ def dashboard():
         line for line in script_logs
         if (_viewer_should_show(line) if _viewer_filter_enabled else True)
     ]
-    visible_logs = visible_logs[-400:]
+    visible_logs = visible_logs[-20:]  # Limit to 20 lines for mobile-friendly display
     initial_log_html = "".join(_render_log_line_html(line) for line in visible_logs)
     if not initial_log_html:
         initial_log_html = "<span class=\"log-line\">No activity yet.</span>"
@@ -18664,7 +19045,7 @@ def dashboard():
   <script>
     const METRICS_URL = "/dashboard/metrics";
     const METRICS_POLL_MS = 10000;
-    const LOG_STREAM_MAX = 400;
+    const LOG_STREAM_MAX = 20;
     const LOG_RECONNECT_MAX = 8;
     const LOG_WAIT_THRESHOLD_MS = 30000;
     const CONFIG_UPDATE_URL = "/dashboard/config/update";
@@ -23618,11 +23999,11 @@ def ui_send():
         if mode == "direct" and dest_node:
             dest_info = f"{get_node_shortname(dest_node)} ({dest_node})"
             log_message("WebUI", f"{message} [to: {dest_info}]", direct=True)
-            info_print(f"[UI] Direct message to node {dest_info} => '{message}'")
+            info_print(f"[UI] Direct message to node {dest_info} => {_redact_message_content(message)}")
             send_direct_chunks(interface, message, dest_node)
         else:
             log_message("WebUI", f"{message} [to: Broadcast Channel {channel_idx}]", direct=False, channel_idx=channel_idx)
-            info_print(f"[UI] Broadcast on channel {channel_idx} => '{message}'")
+            info_print(f"[UI] Broadcast on channel {channel_idx} => {_redact_message_content(message)}")
             send_broadcast_chunks(interface, message, channel_idx)
     except Exception as e:
         print(f"⚠️ /ui_send error: {e}")
@@ -23643,12 +24024,12 @@ def send_message():
     try:
         if direct:
             log_message("WebUI", f"{message} [to: {get_node_shortname(node_id)} ({node_id})]", direct=True)
-            info_print(f"[Info] Direct send to node {node_id} => '{message}'")
+            info_print(f"[Info] Direct send to node {node_id} => {_redact_message_content(message)}")
             send_direct_chunks(interface, message, node_id)
             return jsonify({"status": "sent", "to": node_id, "direct": True, "message": message})
         else:
             log_message("WebUI", f"{message} [to: Broadcast Channel {channel_idx}]", direct=False, channel_idx=channel_idx)
-            info_print(f"[Info] Broadcast on ch={channel_idx} => '{message}'")
+            info_print(f"[Info] Broadcast on ch={channel_idx} => {_redact_message_content(message)}")
             send_broadcast_chunks(interface, message, channel_idx)
             return jsonify({"status": "sent", "to": f"channel {channel_idx}", "message": message})
     except Exception as e:
@@ -23820,6 +24201,9 @@ def main():
 
     # Initialize onboarding state
     _initialize_onboarding_state()
+
+    # Load relay opt-out preferences
+    _load_relay_opt_out()
 
     # Start the async response worker
     start_response_worker()

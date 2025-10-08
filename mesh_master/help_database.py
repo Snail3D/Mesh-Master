@@ -64,6 +64,53 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
         "aliases": [],
         "keywords": ["relay", "forward", "send", "node", "shortname", "dm"]
     },
+    "/nodes": {
+        "category": "Network",
+        "description": "List all nodes seen in the last 24 hours, sorted by most recently active.",
+        "usage": "/nodes",
+        "examples": [
+            "/nodes"
+        ],
+        "aliases": [],
+        "keywords": ["network", "list", "nodes", "mesh", "available", "online"]
+    },
+    "/node": {
+        "category": "Network",
+        "description": "Show detailed info about a specific node: signal strength, SNR, last heard, hop count.",
+        "usage": "/node <shortname>",
+        "examples": [
+            "/node snmo",
+            "/node lucy"
+        ],
+        "aliases": [],
+        "keywords": ["node", "info", "signal", "snr", "status", "details", "rssi"]
+    },
+    "/networks": {
+        "category": "Network",
+        "description": "List all channels/networks this node is connected to.",
+        "usage": "/networks",
+        "examples": [
+            "/networks"
+        ],
+        "aliases": [],
+        "keywords": ["channels", "networks", "list", "connected"]
+    },
+    "/optout": {
+        "category": "Network",
+        "description": "Opt out of relay - others cannot relay messages to you (DM only). You can still send relays.",
+        "usage": "/optout",
+        "examples": ["/optout"],
+        "aliases": [],
+        "keywords": ["relay", "privacy", "opt-out", "disable", "block"]
+    },
+    "/optin": {
+        "category": "Network",
+        "description": "Opt back in to relay - allow others to relay messages to you again (DM only).",
+        "usage": "/optin",
+        "examples": ["/optin"],
+        "aliases": [],
+        "keywords": ["relay", "privacy", "opt-in", "enable", "allow"]
+    },
 
     # === AI & CHAT ===
     "/ai": {
@@ -77,6 +124,19 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
         ],
         "aliases": [],
         "keywords": ["chatgpt", "ollama", "assistant", "question", "ask"]
+    },
+    "/system": {
+        "category": "AI",
+        "description": "Ask questions with full system context (commands, settings, architecture). AI has comprehensive knowledge of your config and all features.",
+        "usage": "/system <question>",
+        "examples": [
+            "/system how does the relay work?",
+            "/system what LLM am I using?",
+            "/system how do I search logs?",
+            "/system explain the onboarding process"
+        ],
+        "aliases": [],
+        "keywords": ["help", "documentation", "settings", "config", "troubleshoot", "explain", "how"]
     },
     "/vibe": {
         "category": "AI",
@@ -308,6 +368,28 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
         "aliases": [],
         "keywords": ["public", "announce", "share", "alert"]
     },
+    "/checklog": {
+        "category": "Logging",
+        "description": "List all your private logs, or read a specific log by name.",
+        "usage": "/checklog [log name]",
+        "examples": [
+            "/checklog",
+            "/checklog battery check"
+        ],
+        "aliases": ["/checklogs", "/readlog", "/readlogs"],
+        "keywords": ["list", "view", "read", "private", "logs", "my"]
+    },
+    "/checkreport": {
+        "category": "Logging",
+        "description": "List all public reports, or read a specific report by name.",
+        "usage": "/checkreport [report name]",
+        "examples": [
+            "/checkreport",
+            "/checkreport road closure"
+        ],
+        "aliases": ["/checkreports", "/readreport", "/readreports"],
+        "keywords": ["list", "view", "read", "public", "reports", "all"]
+    },
     "/find": {
         "category": "Logging",
         "description": "Search your private logs and public reports.",
@@ -316,7 +398,7 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
             "/find battery",
             "/find range test"
         ],
-        "aliases": ["/checklog", "/checklogs", "/checkreport", "/checkreports"],
+        "aliases": [],
         "keywords": ["search", "query", "lookup", "history"]
     },
 }
