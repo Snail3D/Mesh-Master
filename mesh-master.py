@@ -1328,8 +1328,7 @@ def _viewer_should_show(line: str) -> bool:
     "😂 Incoming",
     "❓ Incoming",
     "🤖 Incoming",
-    "📬 Automated response",
-    "🤖 AI response",
+    # Response logs removed for security - don't show command responses in viewer
     "📡 Broadcasting",
     "📡 Broadcast",
     "📤 Sending direct",
@@ -6140,11 +6139,14 @@ def _start_vibe_menu(sender_key: Optional[str]) -> PendingReply:
     PENDING_VIBE_SELECTIONS[sender_key] = {
         'ids': mapping,
         'created': _now(),
+        'timestamp': time.time(),
     }
     return PendingReply("\n".join(lines), "/vibe menu")
 
 
 def _handle_pending_vibe_selection(sender_key: str, text: str) -> Optional[PendingReply]:
+    if _check_pending_timeout(PENDING_VIBE_SELECTIONS, sender_key):
+        return PendingReply("⏱️ Vibe selection timed out. Use `/vibe` to see options again.", "/vibe timeout")
     pending = PENDING_VIBE_SELECTIONS.get(sender_key)
     if not pending:
         return None
@@ -10234,16 +10236,26 @@ def _handle_pending_wipe_selection(sender_id: Any, sender_key: str, text: str) -
     )
 
 
+def _check_pending_timeout(pending_dict: Dict[str, Dict[str, Any]], sender_key: str, timeout_seconds: int = 300) -> bool:
+    """Check if a pending state has timed out (default 5 minutes). Returns True if timed out and cleared."""
+    state = pending_dict.get(sender_key)
+    if not state:
+        return False
+    timestamp = state.get('timestamp', 0)
+    if time.time() - timestamp > timeout_seconds:
+        pending_dict.pop(sender_key, None)
+        return True
+    return False
+
+
 def _handle_pending_mailbox_selection(sender_id: Any, sender_key: str, text: str) -> Optional[PendingReply]:
+    # Check for timeout
+    if _check_pending_timeout(PENDING_MAILBOX_SELECTIONS, sender_key):
+        return PendingReply("⏱️ Mailbox selection timed out. You can now use other commands or type `/c` to check mail again.", "/c timeout")
+
     state = PENDING_MAILBOX_SELECTIONS.get(sender_key)
     if not state:
         return None
-
-    # Check for 5-minute timeout
-    timestamp = state.get('timestamp', 0)
-    if time.time() - timestamp > 300:  # 5 minutes
-        PENDING_MAILBOX_SELECTIONS.pop(sender_key, None)
-        return PendingReply("⏱️ Mailbox selection timed out. You can now use other commands or type `/c` to check mail again.", "/c timeout")
 
     mailboxes: List[str] = state.get('mailboxes') or []
     if not mailboxes:
@@ -12425,6 +12437,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
           "language": lang,
           "allow_all": True,
           "actor": actor,
+          "timestamp": time.time(),
         }
         lines = ["📬 Linked inboxes:"]
         lines.extend(f"{idx}) {name}" for idx, name in enumerate(unique_mailboxes, 1))
