@@ -21261,68 +21261,135 @@ def dashboard():
           <div id="telegramStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
         </div>
 
-        <!-- Email Alerts Configuration -->
+        <!-- Email Reports & Alerts Configuration -->
         <div class="passphrase-card">
-          <label>📧 Email Alerts<span class="help-icon" data-explainer="Send email notifications for critical events like spam detection and system errors." data-explainer-placement="right">?</span></label>
-          <div class="toggle-row" style="margin-top: 12px;">
-            <label class="switch">
-              <input type="checkbox" id="emailEnabledToggle">
-              <span class="slider"></span>
-            </label>
-            <div class="toggle-copy">
-              <span class="toggle-title">Enable Email Alerts</span>
-              <span id="emailEnabledStatus" class="toggle-status">Disabled</span>
+          <label>📧 Email Reports & Alerts<span class="help-icon" data-explainer="Configure email reports and alerts via Google OAuth. Get daily rollup summaries and instant alerts for critical events." data-explainer-placement="right">?</span></label>
+
+          <!-- Google OAuth Sign-in -->
+          <div style="margin-top: 12px; padding: 12px; background: #2a2a2a; border-radius: 4px;">
+            <div id="emailNotConnected" style="display: block;">
+              <p style="margin: 0 0 12px 0; color: #888; font-size: 13px;">Sign in with Google to enable email reports</p>
+              <button type="button" id="emailGoogleSignIn" class="config-save-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+                Sign in with Google
+              </button>
             </div>
-          </div>
-          <div style="margin-top: 12px;">
-            <label for="emailSmtpHost" style="display: block; margin-bottom: 4px; font-weight: 500;">SMTP Host</label>
-            <input type="text" id="emailSmtpHost" placeholder="smtp.gmail.com" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
-          </div>
-          <div style="margin-top: 12px; display: flex; gap: 8px;">
-            <div style="flex: 1;">
-              <label for="emailSmtpPort" style="display: block; margin-bottom: 4px; font-weight: 500;">SMTP Port</label>
-              <input type="number" id="emailSmtpPort" placeholder="587" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
-            </div>
-            <div style="flex: 2;">
-              <label for="emailSmtpUser" style="display: block; margin-bottom: 4px; font-weight: 500;">Username</label>
-              <input type="text" id="emailSmtpUser" placeholder="your@email.com" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
-            </div>
-          </div>
-          <div style="margin-top: 12px;">
-            <label for="emailSmtpPassword" style="display: block; margin-bottom: 4px; font-weight: 500;">Password / App Token</label>
-            <input type="password" id="emailSmtpPassword" placeholder="••••••••" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
-            <p class="passphrase-hint" style="margin-top: 4px;">Use app-specific password for Gmail</p>
-          </div>
-          <div style="margin-top: 12px;">
-            <label for="emailRecipients" style="display: block; margin-bottom: 4px; font-weight: 500;">Alert Recipients</label>
-            <input type="text" id="emailRecipients" placeholder="admin@example.com, ops@example.com" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
-            <p class="passphrase-hint" style="margin-top: 4px;">Comma-separated email addresses</p>
-          </div>
-          <div style="margin-top: 12px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Alert Triggers</label>
-            <div class="toggle-row" style="margin-bottom: 8px;">
-              <label class="switch">
-                <input type="checkbox" id="emailAlertSpamToggle">
-                <span class="slider"></span>
-              </label>
-              <div class="toggle-copy">
-                <span class="toggle-title">Spam Detection Alerts</span>
-                <span id="emailAlertSpamStatus" class="toggle-status">Enabled</span>
-              </div>
-            </div>
-            <div class="toggle-row">
-              <label class="switch">
-                <input type="checkbox" id="emailAlertErrorsToggle">
-                <span class="slider"></span>
-              </label>
-              <div class="toggle-copy">
-                <span class="toggle-title">System Error Alerts</span>
-                <span id="emailAlertErrorsStatus" class="toggle-status">Enabled</span>
+            <div id="emailConnected" style="display: none;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <p style="margin: 0; font-weight: 500; color: #4CAF50;">✓ Connected</p>
+                  <p style="margin: 4px 0 0 0; font-size: 12px; color: #888;" id="emailConnectedAccount">Loading...</p>
+                </div>
+                <button type="button" id="emailDisconnect" class="config-cancel-btn" style="padding: 6px 12px;">Disconnect</button>
               </div>
             </div>
           </div>
-          <button type="button" id="emailSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">Save Email Settings</button>
-          <button type="button" id="emailTestBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">Send Test Email</button>
+
+          <!-- Daily Rollup Email -->
+          <div id="emailRollupSection" style="margin-top: 16px; display: none;">
+            <div class="toggle-row" style="margin-bottom: 12px;">
+              <label class="switch">
+                <input type="checkbox" id="emailDailyRollupToggle">
+                <span class="slider"></span>
+              </label>
+              <div class="toggle-copy">
+                <span class="toggle-title">Daily Rollup Email</span>
+                <span id="emailDailyRollupStatus" class="toggle-status">Disabled</span>
+              </div>
+            </div>
+
+            <div id="emailRollupConfig" style="padding-left: 12px; display: none;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #ccc;">Include in 24h Summary:</label>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_messages" checked style="cursor: pointer;">
+                  <span>📬 Messages sent/received</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_ai_requests" checked style="cursor: pointer;">
+                  <span>🤖 AI requests processed</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_mail" checked style="cursor: pointer;">
+                  <span>📧 Mail sent/received</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_onboardings" checked style="cursor: pointer;">
+                  <span>🎓 New onboardings</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_commands" checked style="cursor: pointer;">
+                  <span>⚡ Top commands used</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_users" checked style="cursor: pointer;">
+                  <span>👥 Active users</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_games" style="cursor: pointer;">
+                  <span>🎮 Games played</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="rollup_wiki" style="cursor: pointer;">
+                  <span>📚 Wiki activity</span>
+                </label>
+              </div>
+              <div style="margin-top: 12px;">
+                <label for="rollupTime" style="display: block; margin-bottom: 4px; font-weight: 500; color: #ccc;">Send time (24h format):</label>
+                <input type="time" id="rollupTime" value="08:00" style="width: 120px; padding: 6px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0; border-radius: 4px;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Instant Alerts -->
+          <div id="emailAlertsSection" style="margin-top: 16px; display: none;">
+            <label style="display: block; margin-bottom: 12px; font-weight: 500; color: #ccc;">Instant Alerts:</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="toggle-row">
+                <label class="switch">
+                  <input type="checkbox" id="emailAlertSpamToggle">
+                  <span class="slider"></span>
+                </label>
+                <div class="toggle-copy">
+                  <span class="toggle-title">🚨 Spam Detection</span>
+                  <span id="emailAlertSpamStatus" class="toggle-status">Disabled</span>
+                </div>
+              </div>
+              <div class="toggle-row">
+                <label class="switch">
+                  <input type="checkbox" id="emailAlertNetworkToggle">
+                  <span class="slider"></span>
+                </label>
+                <div class="toggle-copy">
+                  <span class="toggle-title">📡 Network Down (>1min)</span>
+                  <span id="emailAlertNetworkStatus" class="toggle-status">Disabled</span>
+                </div>
+              </div>
+              <div class="toggle-row">
+                <label class="switch">
+                  <input type="checkbox" id="emailAlertActivityToggle">
+                  <span class="slider"></span>
+                </label>
+                <div class="toggle-copy">
+                  <span class="toggle-title">📊 Heavy Activity Spike</span>
+                  <span id="emailAlertActivityStatus" class="toggle-status">Disabled</span>
+                </div>
+              </div>
+              <div class="toggle-row">
+                <label class="switch">
+                  <input type="checkbox" id="emailAlertErrorsToggle">
+                  <span class="slider"></span>
+                </label>
+                <div class="toggle-copy">
+                  <span class="toggle-title">⚠️ System Errors</span>
+                  <span id="emailAlertErrorsStatus" class="toggle-status">Disabled</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" id="emailSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px; display: none;">Save Email Settings</button>
+          <button type="button" id="emailTestBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; display: none;">Send Test Email</button>
           <div id="emailStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
         </div>
 
