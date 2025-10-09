@@ -8019,6 +8019,26 @@ def _command_alias_map() -> Dict[str, List[str]]:
                 alias_name = _normalize_command_name(alt)
                 if alias_name and alias_name != canonical:
                     alias_map[canonical].add(alias_name)
+
+    # Include aliases from Command Builder
+    try:
+        custom_commands_file = Path("data/custom_commands.json")
+        if custom_commands_file.exists():
+            with custom_commands_file.open('r', encoding='utf-8') as f:
+                custom_commands_data = json.load(f)
+            for c in custom_commands_data.get("commands", []):
+                canonical = _normalize_command_name(c.get('name'))
+                aliases = c.get('aliases', [])
+                if canonical and isinstance(aliases, (list, tuple)):
+                    for alt in aliases:
+                        alias_name = _normalize_command_name(alt)
+                        if alias_name and alias_name != canonical:
+                            alias_map[canonical].add(alias_name)
+    except Exception as exc:
+        dprint(f"⚠️ Failed to load Command Builder aliases in _command_alias_map(): {exc}")
+        import traceback
+        traceback.print_exc()
+
     return {key: sorted(values) for key, values in alias_map.items()}
 
 
@@ -8629,6 +8649,23 @@ def _collect_command_categories() -> List[Dict[str, Any]]:
                     if custom_cmd in known:
                         assigned.add(custom_cmd)
 
+            # Add commands from Command Builder
+            try:
+                custom_commands_file = Path("data/custom_commands.json")
+                if custom_commands_file.exists():
+                    with custom_commands_file.open('r', encoding='utf-8') as f:
+                        custom_commands_data = json.load(f)
+                    for c in custom_commands_data.get("commands", []):
+                        cmd_name = _normalize_command_name(c.get('name'))
+                        if cmd_name:
+                            commands.add(cmd_name)
+                            if cmd_name in known:
+                                assigned.add(cmd_name)
+            except Exception as exc:
+                dprint(f"⚠️ Failed to load Command Builder commands in _collect_command_categories(): {exc}")
+                import traceback
+                traceback.print_exc()
+
         if commands:
             categories.append(
                 {
@@ -8978,6 +9015,29 @@ def _known_commands() -> Set[str]:
             continue
         normalized = custom_cmd if custom_cmd.startswith("/") else f"/{custom_cmd}"  # keep slash prefix
         known.add(normalized.lower())
+
+    # Add commands from Command Builder
+    try:
+        custom_commands_file = Path("data/custom_commands.json")
+        if custom_commands_file.exists():
+            with custom_commands_file.open('r', encoding='utf-8') as f:
+                custom_commands_data = json.load(f)
+            for c in custom_commands_data.get("commands", []):
+                # Add primary name
+                cmd_name = c.get('name', '')
+                if cmd_name:
+                    normalized = cmd_name if cmd_name.startswith("/") else f"/{cmd_name}"
+                    known.add(normalized.lower())
+                # Add aliases
+                for alias in c.get('aliases', []):
+                    if alias:
+                        normalized_alias = alias if alias.startswith("/") else f"/{alias}"
+                        known.add(normalized_alias.lower())
+    except Exception as exc:
+        dprint(f"⚠️ Failed to load Command Builder commands in _known_commands(): {exc}")
+        import traceback
+        traceback.print_exc()
+
     for alias, info in COMMAND_ALIASES.items():
         known.add(alias.lower())
         canonical = info.get("canonical")
@@ -8987,6 +9047,7 @@ def _known_commands() -> Set[str]:
     for alias, canonical in _get_dynamic_command_aliases().items():
         known.add(alias.lower())
         known.add(canonical.lower())
+
     return known
 
 
@@ -14911,7 +14972,163 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
         return _cmd_reply(cmd, c["response"])
       return _cmd_reply(cmd, "No configured response for this command.")
 
+  # Check for custom commands from Command Builder
+  try:
+    custom_commands_file = Path("data/custom_commands.json")
+    flow_sessions_file = Path("data/command_flow_sessions.json")
+
+    if custom_commands_file.exists():
+      with custom_commands_file.open('r', encoding='utf-8') as f:
+        custom_commands_data = json.load(f)
+
+      # Load flow sessions
+      flow_sessions = {}
+      if flow_sessions_file.exists():
+        try:
+          with flow_sessions_file.open('r', encoding='utf-8') as f:
+            flow_sessions = json.load(f).get('sessions', {})
+        except Exception:
+          flow_sessions = {}
+
+      sender_key = _safe_sender_key(sender_id)
+
+      # Check if user is in an active flow session
+      if sender_key and sender_key in flow_sessions:
+        session = flow_sessions[sender_key]
+        command_name = session.get('command')
+
+        # Find the command
+        for c in custom_commands_data.get("commands", []):
+          if c.get('name', '').lower() == command_name:
+            flows = c.get('flows', [])
+            user_input = full_text.strip().lower()
+
+            # Check each flow branch for a match
+            matched = False
+            for flow in flows:
+              triggers = [t.strip().lower() for t in flow.get('trigger', '').split(',')]
+              if user_input in triggers:
+                matched = True
+                action = flow.get('action')
+
+                # Clear session before executing action
+                del flow_sessions[sender_key]
+                _save_flow_sessions(flow_sessions)
+
+                if action == 'respond':
+                  response_text = flow.get('response', '')
+                  # Check if this response has its own flows
+                  if flows:  # If there are more flows, keep session active
+                    flow_sessions[sender_key] = {
+                      'command': command_name,
+                      'timestamp': time.time()
+                    }
+                    _save_flow_sessions(flow_sessions)
+                  return _cmd_reply(f"/{command_name}", response_text)
+
+                elif action == 'command':
+                  next_command = flow.get('nextStep', '')
+                  if next_command:
+                    # Execute the next command
+                    return handle_command(f"/{next_command}", f"/{next_command}", sender_id, is_direct, channel_idx, thread_root_ts, language_hint)
+
+                elif action == 'end':
+                  return _cmd_reply(f"/{command_name}", "👋 Conversation ended.")
+
+                break
+
+            if not matched:
+              # No match found, clear session
+              del flow_sessions[sender_key]
+              _save_flow_sessions(flow_sessions)
+              return _cmd_reply(f"/{command_name}", "⚠️ Invalid response. Flow session ended.")
+
+      # Check for initial command execution
+      for c in custom_commands_data.get("commands", []):
+        # Check primary name and all aliases
+        all_names = [c.get('name', '').lower()] + [a.lower() for a in c.get('aliases', [])]
+        command_match = False
+
+        # Check if command matches (with /)
+        if cmd in [f"/{name}" for name in all_names]:
+          command_match = True
+
+        # Check if in DM and matches without / prefix
+        if is_direct and not command_match:
+          cmd_no_slash = cmd.lstrip('/')
+          if cmd_no_slash in all_names or full_text.strip().lower() in all_names:
+            command_match = True
+
+        if command_match:
+          # Check if command is DM-only and message is not direct
+          if c.get('dmOnly', False) and not is_direct:
+            return _cmd_reply(cmd, "⚠️ This command is only available via Direct Message.")
+
+          # Check if command is admin-only
+          if c.get('adminOnly', False):
+            if not is_sender_admin(sender_id):
+              return _cmd_reply(cmd, "⚠️ This command is restricted to admins only.")
+
+          # Check if command has flows
+          flows = c.get('flows', [])
+          if flows and sender_key:
+            # Start a flow session
+            flow_sessions[sender_key] = {
+              'command': c.get('name'),
+              'timestamp': time.time()
+            }
+            _save_flow_sessions(flow_sessions)
+
+          # Return the custom response
+          return _cmd_reply(cmd, c.get('response', ''))
+
+  except Exception as exc:
+    dprint(f"⚠️ Failed to load custom commands: {exc}")
+    import traceback
+    traceback.print_exc()
+
   return None
+
+
+def _save_flow_sessions(sessions):
+  """Save flow sessions to disk."""
+  try:
+    flow_sessions_file = Path("data/command_flow_sessions.json")
+    with flow_sessions_file.open('w', encoding='utf-8') as f:
+      json.dump({'sessions': sessions, 'description': 'Tracks user position in multi-step command flows'}, f, indent=2)
+  except Exception as exc:
+    dprint(f"⚠️ Failed to save flow sessions: {exc}")
+
+
+def _cleanup_expired_flow_sessions():
+  """Remove flow sessions older than 10 minutes."""
+  try:
+    flow_sessions_file = Path("data/command_flow_sessions.json")
+    if not flow_sessions_file.exists():
+      return
+
+    with flow_sessions_file.open('r', encoding='utf-8') as f:
+      data = json.load(f)
+
+    sessions = data.get('sessions', {})
+    now = time.time()
+    expired_keys = []
+
+    # Find expired sessions (older than 10 minutes)
+    for key, session in sessions.items():
+      if now - session.get('timestamp', 0) > 600:  # 10 minutes
+        expired_keys.append(key)
+
+    # Remove expired sessions
+    for key in expired_keys:
+      del sessions[key]
+
+    if expired_keys:
+      _save_flow_sessions(sessions)
+      dprint(f"🧹 Cleaned up {len(expired_keys)} expired flow sessions")
+
+  except Exception as exc:
+    dprint(f"⚠️ Failed to cleanup flow sessions: {exc}")
 
 ADMIN_CONTROL_COMMANDS = {"/admin", "/ai", "/channels+dm", "/channels", "/dm", "/autoping", "/status", "/whatsoff", "/aliases"}
 ADMIN_CONTROL_RESERVED = {"/ai", "/channels+dm", "/channels", "/dm", "/admin", "/autoping", "/status", "/whatsoff", "/aliases"}
@@ -15296,6 +15513,82 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
           start_user_onboarding(sender_key)
           welcome_msg = f"{get_welcome_message()}\n\n(Your message will be processed after onboarding, or reply 'exit' to skip onboarding for now.)"
           return PendingReply(welcome_msg, "/onboard auto-start")
+
+    # Check for Command Builder flow sessions
+    if sender_key and not lower.startswith('/'):
+      try:
+        flow_sessions_file = Path("data/command_flow_sessions.json")
+        if flow_sessions_file.exists():
+          with flow_sessions_file.open('r', encoding='utf-8') as f:
+            flow_data = json.load(f)
+          flow_sessions = flow_data.get('sessions', {})
+
+          if sender_key in flow_sessions:
+            session = flow_sessions[sender_key]
+            command_name = session.get('command')
+
+            # Load custom commands
+            custom_commands_file = Path("data/custom_commands.json")
+            if custom_commands_file.exists():
+              with custom_commands_file.open('r', encoding='utf-8') as f:
+                custom_commands_data = json.load(f)
+
+              # Find the command
+              for c in custom_commands_data.get("commands", []):
+                if c.get('name', '').lower() == command_name:
+                  flows = c.get('flows', [])
+                  user_input = text.strip().lower()
+
+                  # Check each flow branch for a match
+                  matched = False
+                  for flow in flows:
+                    triggers = [t.strip().lower() for t in flow.get('trigger', '').split(',') if t.strip()]
+                    if user_input in triggers:
+                      matched = True
+                      action = flow.get('action')
+
+                      # Return early if just checking
+                      if check_only:
+                        return False  # Process immediately, not async
+
+                      # Clear session before executing action (only during actual execution)
+                      del flow_sessions[sender_key]
+                      _save_flow_sessions(flow_sessions)
+
+                      if action == 'respond':
+                        response_text = flow.get('response', '')
+                        # Check if this response has its own flows - keep session active
+                        if flows:
+                          flow_sessions[sender_key] = {
+                            'command': command_name,
+                            'timestamp': time.time()
+                          }
+                          _save_flow_sessions(flow_sessions)
+                        return PendingReply(response_text, f"/{command_name}")
+
+                      elif action == 'command':
+                        next_command = flow.get('nextStep', '')
+                        if next_command:
+                          # Execute the next command
+                          next_cmd = next_command if next_command.startswith('/') else f'/{next_command}'
+                          return handle_command(next_cmd, next_cmd, sender_id, is_direct, channel_idx, thread_root_ts, lang)
+
+                      elif action == 'end':
+                        end_msg = flow.get('response', '👋 Conversation ended.')
+                        return PendingReply(end_msg, f"/{command_name}")
+
+                      break
+
+                  if not matched:
+                    # No match found, clear session
+                    del flow_sessions[sender_key]
+                    _save_flow_sessions(flow_sessions)
+                    if check_only:
+                      return False  # Process immediately, not async
+                    return PendingReply("⚠️ Invalid response. Flow session ended.", f"/{command_name}")
+                  break
+      except Exception as exc:
+        dprint(f"⚠️ Flow session check failed: {exc}")
 
     if sender_key in PENDING_REBOOT_CONFIRM and not lower.startswith('/'):
       choice = lower.strip()
@@ -17178,6 +17471,1438 @@ def logs_verbose():
 </html>"""
   return html_page
 
+
+@app.route("/command-builder", methods=["GET"])
+def command_builder():
+    """Command Builder UI for creating custom commands."""
+    html_page = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Command Builder · MESH-MASTER</title>
+  <style>
+    :root {
+      --bg: #05070b;
+      --bg-alt: #07090c;
+      --bg-panel: #0b1018;
+      --border: #111722;
+      --border-light: #162030;
+      --accent: #569cd6;
+      --accent-strong: #007acc;
+      --accent-soft: rgba(86, 156, 214, 0.16);
+      --text-primary: #d7deed;
+      --text-secondary: #9aa4ba;
+      --text-faint: #7c8497;
+      --success: #6a9955;
+      --warning: #d7ba7d;
+      --danger: #f44747;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .app-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 28px;
+      background: linear-gradient(90deg, #07090c, #0b1018);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .header-link {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    .header-link:hover { color: var(--text-secondary); }
+    .content {
+      flex: 1;
+      padding: 24px;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .builder-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px var(--shadow);
+    }
+    .panel-header {
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 4px 0;
+    }
+    .panel-subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .form-input,
+    .form-textarea,
+    .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      transition: border-color 0.2s ease;
+    }
+    .form-input:focus,
+    .form-textarea:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .form-textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    .char-counter {
+      text-align: right;
+      font-size: 11px;
+      margin-top: 4px;
+      color: var(--text-faint);
+    }
+    .char-counter.warning { color: var(--warning); }
+    .char-counter.danger { color: var(--danger); }
+    .toggle-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toggle-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .toggle-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 10px 20px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .btn:hover {
+      background: var(--accent);
+      color: var(--bg);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+    }
+    .btn-primary:hover {
+      background: var(--accent-strong);
+    }
+    .btn-danger {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: rgba(244, 71, 71, 0.14);
+    }
+    .btn-danger:hover {
+      background: var(--danger);
+      color: var(--bg);
+    }
+    .command-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .command-item {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s ease;
+    }
+    .command-item:hover {
+      border-color: var(--accent);
+    }
+    .command-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .command-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .command-badges {
+      display: flex;
+      gap: 6px;
+    }
+    .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-admin {
+      background: rgba(215, 186, 125, 0.2);
+      color: var(--warning);
+    }
+    .badge-dm {
+      background: rgba(106, 153, 85, 0.2);
+      color: var(--success);
+    }
+    .command-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-faint);
+    }
+    .status-message {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+    .status-success {
+      background: rgba(106, 153, 85, 0.2);
+      border: 1px solid var(--success);
+      color: var(--success);
+    }
+    .status-error {
+      background: rgba(244, 71, 71, 0.14);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+    }
+    .flow-branch {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .flow-branch-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .flow-branch-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .flow-branch-remove {
+      background: transparent;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.2s ease;
+    }
+    .flow-branch-remove:hover {
+      background: rgba(244, 71, 71, 0.2);
+    }
+    .flow-branch-input {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .flow-branch-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .flow-branch-select {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 12px;
+    }
+    .flow-branch-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .flow-branch-label {
+      display: block;
+      font-size: 10px;
+      color: var(--text-faint);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab:hover {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent-soft);
+    }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .flow-tree {
+      padding: 16px;
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+    .flow-tree-node {
+      padding: 8px 12px;
+      margin: 4px 0 4px 20px;
+      border-left: 2px solid var(--accent-soft);
+      position: relative;
+    }
+    .flow-tree-node::before {
+      content: '→';
+      position: absolute;
+      left: -10px;
+      color: var(--accent);
+    }
+    .flow-tree-trigger {
+      color: var(--warning);
+      font-weight: 600;
+    }
+    .flow-tree-action {
+      color: var(--success);
+    }
+    .category-badge {
+      font-size: 9px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(86, 156, 214, 0.2);
+      color: var(--accent);
+      margin-left: 6px;
+    }
+    .help-icon {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      line-height: 16px;
+      text-align: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: help;
+      margin-left: 6px;
+      position: relative;
+    }
+    .help-icon:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-light);
+      border-radius: 6px;
+      box-shadow: 0 4px 12px var(--shadow);
+      white-space: nowrap;
+      max-width: 300px;
+      white-space: normal;
+      width: max-content;
+      font-size: 11px;
+      font-weight: normal;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    .code-editor {
+      width: 100%;
+      min-height: 300px;
+      padding: 12px;
+      background: #1e1e1e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #d4d4d4;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+      tab-size: 2;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .code-editor:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .code-viewer {
+      background: #1e1e1e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      overflow-x: auto;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .code-viewer pre {
+      margin: 0;
+      color: #d4d4d4;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 90%;
+      max-height: 90%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .modal-close:hover {
+      background: var(--border);
+    }
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 900px) {
+      .builder-layout {
+        grid-template-columns: 1fr;
+      }
+      .content {
+        padding: 16px;
+      }
+      .app-header {
+        padding: 12px 16px;
+      }
+      .panel {
+        padding: 16px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .brand-title {
+        font-size: 14px;
+      }
+      .btn-group {
+        flex-direction: column;
+      }
+      .btn {
+        width: 100%;
+      }
+      .toggle-group {
+        flex-direction: column;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <span class="brand-title">Command Builder</span>
+      <a class="header-link" href="/dashboard">← Back to Dashboard</a>
+    </header>
+
+    <main class="content">
+      <div id="statusContainer"></div>
+
+      <div class="builder-layout">
+        <!-- Command Form Panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Create Command</h2>
+            <div class="panel-subtitle">Define custom commands for your mesh network</div>
+          </div>
+
+          <form id="commandForm">
+            <input type="hidden" id="commandId" value="">
+
+            <div class="form-group">
+              <label class="form-label" for="commandName">
+                Command Name & Aliases
+                <span class="help-icon" data-tooltip="Use commas to add aliases (e.g., 'help, assistance, guide'). First name is primary. In DMs, users can omit the / prefix.">?</span>
+              </label>
+              <input type="text" id="commandName" class="form-input" placeholder="help, assistance, guide" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="commandDesc">
+                Description
+                <span class="help-icon" data-tooltip="Brief explanation of what this command does. Shown in the command list.">?</span>
+              </label>
+              <textarea id="commandDesc" class="form-textarea" placeholder="What does this command do?" style="min-height: 60px;"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="commandResponse">
+                Response Text
+                <span class="help-icon" data-tooltip="The message sent when users run this command. Limited to 200 characters for Meshtastic compatibility.">?</span>
+              </label>
+              <textarea id="commandResponse" class="form-textarea" placeholder="The response to send (max 200 chars for Meshtastic)" required></textarea>
+              <div id="charCounter" class="char-counter">0 / 200 characters</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">
+                Response Flow (Optional)
+                <span class="help-icon" data-tooltip="Create interactive command menus. Define what happens when users reply with specific words (e.g., 'yes', 'no', '1', '2'). Can chain to other commands or send follow-up responses.">?</span>
+              </label>
+              <div class="panel-subtitle" style="margin-bottom: 12px;">Create interactive menus by defining responses that trigger follow-up actions</div>
+
+              <div id="flowContainer">
+                <div class="empty-state" style="padding: 20px; font-size: 11px;">
+                  Add response branches to create interactive commands. Example: if user replies "yes", move to next step.
+                </div>
+              </div>
+
+              <button type="button" id="addFlowBtn" class="btn" style="width: 100%; margin-top: 12px;">
+                + Add Response Branch
+              </button>
+
+              <!-- Flow Tree Preview -->
+              <div id="flowTreeContainer" style="display: none;">
+                <div class="panel-subtitle" style="margin-top: 16px; margin-bottom: 8px;">Flow Preview</div>
+                <div id="flowTree" class="flow-tree"></div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Options</label>
+              <div class="toggle-group">
+                <div class="toggle-item">
+                  <input type="checkbox" id="dmOnly" class="toggle-checkbox">
+                  <label for="dmOnly" class="toggle-label">
+                    DM Only
+                    <span class="help-icon" data-tooltip="Command only works in Direct Messages (private conversations), not in public channels.">?</span>
+                  </label>
+                </div>
+                <div class="toggle-item">
+                  <input type="checkbox" id="adminOnly" class="toggle-checkbox">
+                  <label for="adminOnly" class="toggle-label">
+                    Admin Only
+                    <span class="help-icon" data-tooltip="Only users with admin privileges can use this command.">?</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inline Status Messages -->
+            <div id="formStatusContainer" style="margin-top: 16px;"></div>
+
+            <div class="btn-group">
+              <button type="submit" class="btn btn-primary" id="saveCommandBtn">Save Command</button>
+              <button type="button" id="clearBtn" class="btn">Clear Form</button>
+              <button type="button" id="deleteBtn" class="btn btn-danger" style="display: none;">Delete</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Command List Panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Commands</h2>
+            <div class="panel-subtitle">Browse, search, and edit</div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="tabs">
+            <button class="tab active" data-tab="custom" onclick="switchTab('custom')">Custom</button>
+            <button class="tab" data-tab="builtin" onclick="switchTab('builtin')">Built-in</button>
+          </div>
+
+          <!-- Search -->
+          <div class="form-group" style="margin-bottom: 16px;">
+            <input type="text" id="searchInput" class="form-input" placeholder="🔍 Search commands...">
+          </div>
+
+          <!-- Custom Commands Tab -->
+          <div id="customTab" class="tab-content active">
+            <ul id="commandList" class="command-list">
+              <li class="empty-state">No custom commands yet. Create one to get started!</li>
+            </ul>
+          </div>
+
+          <!-- Built-in Commands Tab -->
+          <div id="builtinTab" class="tab-content">
+            <ul id="builtinList" class="command-list">
+              <li class="empty-state">Loading built-in commands...</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Source Code Modal -->
+  <div id="sourceModal" class="modal">
+    <div class="modal-content" style="width: 90%; max-width: 1200px;">
+      <div class="modal-header">
+        <span class="modal-title" id="modalTitle">Command Source Code</span>
+        <button class="modal-close" onclick="closeSourceModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px; padding: 12px; background: rgba(215, 186, 125, 0.1); border: 1px solid var(--warning); border-radius: 6px;">
+          <strong style="color: var(--warning);">⚠️ Warning:</strong>
+          <span style="font-size: 12px; color: var(--text-secondary);">
+            Editing command code can break functionality. Make sure you understand Python and the command structure before saving changes.
+          </span>
+        </div>
+        <textarea id="sourceCodeEditor" class="code-editor" spellcheck="false">Loading...</textarea>
+        <div style="display: flex; gap: 12px; margin-top: 16px; justify-content: flex-end;">
+          <button class="btn" onclick="closeSourceModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveCommandSource()" id="saveSourceBtn">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Override Explainer Modal -->
+  <div id="overrideExplainerModal" class="modal">
+    <div class="modal-content" style="width: 90%; max-width: 600px;">
+      <div class="modal-header">
+        <span class="modal-title">💡 About Command Overrides</span>
+        <button class="modal-close" onclick="closeOverrideExplainer()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size: 13px; line-height: 1.6; color: var(--text-secondary);">
+          <p style="margin-top: 0;"><strong style="color: var(--text-primary);">What is a Command Override?</strong></p>
+          <p>Creating an override lets you customize or replace a built-in command's behavior without editing the original Python code.</p>
+
+          <p style="margin-top: 16px;"><strong style="color: var(--text-primary);">How it works:</strong></p>
+          <ul style="margin: 8px 0; padding-left: 20px;">
+            <li>Your custom command runs <strong>before</strong> the built-in command</li>
+            <li>If your custom command matches, it sends your response instead</li>
+            <li>You can add interactive flows, change the message, or restrict access</li>
+            <li>The original built-in command code remains unchanged</li>
+          </ul>
+
+          <p style="margin-top: 16px;"><strong style="color: var(--text-primary);">Example:</strong></p>
+          <p style="padding: 12px; background: rgba(80, 250, 123, 0.1); border-left: 3px solid var(--success); border-radius: 4px; margin: 8px 0; font-size: 12px;">
+            Override <code style="color: var(--success);">/help</code> to say "Check the wiki first!" with a flow that asks "Still need help? (y/n)" before showing the original help menu.
+          </p>
+
+          <p style="margin-top: 16px;"><strong style="color: var(--text-primary);">Deleting overrides:</strong></p>
+          <p style="padding: 12px; background: rgba(98, 114, 164, 0.1); border-left: 3px solid var(--info); border-radius: 4px; margin: 8px 0; font-size: 12px;">
+            When you delete a custom override, the original built-in command automatically returns to normal behavior. No restart needed!
+          </p>
+        </div>
+        <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
+          <button class="btn" onclick="closeOverrideExplainer()">Cancel</button>
+          <button class="btn btn-primary" onclick="confirmOverrideCreation()" id="confirmOverrideBtn">
+            Got it, Create Override
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let commands = [];
+    let builtinCommands = [];
+    let currentCommandId = null;
+    let currentFlows = [];
+    let searchQuery = '';
+    let activeTab = 'custom';
+    let currentEditingCommand = null; // Track which command's source is being edited
+
+    // Character counter
+    const responseInput = document.getElementById('commandResponse');
+    const charCounter = document.getElementById('charCounter');
+
+    responseInput.addEventListener('input', () => {
+      const length = responseInput.value.length;
+      charCounter.textContent = `${length} / 200 characters`;
+
+      charCounter.classList.remove('warning', 'danger');
+      if (length > 200) {
+        charCounter.classList.add('danger');
+      } else if (length > 180) {
+        charCounter.classList.add('warning');
+      }
+    });
+
+    // Tab switching
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+      document.getElementById(`${tab}Tab`).classList.add('active');
+      searchQuery = '';
+      document.getElementById('searchInput').value = '';
+      if (tab === 'custom') {
+        renderCommandList();
+      } else {
+        renderBuiltinList();
+      }
+    }
+
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase();
+      if (activeTab === 'custom') {
+        renderCommandList();
+      } else {
+        renderBuiltinList();
+      }
+    });
+
+    // Flow branch management
+    function addFlowBranch() {
+      const flowId = Date.now();
+      currentFlows.push({
+        id: flowId,
+        trigger: '',
+        action: 'respond',
+        response: '',
+        nextStep: ''
+      });
+      renderFlows();
+    }
+
+    function removeFlowBranch(flowId) {
+      currentFlows = currentFlows.filter(f => f.id !== flowId);
+      renderFlows();
+      renderFlowTree();
+    }
+
+    function updateFlowBranch(flowId, field, value) {
+      const flow = currentFlows.find(f => f.id === flowId);
+      if (flow) {
+        flow[field] = value;
+        renderFlowTree();
+      }
+    }
+
+    function renderFlowTree() {
+      const treeContainer = document.getElementById('flowTreeContainer');
+      const tree = document.getElementById('flowTree');
+
+      if (currentFlows.length === 0) {
+        treeContainer.style.display = 'none';
+        return;
+      }
+
+      treeContainer.style.display = 'block';
+      const commandName = document.getElementById('commandName').value || 'command';
+      const initialResponse = document.getElementById('commandResponse').value || 'Initial response';
+
+      let treeHTML = `<div><strong>/${commandName}</strong>: ${initialResponse.substring(0, 50)}${initialResponse.length > 50 ? '...' : ''}</div>`;
+
+      currentFlows.forEach(flow => {
+        const triggers = flow.trigger || '(no trigger)';
+        let actionText = '';
+
+        if (flow.action === 'respond') {
+          actionText = `<span class="flow-tree-action">Respond:</span> ${(flow.response || '(empty)').substring(0, 40)}${flow.response && flow.response.length > 40 ? '...' : ''}`;
+        } else if (flow.action === 'command') {
+          actionText = `<span class="flow-tree-action">Execute:</span> /${flow.nextStep || '(none)'}`;
+        } else if (flow.action === 'end') {
+          actionText = `<span class="flow-tree-action">End conversation</span>`;
+        }
+
+        treeHTML += `
+          <div class="flow-tree-node">
+            <span class="flow-tree-trigger">If: ${triggers}</span><br>
+            ${actionText}
+          </div>
+        `;
+      });
+
+      tree.innerHTML = treeHTML;
+    }
+
+    function renderFlows() {
+      const container = document.getElementById('flowContainer');
+
+      if (currentFlows.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="padding: 20px; font-size: 11px;">
+            Add response branches to create interactive commands. Example: if user replies "yes", move to next step.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = currentFlows.map(flow => `
+        <div class="flow-branch" data-flow-id="${flow.id}">
+          <div class="flow-branch-header">
+            <span class="flow-branch-title">Response Branch</span>
+            <button type="button" class="flow-branch-remove" onclick="removeFlowBranch(${flow.id})">×</button>
+          </div>
+
+          <label class="flow-branch-label">If user responds with:</label>
+          <input type="text" class="flow-branch-input" placeholder="yes, y, 1"
+            value="${escapeHtml(flow.trigger)}"
+            oninput="updateFlowBranch(${flow.id}, 'trigger', this.value)">
+
+          <label class="flow-branch-label">Then:</label>
+          <select class="flow-branch-select"
+            onchange="updateFlowBranch(${flow.id}, 'action', this.value)">
+            <option value="respond" ${flow.action === 'respond' ? 'selected' : ''}>Send response</option>
+            <option value="command" ${flow.action === 'command' ? 'selected' : ''}>Execute command</option>
+            <option value="end" ${flow.action === 'end' ? 'selected' : ''}>End conversation</option>
+          </select>
+
+          ${flow.action === 'respond' ? `
+            <label class="flow-branch-label">Response text (max 200 chars):</label>
+            <input type="text" class="flow-branch-input" placeholder="Great! What would you like to know?"
+              value="${escapeHtml(flow.response)}"
+              oninput="updateFlowBranch(${flow.id}, 'response', this.value)"
+              maxlength="200">
+          ` : ''}
+
+          ${flow.action === 'command' ? `
+            <label class="flow-branch-label">Command to execute:</label>
+            <select class="flow-branch-select"
+              onchange="updateFlowBranch(${flow.id}, 'nextStep', this.value)">
+              <option value="">Select command...</option>
+              ${commands.map(cmd => `
+                <option value="${cmd.name}" ${flow.nextStep === cmd.name ? 'selected' : ''}>
+                  /${cmd.name}
+                </option>
+              `).join('')}
+            </select>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('addFlowBtn').addEventListener('click', addFlowBranch);
+
+    // Load commands
+    async function loadCommands() {
+      try {
+        const response = await fetch('/dashboard/commands');
+        const data = await response.json();
+        commands = data.commands || [];
+        renderCommandList();
+      } catch (error) {
+        console.error('Failed to load commands:', error);
+        showStatus('Failed to load commands', 'error');
+      }
+    }
+
+    // Load built-in commands
+    async function loadBuiltinCommands() {
+      try {
+        const response = await fetch('/dashboard/commands/builtin');
+        const data = await response.json();
+        builtinCommands = data.commands || [];
+        renderBuiltinList();
+      } catch (error) {
+        console.error('Failed to load built-in commands:', error);
+        showStatus('Failed to load built-in commands', 'error');
+      }
+    }
+
+    // Render built-in command list with search filter
+    function renderBuiltinList() {
+      const list = document.getElementById('builtinList');
+
+      let filteredCommands = builtinCommands;
+      if (searchQuery) {
+        filteredCommands = builtinCommands.filter(cmd =>
+          cmd.name.toLowerCase().includes(searchQuery) ||
+          (cmd.description && cmd.description.toLowerCase().includes(searchQuery)) ||
+          (cmd.category && cmd.category.toLowerCase().includes(searchQuery))
+        );
+      }
+
+      if (filteredCommands.length === 0) {
+        const message = searchQuery
+          ? `No built-in commands found matching "${searchQuery}"`
+          : 'No built-in commands available';
+        list.innerHTML = `<li class="empty-state">${message}</li>`;
+        return;
+      }
+
+      list.innerHTML = filteredCommands.map(cmd => `
+        <li class="command-item">
+          <div class="command-item-header">
+            <span class="command-name">/${cmd.name}</span>
+            <span class="category-badge">${cmd.category}</span>
+          </div>
+          <div class="command-desc">${escapeHtml(cmd.description)}</div>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button class="btn" style="font-size: 10px; padding: 4px 8px;" onclick="viewCommandSource('${cmd.name}')">
+              View Source
+            </button>
+            <button class="btn btn-primary" style="font-size: 10px; padding: 4px 8px;" onclick="importBuiltinCommand('${cmd.name}')">
+              Create Override
+            </button>
+          </div>
+        </li>
+      `).join('');
+    }
+
+    // View command source code
+    async function viewCommandSource(name) {
+      try {
+        currentEditingCommand = name;
+        document.getElementById('modalTitle').textContent = `/${name} - Source Code (Editable)`;
+        document.getElementById('sourceCodeEditor').value = 'Loading...';
+        document.getElementById('sourceModal').classList.add('active');
+
+        const response = await fetch(`/dashboard/commands/builtin/${name}/source`);
+        const data = await response.json();
+
+        if (data.success) {
+          document.getElementById('sourceCodeEditor').value = data.source;
+        } else {
+          document.getElementById('sourceCodeEditor').value = `Error: ${data.error}`;
+        }
+      } catch (error) {
+        document.getElementById('sourceCodeEditor').value = `Failed to load source: ${error.message}`;
+      }
+    }
+
+    // Save edited command source
+    async function saveCommandSource() {
+      if (!currentEditingCommand) {
+        showStatus('No command selected for editing', 'error');
+        return;
+      }
+
+      const confirmation = confirm(
+        `⚠️ WARNING: You are about to modify the source code for /${currentEditingCommand}.\n\n` +
+        `This will directly edit the Python code in mesh-master.py.\n\n` +
+        `Incorrect code can break the command or even crash the entire system!\n\n` +
+        `Are you absolutely sure you want to save these changes?`
+      );
+
+      if (!confirmation) {
+        return;
+      }
+
+      const secondConfirmation = confirm(
+        `Final confirmation: Have you:\n\n` +
+        `✓ Tested the code logic?\n` +
+        `✓ Checked for syntax errors?\n` +
+        `✓ Made a backup if needed?\n\n` +
+        `Click OK to proceed with saving.`
+      );
+
+      if (!secondConfirmation) {
+        return;
+      }
+
+      try {
+        const newSource = document.getElementById('sourceCodeEditor').value;
+        const saveBtn = document.getElementById('saveSourceBtn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
+        const response = await fetch(`/dashboard/commands/builtin/${currentEditingCommand}/source`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: newSource })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showStatus(`✅ Command /${currentEditingCommand} updated! Service will restart automatically.`, 'success');
+          closeSourceModal();
+
+          // Wait a moment then reload the page to see changes
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          showStatus(`Failed to save: ${data.error}`, 'error');
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save Changes';
+        }
+      } catch (error) {
+        showStatus(`Failed to save: ${error.message}`, 'error');
+        const saveBtn = document.getElementById('saveSourceBtn');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Changes';
+      }
+    }
+
+    function closeSourceModal() {
+      document.getElementById('sourceModal').classList.remove('active');
+      currentEditingCommand = null;
+      document.getElementById('saveSourceBtn').disabled = false;
+      document.getElementById('saveSourceBtn').textContent = 'Save Changes';
+    }
+
+    // Close modal on background click
+    document.getElementById('sourceModal').addEventListener('click', (e) => {
+      if (e.target.id === 'sourceModal') {
+        closeSourceModal();
+      }
+    });
+
+    // Override explainer modal
+    let pendingOverrideCommand = null;
+
+    function closeOverrideExplainer() {
+      document.getElementById('overrideExplainerModal').classList.remove('active');
+      pendingOverrideCommand = null;
+    }
+
+    function confirmOverrideCreation() {
+      if (!pendingOverrideCommand) return;
+      closeOverrideExplainer();
+      createOverrideFromBuiltin(pendingOverrideCommand);
+    }
+
+    // Close explainer modal on background click
+    document.getElementById('overrideExplainerModal').addEventListener('click', (e) => {
+      if (e.target.id === 'overrideExplainerModal') {
+        closeOverrideExplainer();
+      }
+    });
+
+    // Import built-in command as template - show explainer first
+    function importBuiltinCommand(name) {
+      const cmd = builtinCommands.find(c => c.name === name);
+      if (!cmd) return;
+
+      // Check if already exists as custom command
+      if (commands.some(c => c.name === name)) {
+        if (!confirm(`A custom command "/${name}" already exists. Edit it instead?`)) {
+          return;
+        }
+        const existing = commands.find(c => c.name === name);
+        editCommand(existing.id);
+        switchTab('custom');
+        return;
+      }
+
+      // Show explainer modal first
+      pendingOverrideCommand = name;
+      document.getElementById('overrideExplainerModal').classList.add('active');
+    }
+
+    // Actually create the override after confirmation
+    function createOverrideFromBuiltin(name) {
+      const cmd = builtinCommands.find(c => c.name === name);
+      if (!cmd) return;
+
+      // Pre-fill form with built-in command info
+      currentCommandId = null;
+      currentFlows = [];
+      document.getElementById('commandName').value = name;
+      document.getElementById('commandDesc').value = cmd.description;
+      document.getElementById('commandResponse').value = `This extends the built-in /${name} command.`;
+      document.getElementById('dmOnly').checked = false;
+      document.getElementById('adminOnly').checked = false;
+      document.getElementById('deleteBtn').style.display = 'none';
+      renderFlows();
+      renderFlowTree();
+
+      // Switch to custom tab and scroll to form
+      switchTab('custom');
+      if (window.innerWidth <= 900) {
+        document.querySelector('.builder-layout').scrollIntoView({ behavior: 'smooth' });
+      }
+
+      showStatus(`Template created from /${name}. Customize and save!`, 'success');
+    }
+
+    // Render command list with search filter
+    function renderCommandList() {
+      const list = document.getElementById('commandList');
+
+      let filteredCommands = commands;
+      if (searchQuery) {
+        filteredCommands = commands.filter(cmd =>
+          cmd.name.toLowerCase().includes(searchQuery) ||
+          (cmd.description && cmd.description.toLowerCase().includes(searchQuery))
+        );
+      }
+
+      if (filteredCommands.length === 0) {
+        const message = searchQuery
+          ? `No commands found matching "${searchQuery}"`
+          : 'No custom commands yet. Create one to get started!';
+        list.innerHTML = `<li class="empty-state">${message}</li>`;
+        return;
+      }
+
+      list.innerHTML = filteredCommands.map(cmd => {
+        const aliases = cmd.aliases && cmd.aliases.length > 0
+          ? ` <span style="color: var(--text-faint); font-size: 11px;">(${cmd.aliases.map(a => '/' + a).join(', ')})</span>`
+          : '';
+        return `
+        <li class="command-item" data-id="${cmd.id}" onclick="editCommand('${cmd.id}')">
+          <div class="command-item-header">
+            <span class="command-name">/${cmd.name}${aliases}</span>
+            <div class="command-badges">
+              ${cmd.adminOnly ? '<span class="badge badge-admin">Admin</span>' : ''}
+              ${cmd.dmOnly ? '<span class="badge badge-dm">DM</span>' : ''}
+              ${cmd.flows && cmd.flows.length > 0 ? '<span class="badge badge-dm">Flow</span>' : ''}
+            </div>
+          </div>
+          ${cmd.description ? `<div class="command-desc">${escapeHtml(cmd.description)}</div>` : ''}
+        </li>
+      `}).join('');
+    }
+
+    // Edit command
+    function editCommand(id) {
+      const cmd = commands.find(c => c.id === id);
+      if (!cmd) return;
+
+      currentCommandId = id;
+      document.getElementById('commandId').value = id;
+
+      // Join primary name and aliases with commas
+      const allNames = [cmd.name, ...(cmd.aliases || [])];
+      document.getElementById('commandName').value = allNames.join(', ');
+
+      document.getElementById('commandDesc').value = cmd.description || '';
+      document.getElementById('commandResponse').value = cmd.response;
+      document.getElementById('dmOnly').checked = cmd.dmOnly || false;
+      document.getElementById('adminOnly').checked = cmd.adminOnly || false;
+      document.getElementById('deleteBtn').style.display = 'block';
+
+      // Load flows
+      currentFlows = (cmd.flows || []).map(f => ({
+        ...f,
+        id: f.id || Date.now() + Math.random()
+      }));
+      renderFlows();
+      renderFlowTree();
+
+      // Trigger char counter update
+      responseInput.dispatchEvent(new Event('input'));
+
+      // Scroll to form on mobile
+      if (window.innerWidth <= 900) {
+        document.querySelector('.builder-layout').scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    // Clear form
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      currentCommandId = null;
+      currentFlows = [];
+      document.getElementById('commandForm').reset();
+      document.getElementById('commandId').value = '';
+      document.getElementById('deleteBtn').style.display = 'none';
+      charCounter.textContent = '0 / 200 characters';
+      charCounter.classList.remove('warning', 'danger');
+      renderFlows();
+    });
+
+    // Show inline form status
+    function showFormStatus(message, type) {
+      const container = document.getElementById('formStatusContainer');
+      const statusClass = type === 'error' ? 'status-error' : type === 'success' ? 'status-success' : 'status-message';
+      container.innerHTML = `<div class="${statusClass} status-message">${message}</div>`;
+
+      // Auto-clear success messages after 5 seconds
+      if (type === 'success') {
+        setTimeout(() => {
+          container.innerHTML = '';
+        }, 5000);
+      }
+    }
+
+    // Save command
+    document.getElementById('commandForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Clear any previous status
+      document.getElementById('formStatusContainer').innerHTML = '';
+
+      const commandData = {
+        name: document.getElementById('commandName').value.trim(),
+        description: document.getElementById('commandDesc').value.trim(),
+        response: document.getElementById('commandResponse').value,
+        dmOnly: document.getElementById('dmOnly').checked,
+        adminOnly: document.getElementById('adminOnly').checked,
+        flows: currentFlows.map(f => ({
+          trigger: f.trigger,
+          action: f.action,
+          response: f.response || '',
+          nextStep: f.nextStep || ''
+        }))
+      };
+
+      if (commandData.response.length > 200) {
+        showFormStatus('⚠️ Response exceeds 200 character Meshtastic limit', 'error');
+        return;
+      }
+
+      // Validate flows
+      for (const flow of commandData.flows) {
+        if (!flow.trigger.trim()) {
+          showFormStatus('⚠️ All flow branches must have trigger text', 'error');
+          return;
+        }
+        if (flow.action === 'respond' && flow.response.length > 200) {
+          showFormStatus('⚠️ Flow response exceeds 200 character limit', 'error');
+          return;
+        }
+        if (flow.action === 'command' && !flow.nextStep) {
+          showFormStatus('⚠️ Command flow branches must specify a command', 'error');
+          return;
+        }
+      }
+
+      try {
+        const saveBtn = document.getElementById('saveCommandBtn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        showFormStatus('💾 Saving command...', 'info');
+
+        const method = currentCommandId ? 'PUT' : 'POST';
+        const url = currentCommandId
+          ? `/dashboard/commands/${currentCommandId}`
+          : '/dashboard/commands';
+
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(commandData)
+        });
+
+        const data = await response.json();
+
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Command';
+
+        if (data.success) {
+          showFormStatus(`✅ ${currentCommandId ? 'Command updated!' : 'Command created!'} You can now use /${commandData.name.split(',')[0].trim().replace(/^\//, '')}`, 'success');
+          await loadCommands();
+
+          // Clear form after short delay
+          setTimeout(() => {
+            document.getElementById('clearBtn').click();
+          }, 1500);
+        } else {
+          showFormStatus(`❌ ${data.error || 'Failed to save command'}`, 'error');
+        }
+      } catch (error) {
+        console.error('Failed to save command:', error);
+        showFormStatus('❌ Failed to save command - check console for details', 'error');
+        const saveBtn = document.getElementById('saveCommandBtn');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Command';
+      }
+    });
+
+    // Delete command
+    document.getElementById('deleteBtn').addEventListener('click', async () => {
+      if (!currentCommandId) return;
+      if (!confirm('Delete this command?')) return;
+
+      try {
+        const response = await fetch(`/dashboard/commands/${currentCommandId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showStatus('Command deleted!', 'success');
+          document.getElementById('clearBtn').click();
+          await loadCommands();
+        } else {
+          showStatus(data.error || 'Failed to delete command', 'error');
+        }
+      } catch (error) {
+        console.error('Failed to delete command:', error);
+        showStatus('Failed to delete command', 'error');
+      }
+    });
+
+    // Show status message
+    function showStatus(message, type) {
+      const container = document.getElementById('statusContainer');
+      const statusClass = type === 'error' ? 'status-error' : 'status-success';
+      container.innerHTML = `<div class="${statusClass} status-message">${message}</div>`;
+      setTimeout(() => {
+        container.innerHTML = '';
+      }, 5000);
+    }
+
+    // Utility to escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initialize
+    loadCommands();
+    loadBuiltinCommands();
+  </script>
+</body>
+</html>"""
+    return html_page
+
+
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
     # Prepare activity stream (logs) bootstrap HTML and emoji helpers
@@ -18811,7 +20536,10 @@ def dashboard():
       </div>
       <div class="header-actions">
         <span id="metricsTimestamp" class="panel-subtitle">Waiting for metrics…</span>
-        <a class="header-meta-link" href="/logs/verbose" target="_blank" rel="noreferrer">verbose logs</a>
+        <div style="display: flex; gap: 12px;">
+          <a class="header-meta-link" href="/logs/verbose" target="_blank" rel="noreferrer">verbose logs</a>
+          <a class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer">command builder</a>
+        </div>
       </div>
     </header>
     <div id="connectionBanner" class="connection-banner is-unknown">Checking connection…</div>
@@ -23933,6 +25661,194 @@ def set_radio_role():
     return jsonify({'ok': True, 'role': role_value, 'role_name': role_name})
 
 
+@app.route('/dashboard/commands/builtin/<command_name>/source', methods=['GET'])
+def get_builtin_command_source(command_name):
+    """Get the source code of a built-in command."""
+    try:
+        import inspect
+        import ast
+
+        # Read the mesh-master.py file
+        source_file = Path(__file__)
+        with source_file.open('r', encoding='utf-8') as f:
+            source = f.read()
+
+        # Find the handle_command function and extract the specific command
+        lines = source.split('\n')
+        command_start = None
+        command_lines = []
+        in_command = False
+        indent_level = None
+
+        search_pattern = f'elif cmd == "/{command_name}":'
+
+        for i, line in enumerate(lines):
+            if search_pattern in line:
+                command_start = i
+                in_command = True
+                command_lines.append(line)
+                # Detect indent level
+                indent_level = len(line) - len(line.lstrip())
+                continue
+
+            if in_command:
+                # Check if we've reached the next elif or end of function
+                stripped = line.lstrip()
+                current_indent = len(line) - len(stripped)
+
+                if stripped.startswith('elif cmd ==') or stripped.startswith('for c in commands_config') or stripped.startswith('return None'):
+                    break
+
+                # Include lines that are part of this command block
+                if line.strip() or current_indent > indent_level:
+                    command_lines.append(line)
+
+        if not command_lines:
+            return jsonify({'success': False, 'error': f'Command /{command_name} not found in source'}), 404
+
+        source_code = '\n'.join(command_lines)
+
+        return jsonify({'success': True, 'source': source_code, 'line_start': command_start, 'line_count': len(command_lines)})
+
+    except Exception as exc:
+        clean_log(f"❌ Failed to get command source: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/commands/builtin/<command_name>/source', methods=['PUT'])
+def update_builtin_command_source(command_name):
+    """Update the source code of a built-in command."""
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+        new_source = payload.get('source', '').strip()
+
+        if not new_source:
+            return jsonify({'success': False, 'error': 'Source code is required'}), 400
+
+        # Read the current mesh-master.py file
+        source_file = Path(__file__)
+        with source_file.open('r', encoding='utf-8') as f:
+            source = f.read()
+
+        lines = source.split('\n')
+        command_start = None
+        command_end = None
+        in_command = False
+        indent_level = None
+
+        search_pattern = f'elif cmd == "/{command_name}":'
+
+        # Find the command block boundaries
+        for i, line in enumerate(lines):
+            if search_pattern in line:
+                command_start = i
+                in_command = True
+                indent_level = len(line) - len(line.lstrip())
+                continue
+
+            if in_command:
+                stripped = line.lstrip()
+                current_indent = len(line) - len(stripped)
+
+                if stripped.startswith('elif cmd ==') or stripped.startswith('for c in commands_config') or stripped.startswith('return None'):
+                    command_end = i
+                    break
+
+        if command_start is None:
+            return jsonify({'success': False, 'error': f'Command /{command_name} not found'}), 404
+
+        # Create backup
+        backup_file = source_file.parent / f"mesh-master.py.backup.{int(time.time())}"
+        with backup_file.open('w', encoding='utf-8') as f:
+            f.write(source)
+
+        # Replace the command block with new source
+        new_lines = lines[:command_start] + new_source.split('\n') + lines[command_end:]
+        new_source_content = '\n'.join(new_lines)
+
+        # Validate Python syntax before saving
+        try:
+            compile(new_source_content, '<string>', 'exec')
+        except SyntaxError as e:
+            return jsonify({'success': False, 'error': f'Python syntax error: {e}'}), 400
+
+        # Write the updated file
+        with source_file.open('w', encoding='utf-8') as f:
+            f.write(new_source_content)
+
+        clean_log(f"✏️ Updated command source: /{command_name} (backup: {backup_file.name})", show_always=True, rate_limit=False)
+
+        # Restart the service to apply changes
+        import subprocess
+        subprocess.Popen(['sudo', 'systemctl', 'restart', 'mesh-ai'])
+
+        return jsonify({'success': True, 'message': 'Command updated successfully. Service restarting...', 'backup': str(backup_file)})
+
+    except Exception as exc:
+        clean_log(f"❌ Failed to update command source: {exc}", show_always=True, rate_limit=False)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/commands/builtin', methods=['GET'])
+def get_builtin_commands():
+    """Get all built-in commands."""
+    try:
+        # Define all built-in commands with descriptions
+        builtin_commands = [
+            {'name': 'about', 'description': 'Show information about MESH-MASTER', 'category': 'info'},
+            {'name': 'ai', 'description': 'Ask AI a question (alias: /bot, /data)', 'category': 'ai'},
+            {'name': 'alarm', 'description': 'Set an alarm at specific time', 'category': 'utility'},
+            {'name': 'bible', 'description': 'Get random Bible verse or search', 'category': 'content'},
+            {'name': 'biblehelp', 'description': 'Show Bible command help', 'category': 'help'},
+            {'name': 'blond', 'description': 'Get a random blond joke', 'category': 'fun'},
+            {'name': 'c', 'description': 'Send message to specific channel', 'category': 'messaging'},
+            {'name': 'changemotd', 'description': 'Change message of the day (admin)', 'category': 'admin'},
+            {'name': 'changeprompt', 'description': 'Change AI system prompt (admin)', 'category': 'admin'},
+            {'name': 'chathistory', 'description': 'View recent chat history', 'category': 'info'},
+            {'name': 'chucknorris', 'description': 'Get a Chuck Norris joke', 'category': 'fun'},
+            {'name': 'drudge', 'description': 'Get latest Drudge Report headlines', 'category': 'news'},
+            {'name': 'elpaso', 'description': 'Get El Paso facts', 'category': 'fun'},
+            {'name': 'emailhelp', 'description': 'Show email system help', 'category': 'help'},
+            {'name': 'exit', 'description': 'Exit current game or session', 'category': 'utility'},
+            {'name': 'find', 'description': 'Search offline knowledge base', 'category': 'search'},
+            {'name': 'help', 'description': 'Show available commands', 'category': 'help'},
+            {'name': 'hop', 'description': 'Set hop limit for messages', 'category': 'network'},
+            {'name': 'hops', 'description': 'Set hop limit (alias for /hop)', 'category': 'network'},
+            {'name': 'jokes', 'description': 'Get random jokes from various sources', 'category': 'fun'},
+            {'name': 'm', 'description': 'Send direct message to user', 'category': 'messaging'},
+            {'name': 'menu', 'description': 'Show interactive menu', 'category': 'help'},
+            {'name': 'meshinfo', 'description': 'Show mesh network information', 'category': 'info'},
+            {'name': 'meshtastic', 'description': 'Get Meshtastic facts', 'category': 'info'},
+            {'name': 'motd', 'description': 'Show message of the day', 'category': 'info'},
+            {'name': 'networks', 'description': 'Show network topology', 'category': 'network'},
+            {'name': 'node', 'description': 'Get info about specific node', 'category': 'network'},
+            {'name': 'nodes', 'description': 'List all nodes seen in last 24h', 'category': 'network'},
+            {'name': 'offline', 'description': 'Search offline cache', 'category': 'search'},
+            {'name': 'optin', 'description': 'Opt-in to AI responses', 'category': 'settings'},
+            {'name': 'optout', 'description': 'Opt-out of AI responses', 'category': 'settings'},
+            {'name': 'reboot', 'description': 'Reboot the system (admin)', 'category': 'admin'},
+            {'name': 'reset', 'description': 'Reset radio connection', 'category': 'admin'},
+            {'name': 'stats', 'description': 'Show system statistics', 'category': 'info'},
+            {'name': 'stopwatch', 'description': 'Start/stop stopwatch timer', 'category': 'utility'},
+            {'name': 'test', 'description': 'Test connectivity with bot', 'category': 'utility'},
+            {'name': 'timer', 'description': 'Set a countdown timer', 'category': 'utility'},
+            {'name': 'traceroute', 'description': 'Trace route to a node', 'category': 'network'},
+            {'name': 'weather', 'description': 'Get weather report', 'category': 'info'},
+            {'name': 'web', 'description': 'Search the web via DuckDuckGo', 'category': 'search'},
+            {'name': 'whereami', 'description': 'Share your GPS location', 'category': 'location'},
+            {'name': 'wiki', 'description': 'Search Wikipedia', 'category': 'search'},
+            {'name': 'yomomma', 'description': 'Get a yo momma joke', 'category': 'fun'},
+        ]
+
+        return jsonify({'success': True, 'commands': builtin_commands})
+
+    except Exception as exc:
+        clean_log(f"❌ Failed to get built-in commands: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
 @app.route('/dashboard/radio/modem', methods=['POST'])
 def set_radio_modem_preset():
     data = request.get_json(force=True) or {}
@@ -24130,6 +26046,196 @@ def remove_radio_channel():
             return jsonify({'ok': False, 'error': f'Failed to delete channel: {exc}'}), 500
     clean_log(f"Deleted channel at index {index}", "🛠️", show_always=True, rate_limit=False)
     return jsonify({'ok': True, 'channels': _build_radio_state_dict().get('channels', [])})
+
+
+@app.route('/dashboard/commands', methods=['GET'])
+def get_custom_commands():
+    """Get all custom commands."""
+    try:
+        commands_file = Path("data/custom_commands.json")
+        if not commands_file.exists():
+            return jsonify({'success': True, 'commands': []})
+
+        with commands_file.open('r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        return jsonify({'success': True, 'commands': data.get('commands', [])})
+    except Exception as exc:
+        clean_log(f"❌ Failed to load custom commands: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/commands', methods=['POST'])
+def create_custom_command():
+    """Create a new custom command."""
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+
+        # Validate required fields
+        name_input = str(payload.get('name') or '').strip().lower()
+        response_text = str(payload.get('response') or '').strip()
+
+        if not name_input:
+            return jsonify({'success': False, 'error': 'Command name is required'}), 400
+        if not response_text:
+            return jsonify({'success': False, 'error': 'Response text is required'}), 400
+        if len(response_text) > 200:
+            return jsonify({'success': False, 'error': 'Response exceeds 200 character limit'}), 400
+
+        # Parse comma-separated aliases and strip any / prefixes
+        aliases = [n.strip().lstrip('/') for n in name_input.split(',') if n.strip()]
+        if not aliases:
+            return jsonify({'success': False, 'error': 'At least one command name is required'}), 400
+
+        primary_name = aliases[0]
+
+        # Load existing commands
+        commands_file = Path("data/custom_commands.json")
+        commands_file.parent.mkdir(parents=True, exist_ok=True)
+
+        if commands_file.exists():
+            with commands_file.open('r', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            data = {'commands': []}
+
+        commands = data.get('commands', [])
+
+        # Check for duplicate names across all aliases
+        for alias in aliases:
+            if any(cmd['name'] == alias or alias in cmd.get('aliases', []) for cmd in commands):
+                return jsonify({'success': False, 'error': f'Command "/{alias}" already exists'}), 400
+
+        # Create new command
+        new_command = {
+            'id': str(uuid.uuid4()),
+            'name': primary_name,
+            'aliases': aliases[1:] if len(aliases) > 1 else [],
+            'description': str(payload.get('description') or '').strip(),
+            'response': response_text,
+            'dmOnly': bool(payload.get('dmOnly', False)),
+            'adminOnly': bool(payload.get('adminOnly', False)),
+            'flows': payload.get('flows', []),
+            'created': datetime.now(timezone.utc).isoformat()
+        }
+
+        commands.append(new_command)
+        data['commands'] = commands
+
+        # Save to file
+        with commands_file.open('w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        clean_log(f"✨ Custom command created: /{name}", show_always=True, rate_limit=False)
+        return jsonify({'success': True, 'command': new_command})
+
+    except Exception as exc:
+        clean_log(f"❌ Failed to create custom command: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/commands/<command_id>', methods=['PUT'])
+def update_custom_command(command_id):
+    """Update an existing custom command."""
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+
+        # Validate required fields
+        name_input = str(payload.get('name') or '').strip().lower()
+        response_text = str(payload.get('response') or '').strip()
+
+        if not name_input:
+            return jsonify({'success': False, 'error': 'Command name is required'}), 400
+        if not response_text:
+            return jsonify({'success': False, 'error': 'Response text is required'}), 400
+        if len(response_text) > 200:
+            return jsonify({'success': False, 'error': 'Response exceeds 200 character limit'}), 400
+
+        # Parse comma-separated aliases and strip any / prefixes
+        aliases = [n.strip().lstrip('/') for n in name_input.split(',') if n.strip()]
+        if not aliases:
+            return jsonify({'success': False, 'error': 'At least one command name is required'}), 400
+
+        primary_name = aliases[0]
+
+        # Load existing commands
+        commands_file = Path("data/custom_commands.json")
+        if not commands_file.exists():
+            return jsonify({'success': False, 'error': 'Command not found'}), 404
+
+        with commands_file.open('r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        commands = data.get('commands', [])
+
+        # Find the command to update
+        command_index = next((i for i, cmd in enumerate(commands) if cmd['id'] == command_id), None)
+        if command_index is None:
+            return jsonify({'success': False, 'error': 'Command not found'}), 404
+
+        # Check for duplicate names across all aliases (excluding current command)
+        for alias in aliases:
+            if any((cmd['name'] == alias or alias in cmd.get('aliases', [])) and cmd['id'] != command_id for cmd in commands):
+                return jsonify({'success': False, 'error': f'Command "/{alias}" already exists'}), 400
+
+        # Update command
+        commands[command_index].update({
+            'name': primary_name,
+            'aliases': aliases[1:] if len(aliases) > 1 else [],
+            'description': str(payload.get('description') or '').strip(),
+            'response': response_text,
+            'dmOnly': bool(payload.get('dmOnly', False)),
+            'adminOnly': bool(payload.get('adminOnly', False)),
+            'flows': payload.get('flows', []),
+            'updated': datetime.now(timezone.utc).isoformat()
+        })
+
+        data['commands'] = commands
+
+        # Save to file
+        with commands_file.open('w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        clean_log(f"✏️ Custom command updated: /{name}", show_always=True, rate_limit=False)
+        return jsonify({'success': True, 'command': commands[command_index]})
+
+    except Exception as exc:
+        clean_log(f"❌ Failed to update custom command: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/commands/<command_id>', methods=['DELETE'])
+def delete_custom_command(command_id):
+    """Delete a custom command."""
+    try:
+        # Load existing commands
+        commands_file = Path("data/custom_commands.json")
+        if not commands_file.exists():
+            return jsonify({'success': False, 'error': 'Command not found'}), 404
+
+        with commands_file.open('r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        commands = data.get('commands', [])
+
+        # Find and remove the command
+        command = next((cmd for cmd in commands if cmd['id'] == command_id), None)
+        if command is None:
+            return jsonify({'success': False, 'error': 'Command not found'}), 404
+
+        commands = [cmd for cmd in commands if cmd['id'] != command_id]
+        data['commands'] = commands
+
+        # Save to file
+        with commands_file.open('w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        clean_log(f"🗑️ Custom command deleted: /{command['name']}", show_always=True, rate_limit=False)
+        return jsonify({'success': True})
+
+    except Exception as exc:
+        clean_log(f"❌ Failed to delete custom command: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 
 @app.route('/autostart', methods=['GET'])
@@ -24598,6 +26704,7 @@ def scheduled_refresh_monitor():
 def heartbeat_worker(period_sec=30):
   global heartbeat_running
   heartbeat_running = True
+  cleanup_counter = 0
   while True:
     try:
       now = _now()
@@ -24618,6 +26725,16 @@ def heartbeat_worker(period_sec=30):
         'ai_age_s': None if ai_age is None else int(ai_age),
         'msgs': len(messages),
       }
+
+      # Cleanup expired flow sessions every 10 heartbeats (5 minutes if period is 30s)
+      cleanup_counter += 1
+      if cleanup_counter >= 10:
+        cleanup_counter = 0
+        try:
+          _cleanup_expired_flow_sessions()
+        except Exception as cleanup_exc:
+          dprint(f"⚠️ Flow session cleanup failed: {cleanup_exc}")
+
       if connection_status == "Connected" and not CONNECTING_NOW:
         if RADIO_STALE_RX_THRESHOLD and rx_age is not None and rx_age > RADIO_STALE_RX_THRESHOLD:
           trigger_radio_reset(
