@@ -3330,11 +3330,30 @@ AUTO_RESUME_TIMERS: Dict[str, threading.Timer] = {}
 
 ANTISPAM_LOCK = threading.Lock()
 ANTISPAM_STATE: Dict[str, Dict[str, Any]] = {}
-ANTISPAM_WINDOW_SECONDS = 120  # 2 minutes
+ANTISPAM_BAN_LIST: Set[str] = set()  # Permanently banned users
+ANTISPAM_BAN_LOCK = threading.Lock()
+
+# Load anti-spam config with defaults
+def _get_antispam_config():
+    """Get anti-spam configuration from config with fallback defaults."""
+    antispam_cfg = config.get('antispam', {})
+    return {
+        'enabled': antispam_cfg.get('enabled', True),
+        'window_seconds': antispam_cfg.get('window_seconds', 120),  # 2 minutes
+        'threshold': antispam_cfg.get('threshold', 25),  # requests per window
+        'short_timeout_minutes': antispam_cfg.get('short_timeout_minutes', 10),
+        'long_timeout_hours': antispam_cfg.get('long_timeout_hours', 24),
+        'escalation_window_hours': antispam_cfg.get('escalation_window_hours', 1),
+        'admin_alert_enabled': antispam_cfg.get('admin_alert_enabled', True),
+        'auto_timeout_enabled': antispam_cfg.get('auto_timeout_enabled', True),
+    }
+
+# Cached values for backward compatibility (updated from config on load)
+ANTISPAM_WINDOW_SECONDS = 120
 ANTISPAM_THRESHOLD = 25
 ANTISPAM_SHORT_TIMEOUT = 10 * 60
 ANTISPAM_LONG_TIMEOUT = 24 * 60 * 60
-ANTISPAM_ESCALATION_WINDOW = 60 * 60  # 1 hour after release
+ANTISPAM_ESCALATION_WINDOW = 60 * 60
 
 COOLDOWN_LOCK = threading.Lock()
 COOLDOWN_STATE: Dict[str, Dict[str, Any]] = {}
@@ -18752,6 +18771,7 @@ def command_builder():
       charCounter.textContent = '0 / 200 characters';
       charCounter.classList.remove('warning', 'danger');
       renderFlows();
+      renderFlowTree();
     });
 
     // Show inline form status
