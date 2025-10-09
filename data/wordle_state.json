@@ -1,8 +1,8 @@
 {
   "current": {
     "completed": [],
-    "day_key": "2025-10-07",
-    "target": "flank",
+    "day_key": "2025-10-08",
+    "target": "gorse",
     "winners": []
   },
   "history": [
@@ -22,6 +22,12 @@
       "completed": [],
       "day_key": "2025-10-01",
       "target": "wires",
+      "winners": []
+    },
+    {
+      "completed": [],
+      "day_key": "2025-10-07",
+      "target": "flank",
       "winners": []
     }
   ]

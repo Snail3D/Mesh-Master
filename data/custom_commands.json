@@ -1,38 +1,5 @@
 {
-  "commands": [
-    {
-      "id": "af0d5a11-09ff-4213-a91a-b4bf00f35bcf",
-      "name": "winkle",
-      "aliases": [
-        "tinkle"
-      ],
-      "description": "opens up bathroom menu",
-      "response": "Oooowee you gotta pee? reply with Y or N",
-      "dmOnly": true,
-      "adminOnly": false,
-      "flows": [
-        {
-          "trigger": "Y",
-          "action": "respond",
-          "response": "Cool! i'll hold it. wanna keep goin? Y or N",
-          "nextStep": ""
-        },
-        {
-          "trigger": "N",
-          "action": "end",
-          "response": "aight np do it urself",
-          "nextStep": ""
-        },
-        {
-          "trigger": "Y",
-          "action": "respond",
-          "response": "heck ya bro you do you",
-          "nextStep": ""
-        }
-      ],
-      "created": "2025-10-09T09:01:31.981029+00:00"
-    }
-  ],
+  "commands": [],
   "version": "1.0",
   "description": "Custom commands created via Command Builder"
 }
