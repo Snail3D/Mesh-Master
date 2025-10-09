@@ -278,6 +278,8 @@ class StatsManager:
         }
         # ACK telemetry (timestamp, attempt, success(bool), route('dm'|'ch'))
         self.ack_events: deque[tuple[float, int, bool, str]] = deque()
+        # Command usage tracking (timestamp, command_name)
+        self.command_usage: deque[tuple[float, str]] = deque()
 
     def _prune(self, dq: deque, now: float) -> None:
         window = self.WINDOW_SECONDS * 2
@@ -368,6 +370,19 @@ class StatsManager:
             if is_ai:
                 self.message_totals['ai'] += 1
 
+    def record_command(self, command: str) -> None:
+        """Record command usage for analytics."""
+        if not command:
+            return
+        now = time.time()
+        # Normalize command (remove leading slash if present)
+        cmd_name = command.lstrip('/').split()[0].lower() if command else ""
+        if not cmd_name:
+            return
+        with self.lock:
+            self.command_usage.append((now, cmd_name))
+            self._prune(self.command_usage, now)
+
     def snapshot(self) -> Dict[str, Any]:
         now = time.time()
         with self.lock:
@@ -382,6 +397,7 @@ class StatsManager:
                 self.wiki_saved,
                 self.wiki_deleted,
                 self.wiki_served,
+                self.command_usage,
             ):
                 self._prune(dq, now)
 
@@ -428,6 +444,7 @@ class StatsManager:
             recent_onboards.sort(key=lambda item: item[1], reverse=True)
 
             game_breakdown = Counter(kind for ts, kind in self.game_events if ts >= start_current)
+            command_breakdown = Counter(cmd for ts, cmd in self.command_usage if ts >= start_current)
 
             # Helpers for 24h counts
             def _count24(dq: deque) -> int:
@@ -453,6 +470,8 @@ class StatsManager:
                 'wiki_saved_24h': _count24(self.wiki_saved),
                 'wiki_deleted_24h': _count24(self.wiki_deleted),
                 'wiki_served_24h': _count24(self.wiki_served),
+                'commands_24h': _count24(self.command_usage),
+                'top_commands_24h': command_breakdown.most_common(10),
                 'previous': {
                     'ai_requests_24h': ai_requests_prev,
                     'ai_processed_24h': ai_responses_prev,
@@ -16212,6 +16231,12 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   admin_control_preview = False
   if text.startswith("/"):
     raw_cmd_lower = text.split()[0].lower()
+
+    # Track command usage for analytics
+    try:
+      STATS.record_command(raw_cmd_lower)
+    except Exception:
+      pass
 
     # Check if this is a /shortname relay command (e.g., /snmo hello)
     if is_direct and sender_key and len(text) > 1:
