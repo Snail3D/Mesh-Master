@@ -84,6 +84,12 @@ from google.protobuf.message import DecodeError
 import queue  # For async message processing
 import itertools
 import atexit
+try:
+    from telegram import Update
+    from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
 from mesh_master import (
     GameManager,
     MailManager,
@@ -2178,105 +2184,102 @@ CONFIG_LOCK = threading.Lock()
 
 
 CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
-(        "general",
+    (
+        "system",
         {
-            "label": "General Settings",
+            "label": "System",
             "keys": [
                 "debug",
                 "clean_logs",
-                "language_selection",
-                "auto_language_detect_enabled",
-                "auto_language_min_votes",
-                "local_location_string",
-                "ai_node_name",
                 "start_on_boot",
                 "max_message_log",
-                "default_personality_id",
-                "user_ai_settings_file",
-                "mail_search_timeout",
                 "async_response_queue_max",
             ],
         },
     ),
-    (        "mesh_interface",
-        {
-            "label": "Serial Connection",
-            "keys": ["use_mesh_interface", "serial_port", "serial_baud"],
-        },
-    ),
     (
-        "wifi",
+        "connection",
         {
-            "label": "Wi-Fi",
-            "keys": ["use_wifi", "wifi_host", "wifi_port"],
-        },
-    ),
-    (
-        "ai_provider",
-        {
-            "label": "AI Provider",
+            "label": "Mesh Connection",
             "keys": [
-                "ai_provider",
-                "system_prompt",
-                "chunk_size",
-                "max_ai_chunks",
-                "chunk_buffer_seconds",
-                "ai_chill_mode",
-                "ai_chill_queue_limit",
+                "use_mesh_interface", "serial_port", "serial_baud",
+                "use_wifi", "wifi_host", "wifi_port",
+                "radio_settings_info",
             ],
         },
     ),
     (
-        "ollama",
+        "ai",
         {
-            "label": "Ollama",
+            "label": "AI Configuration",
             "keys": [
+                "ai_provider",
+                "default_personality_id",
+                "system_prompt",
                 "ollama_url",
                 "ollama_timeout",
                 "ollama_context_chars",
                 "ollama_num_ctx",
                 "ollama_max_messages",
-            ],
-        },
-    ),
-    (
-        "home_assistant",
-        {
-            "label": "Home Assistant",
-            "keys": [
-                "home_assistant_enabled",
-                "home_assistant_url",
-                "home_assistant_token",
-                "home_assistant_timeout",
-                "home_assistant_enable_pin",
-                "home_assistant_secure_pin",
-                "home_assistant_channel_index",
+                "chunk_size",
+                "max_ai_chunks",
+                "chunk_buffer_seconds",
+                "ai_chill_mode",
+                "ai_chill_queue_limit",
+                "user_ai_settings_file",
             ],
         },
     ),
     (
         "messaging",
         {
-            "label": "Messaging",
-            "keys": ["reply_in_channels", "reply_in_directs"],
+            "label": "Messages & Notifications",
+            "keys": [
+                "reply_in_channels",
+                "reply_in_directs",
+                "mail_notify_enabled",
+                "mail_notify_reminders_enabled",
+                "mail_notify_max_reminders",
+                "mail_notify_reminder_hours",
+                "mail_notify_include_self",
+                "automessage_quiet_hours",
+                "cooldown_enabled",
+                "mail_search_timeout",
+            ],
+        },
+    ),
+    (
+        "onboarding",
+        {
+            "label": "User Onboarding",
+            "keys": [
+                "onboard_auto_enable",
+                "onboard_daily_reminders",
+                "onboard_reminder_frequency",
+                "onboard_reminder_hour",
+                "onboard_quiet_start",
+                "onboard_quiet_end",
+                "onboard_custom_welcome",
+            ],
+        },
+    ),
+    (
+        "localization",
+        {
+            "label": "Language & Location",
+            "keys": [
+                "language_selection",
+                "auto_language_detect_enabled",
+                "auto_language_min_votes",
+                "local_location_string",
+                "ai_node_name",
+            ],
         },
     ),
     (
         "knowledge",
         {
-            "label": "Knowledge Stores",
-            "keys": [
-                "bible_progress_file",
-                "meshtastic_knowledge_file",
-                "meshtastic_kb_max_context_chars",
-                "meshtastic_kb_cache_ttl",
-            ],
-        },
-    ),
-    (
-        "offline_wiki",
-        {
-            "label": "Offline Wiki",
+            "label": "Knowledge & Research",
             "keys": [
                 "offline_wiki_enabled",
                 "offline_wiki_feed_enabled",
@@ -2290,37 +2293,25 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
                 "offline_wiki_index",
                 "offline_wiki_summary_chars",
                 "offline_wiki_context_chars",
+                "offline_wiki_multi_language",
+                "web_ephemeral_feed_enabled",
+                "web_ephemeral_feed_max_results",
+                "web_fact_scrape_enabled",
+                "web_fact_scrape_timeout",
+                "feed_auto_tune_enabled",
+                "feed_queue_high",
+                "feed_min_budget",
+                "bible_progress_file",
+                "meshtastic_knowledge_file",
+                "meshtastic_kb_max_context_chars",
+                "meshtastic_kb_cache_ttl",
             ],
         },
     ),
     (
-        "automessages",
+        "reliability",
         {
-            "label": "Automessages",
-            "keys": [
-                "mail_notify_enabled",
-                "mail_notify_reminders_enabled",
-                "mail_notify_max_reminders",
-                "mail_notify_reminder_hours",
-                "mail_notify_include_self",
-                "automessage_quiet_hours",
-                "cooldown_enabled",
-            ],
-        },
-    ),
-    (
-        "radio_settings",
-        {
-            "label": "Radio Settings",
-            "keys": [
-                "radio_settings_info",
-            ],
-        },
-    ),
-    (
-        "resending_no_ack",
-        {
-            "label": "Resending (No Ack)",
+            "label": "Reliability & Retries",
             "keys": [
                 "resend_enabled",
                 "resend_usage_threshold_percent",
@@ -2337,33 +2328,17 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         },
     ),
     (
-        "context_feeds",
+        "home_assistant",
         {
-            "label": "Context Feeds",
+            "label": "Home Assistant",
             "keys": [
-                "web_ephemeral_feed_enabled",
-                "web_ephemeral_feed_max_results",
-                "web_fact_scrape_enabled",
-                "web_fact_scrape_timeout",
-                "feed_auto_tune_enabled",
-                "feed_queue_high",
-                "feed_min_budget",
-                "offline_wiki_multi_language",
-            ],
-        },
-    ),
-    (
-        "onboarding",
-        {
-            "label": "Onboarding",
-            "keys": [
-                "onboard_auto_enable",
-                "onboard_daily_reminders",
-                "onboard_reminder_frequency",
-                "onboard_reminder_hour",
-                "onboard_quiet_start",
-                "onboard_quiet_end",
-                "onboard_custom_welcome",
+                "home_assistant_enabled",
+                "home_assistant_url",
+                "home_assistant_token",
+                "home_assistant_timeout",
+                "home_assistant_enable_pin",
+                "home_assistant_secure_pin",
+                "home_assistant_channel_index",
             ],
         },
     ),
@@ -8744,13 +8719,13 @@ def format_structured_menu(menu_key: str, language: Optional[str]) -> str:
 
 COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
     (
-        "admin",
+        "info",
         {
-            "label": "Admin Commands",
+            "label": "Information & Help",
             "commands": [
-                "/stop", "/exit", "/reboot", "/hop", "/hops",
-                "/changeprompt", "/showprompt", "/printprompt", "/changemotd",
-                "/showmodel", "/selectmodel",
+                "/about", "/help", "/menu", "/motd",
+                "/meshinfo", "/meshtastic", "/weather", "/whereami", "/elpaso",
+                "/onboard", "/onboarding", "/onboardme",
             ],
         },
     ),
@@ -8766,7 +8741,7 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
     (
         "email",
         {
-            "label": "Email",
+            "label": "Mail System",
             "commands": [
                 "/m", "/mail", "/c", "/checkmail", "/emailhelp", "/wipe",
             ],
@@ -8775,68 +8750,51 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
     (
         "reports",
         {
-            "label": "Reports & Logs",
+            "label": "Logs & Reports",
             "commands": [
-                "/log", "/checklog", "/report", "/checkreport", "/find",
-                "/save", "/recall", "/data",
-            ],
-        },
-    ),
-    (
-        "games",
-        {
-            "label": "Games",
-            "commands": [
-                "/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/adventure", "/wordladder",
-                "/rps", "/coinflip", "/cipher", "/quizbattle", "/morse", "/mathquiz", "/electricalquiz",
-            ],
-        },
-    ),
-    (
-        "fun",
-        {
-            "label": "Fun",
-            "commands": [
-                "/jokes", "/chucknorris", "/blond", "/yomomma", "/joke",
-                "/alarm", "/timer", "/stopwatch",
+                "/log", "/checklog", "/report", "/checkreport",
+                "/save", "/recall", "/data", "/find",
             ],
         },
     ),
     (
         "web",
         {
-            "label": "Web & Search",
+            "label": "Web & Research",
             "commands": [
-                "/web", "/wiki", "/crawl", "/checkcrawl", "/find", "/drudge",
-            ],
-        },
-    ),
-    (
-        "books",
-        {
-            "label": "Books & Reference",
-            "commands": [
+                "/web", "/wiki", "/crawl", "/checkcrawl", "/drudge",
                 "/bible", "/biblehelp",
             ],
         },
     ),
     (
-        "files",
+        "games",
         {
-            "label": "Files & Data",
+            "label": "Games & Entertainment",
             "commands": [
-                "/offline",
+                "/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/adventure", "/wordladder",
+                "/rps", "/coinflip", "/cipher", "/quizbattle", "/morse", "/mathquiz", "/electricalquiz",
+                "/jokes", "/chucknorris", "/blond", "/yomomma", "/joke",
             ],
         },
     ),
     (
-        "info",
+        "utility",
         {
-            "label": "Information",
+            "label": "Utilities",
             "commands": [
-                "/about", "/help", "/menu", "/whereami", "/test", "/motd",
-                "/meshinfo", "/meshtastic", "/weather", "/elpaso",
-                "/onboard", "/onboarding", "/onboardme",
+                "/alarm", "/timer", "/stopwatch", "/test", "/offline",
+            ],
+        },
+    ),
+    (
+        "admin",
+        {
+            "label": "Admin & System",
+            "commands": [
+                "/stop", "/exit", "/reboot", "/hop", "/hops",
+                "/changeprompt", "/showprompt", "/printprompt", "/changemotd",
+                "/showmodel", "/selectmodel",
             ],
         },
     ),
@@ -9650,6 +9608,12 @@ lastDMNode = None
 lastChannelIndex = None
 
 MESSAGE_RETENTION_SECONDS = 30 * 24 * 60 * 60
+
+# Telegram bot globals
+telegram_config: Dict[str, Any] = {}
+telegram_bot_thread: Optional[threading.Thread] = None
+telegram_bot_stop_event: Optional[threading.Event] = None
+telegram_app: Optional[Any] = None
 
 
 def _parse_message_timestamp(value: Any) -> Optional[datetime]:
@@ -17089,6 +17053,63 @@ def update_dashboard_features():
     return jsonify(gather_feature_snapshot())
 
 
+@app.route("/dashboard/telegram/save", methods=["POST"])
+def save_telegram_config():
+    """Save Telegram bot configuration."""
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"Invalid JSON payload: {exc}"}), 400
+
+    enabled = payload.get("enabled", False)
+    token = str(payload.get("token") or "").strip()
+    chat_ids_raw = str(payload.get("chat_ids") or "").strip()
+
+    # Parse chat IDs
+    chat_ids = []
+    if chat_ids_raw:
+        for part in chat_ids_raw.split(","):
+            part = part.strip()
+            if part:
+                try:
+                    chat_ids.append(int(part))
+                except ValueError:
+                    return jsonify({"ok": False, "error": f"Invalid chat ID: {part}"}), 400
+
+    # Save to persistent storage
+    telegram_config_file = Path("data/telegram_config.json")
+    telegram_config_file.parent.mkdir(parents=True, exist_ok=True)
+
+    telegram_data = {
+        "enabled": enabled,
+        "token": token,
+        "authorized_chat_ids": chat_ids
+    }
+
+    try:
+        with telegram_config_file.open('w', encoding='utf-8') as f:
+            json.dump(telegram_data, f, indent=2)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Failed to save config: {e}"}), 500
+
+    # Restart telegram bot if needed
+    global telegram_bot_thread, telegram_bot_stop_event, telegram_config
+    telegram_config = telegram_data
+
+    if telegram_bot_stop_event:
+        telegram_bot_stop_event.set()
+
+    if enabled and token and chat_ids and TELEGRAM_AVAILABLE:
+        telegram_bot_stop_event = threading.Event()
+        telegram_bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+        telegram_bot_thread.start()
+        clean_log("Telegram bot started", "📱", show_always=True, rate_limit=False)
+    else:
+        clean_log("Telegram bot stopped", "📱", show_always=True, rate_limit=False)
+
+    return jsonify({"ok": True, "config": telegram_data})
+
+
 @app.route("/dashboard/admins/remove", methods=["POST"])
 def remove_dashboard_admin():
     try:
@@ -21123,7 +21144,7 @@ def dashboard():
         <article class="panel ops-panel" data-panel-id="operations" data-draggable="true">
         <div class="panel-header">
           <h2>Operations Center 🛠️</h2>
-          <span id="featuresStatus" class="panel-subtitle">Manage AI and command access</span>
+          <span id="featuresStatus" class="panel-subtitle">Core bot behavior and system management</span>
         </div>
         <div id="featureAlerts" class="feature-alerts" hidden></div>
         <div class="toggle-row">
@@ -21177,39 +21198,6 @@ def dashboard():
           </div>
         </div>
         <div class="passphrase-card">
-          <label>🌤️ Weather Location<span class="help-icon" data-explainer="Configure the location for weather forecasts. Enter a zip code (e.g., 79912) or city name (e.g., Austin, TX). Click Validate to verify, then Save to apply." data-explainer-placement="right">?</span></label>
-          <div style="display: flex; gap: 8px; margin-top: 8px;">
-            <input type="text" id="weatherLocationInput" placeholder="Enter zip code or city (e.g., 79912 or Austin, TX)" style="flex: 1; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
-            <button type="button" id="weatherValidateBtn" class="config-save-btn" style="padding: 8px 16px;">Validate</button>
-          </div>
-          <p class="passphrase-hint" id="weatherLocationHint" style="margin-top: 8px; color: #888;">Current: <span id="weatherCurrentLocation">Loading...</span></p>
-          <div id="weatherValidationResult" style="margin-top: 8px; display: none;">
-            <p style="color: #4CAF50; margin: 4px 0;"><strong>✓ Valid location:</strong> <span id="weatherValidatedName"></span></p>
-            <p style="color: #888; font-size: 12px; margin: 4px 0;">Coordinates: <span id="weatherValidatedCoords"></span></p>
-            <button type="button" id="weatherSaveBtn" class="config-save-btn" style="margin-top: 8px; width: 100%;">Save Weather Location</button>
-          </div>
-        </div>
-        <div class="passphrase-card">
-          <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
-          <button type="button" id="systemRebootBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🔄 Reboot Server</button>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Restarts the entire mesh-master server. Admin only.</p>
-        </div>
-        <div class="passphrase-card">
-          <label>📦 Software Updates<span class="help-icon" data-explainer="Check for and install updates from GitHub. You can upgrade to the latest version or roll back to a previous release. Service restarts automatically after update." data-explainer-placement="right">?</span></label>
-          <div style="margin-top: 8px;">
-            <button type="button" id="updateCheckBtn" class="config-save-btn" style="width: 100%;">Check for Updates</button>
-          </div>
-          <div id="updateAvailable" style="margin-top: 8px; display: none;">
-            <p style="color: #4CAF50; margin: 4px 0;"><strong>✓ Update available:</strong> <span id="updateVersionName"></span></p>
-            <p style="color: #888; font-size: 12px; margin: 4px 0;">Current: <span id="updateCurrentVersion"></span></p>
-            <select id="updateVersionSelect" class="config-select" style="width: 100%; margin-top: 8px;">
-              <option value="">Select version...</option>
-            </select>
-            <button type="button" id="updateApplyBtn" class="config-save-btn" style="margin-top: 8px; width: 100%;">Apply Update</button>
-          </div>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
-        </div>
-        <div class="passphrase-card">
           <label>🎓 Onboarding Settings<span class="help-icon" data-explainer="Configure how new users are welcomed and onboarded to the mesh network. Customize the welcome message and enable automatic prompts." data-explainer-placement="right">?</span></label>
           <div class="toggle-row" style="margin-top: 12px;">
             <label class="switch">
@@ -21233,167 +21221,245 @@ def dashboard():
             <span id="onboardStatsProgress">0</span> in progress
           </p>
         </div>
-
-        <!-- Telegram Bot Configuration -->
         <div class="passphrase-card">
-          <label>📱 Telegram Bot<span class="help-icon" data-explainer="Connect a Telegram bot for remote mesh control. Send commands and messages directly from Telegram." data-explainer-placement="right">?</span></label>
-          <div class="toggle-row" style="margin-top: 12px;">
-            <label class="switch">
-              <input type="checkbox" id="telegramEnabledToggle">
-              <span class="slider"></span>
-            </label>
-            <div class="toggle-copy">
-              <span class="toggle-title">Enable Telegram Bot</span>
-              <span id="telegramEnabledStatus" class="toggle-status">Disabled</span>
-            </div>
+          <label>🌤️ Weather Location<span class="help-icon" data-explainer="Configure the location for weather forecasts. Enter a zip code (e.g., 79912) or city name (e.g., Austin, TX). Click Validate to verify, then Save to apply." data-explainer-placement="right">?</span></label>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <input type="text" id="weatherLocationInput" placeholder="Enter zip code or city (e.g., 79912 or Austin, TX)" style="flex: 1; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+            <button type="button" id="weatherValidateBtn" class="config-save-btn" style="padding: 8px 16px;">Validate</button>
           </div>
-          <div style="margin-top: 12px;">
-            <label for="telegramToken" style="display: block; margin-bottom: 4px; font-weight: 500;">Bot Token</label>
-            <input type="password" id="telegramToken" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace;">
-            <p class="passphrase-hint" style="margin-top: 4px;">Get from @BotFather on Telegram</p>
+          <p class="passphrase-hint" id="weatherLocationHint" style="margin-top: 8px; color: #888;">Current: <span id="weatherCurrentLocation">Loading...</span></p>
+          <div id="weatherValidationResult" style="margin-top: 8px; display: none;">
+            <p style="color: #4CAF50; margin: 4px 0;"><strong>✓ Valid location:</strong> <span id="weatherValidatedName"></span></p>
+            <p style="color: #888; font-size: 12px; margin: 4px 0;">Coordinates: <span id="weatherValidatedCoords"></span></p>
+            <button type="button" id="weatherSaveBtn" class="config-save-btn" style="margin-top: 8px; width: 100%;">Save Weather Location</button>
           </div>
-          <div style="margin-top: 12px;">
-            <label for="telegramChatIds" style="display: block; margin-bottom: 4px; font-weight: 500;">Authorized Chat IDs</label>
-            <input type="text" id="telegramChatIds" placeholder="123456789, 987654321" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
-            <p class="passphrase-hint" style="margin-top: 4px;">Comma-separated list of chat IDs allowed to control the bot</p>
-          </div>
-          <button type="button" id="telegramSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">Save Telegram Settings</button>
-          <div id="telegramStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
         </div>
-
-        <!-- Email Reports & Alerts Configuration -->
         <div class="passphrase-card">
-          <label>📧 Email Reports & Alerts<span class="help-icon" data-explainer="Configure email reports and alerts via Google OAuth. Get daily rollup summaries and instant alerts for critical events." data-explainer-placement="right">?</span></label>
-
-          <!-- Google OAuth Sign-in -->
-          <div style="margin-top: 12px; padding: 12px; background: #2a2a2a; border-radius: 4px;">
-            <div id="emailNotConnected" style="display: block;">
-              <p style="margin: 0 0 12px 0; color: #888; font-size: 13px;">Sign in with Google to enable email reports</p>
-              <button type="button" id="emailGoogleSignIn" class="config-save-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
-                Sign in with Google
-              </button>
-            </div>
-            <div id="emailConnected" style="display: none;">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <div>
-                  <p style="margin: 0; font-weight: 500; color: #4CAF50;">✓ Connected</p>
-                  <p style="margin: 4px 0 0 0; font-size: 12px; color: #888;" id="emailConnectedAccount">Loading...</p>
-                </div>
-                <button type="button" id="emailDisconnect" class="config-cancel-btn" style="padding: 6px 12px;">Disconnect</button>
-              </div>
-            </div>
+          <label>📦 Software Updates<span class="help-icon" data-explainer="Check for and install updates from GitHub. You can upgrade to the latest version or roll back to a previous release. Service restarts automatically after update." data-explainer-placement="right">?</span></label>
+          <div style="margin-top: 8px;">
+            <button type="button" id="updateCheckBtn" class="config-save-btn" style="width: 100%;">Check for Updates</button>
           </div>
-
-          <!-- Daily Rollup Email -->
-          <div id="emailRollupSection" style="margin-top: 16px; display: none;">
-            <div class="toggle-row" style="margin-bottom: 12px;">
-              <label class="switch">
-                <input type="checkbox" id="emailDailyRollupToggle">
-                <span class="slider"></span>
-              </label>
-              <div class="toggle-copy">
-                <span class="toggle-title">Daily Rollup Email</span>
-                <span id="emailDailyRollupStatus" class="toggle-status">Disabled</span>
-              </div>
-            </div>
-
-            <div id="emailRollupConfig" style="padding-left: 12px; display: none;">
-              <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #ccc;">Include in 24h Summary:</label>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_messages" checked style="cursor: pointer;">
-                  <span>📬 Messages sent/received</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_ai_requests" checked style="cursor: pointer;">
-                  <span>🤖 AI requests processed</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_mail" checked style="cursor: pointer;">
-                  <span>📧 Mail sent/received</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_onboardings" checked style="cursor: pointer;">
-                  <span>🎓 New onboardings</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_commands" checked style="cursor: pointer;">
-                  <span>⚡ Top commands used</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_users" checked style="cursor: pointer;">
-                  <span>👥 Active users</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_games" style="cursor: pointer;">
-                  <span>🎮 Games played</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                  <input type="checkbox" id="rollup_wiki" style="cursor: pointer;">
-                  <span>📚 Wiki activity</span>
-                </label>
-              </div>
-              <div style="margin-top: 12px;">
-                <label for="rollupTime" style="display: block; margin-bottom: 4px; font-weight: 500; color: #ccc;">Send time (24h format):</label>
-                <input type="time" id="rollupTime" value="08:00" style="width: 120px; padding: 6px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0; border-radius: 4px;">
-              </div>
-            </div>
+          <div id="updateAvailable" style="margin-top: 8px; display: none;">
+            <p style="color: #4CAF50; margin: 4px 0;"><strong>✓ Update available:</strong> <span id="updateVersionName"></span></p>
+            <p style="color: #888; font-size: 12px; margin: 4px 0;">Current: <span id="updateCurrentVersion"></span></p>
+            <select id="updateVersionSelect" class="config-select" style="width: 100%; margin-top: 8px;">
+              <option value="">Select version...</option>
+            </select>
+            <button type="button" id="updateApplyBtn" class="config-save-btn" style="margin-top: 8px; width: 100%;">Apply Update</button>
           </div>
-
-          <!-- Instant Alerts -->
-          <div id="emailAlertsSection" style="margin-top: 16px; display: none;">
-            <label style="display: block; margin-bottom: 12px; font-weight: 500; color: #ccc;">Instant Alerts:</label>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              <div class="toggle-row">
-                <label class="switch">
-                  <input type="checkbox" id="emailAlertSpamToggle">
-                  <span class="slider"></span>
-                </label>
-                <div class="toggle-copy">
-                  <span class="toggle-title">🚨 Spam Detection</span>
-                  <span id="emailAlertSpamStatus" class="toggle-status">Disabled</span>
-                </div>
-              </div>
-              <div class="toggle-row">
-                <label class="switch">
-                  <input type="checkbox" id="emailAlertNetworkToggle">
-                  <span class="slider"></span>
-                </label>
-                <div class="toggle-copy">
-                  <span class="toggle-title">📡 Network Down (>1min)</span>
-                  <span id="emailAlertNetworkStatus" class="toggle-status">Disabled</span>
-                </div>
-              </div>
-              <div class="toggle-row">
-                <label class="switch">
-                  <input type="checkbox" id="emailAlertActivityToggle">
-                  <span class="slider"></span>
-                </label>
-                <div class="toggle-copy">
-                  <span class="toggle-title">📊 Heavy Activity Spike</span>
-                  <span id="emailAlertActivityStatus" class="toggle-status">Disabled</span>
-                </div>
-              </div>
-              <div class="toggle-row">
-                <label class="switch">
-                  <input type="checkbox" id="emailAlertErrorsToggle">
-                  <span class="slider"></span>
-                </label>
-                <div class="toggle-copy">
-                  <span class="toggle-title">⚠️ System Errors</span>
-                  <span id="emailAlertErrorsStatus" class="toggle-status">Disabled</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button type="button" id="emailSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px; display: none;">Save Email Settings</button>
-          <button type="button" id="emailTestBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; display: none;">Send Test Email</button>
-          <div id="emailStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
+        </div>
+        <div class="passphrase-card">
+          <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
+          <button type="button" id="systemRebootBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🔄 Reboot Server</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Restarts the entire mesh-master server. Admin only.</p>
         </div>
 
         <div class="command-groups" id="commandGroups"></div>
+        </article>
+
+        <article class="panel" data-panel-id="telegram" data-draggable="true" data-collapsible="true">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>Telegram Bot 📱</h2>
+            <span class="panel-subtitle">Remote mesh control via Telegram</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body">
+          <div class="passphrase-card">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+              <label>Bot Configuration<span class="help-icon" data-explainer="Connect a Telegram bot for remote mesh control. Send commands and messages directly from Telegram with the same abilities as the dashboard CLI." data-explainer-placement="right">?</span></label>
+              <a href="#" id="telegramSetupToggle" style="color: #4CAF50; text-decoration: none; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                <span id="telegramSetupToggleText">Show Setup Guide</span>
+                <span id="telegramSetupToggleIcon">▼</span>
+              </a>
+            </div>
+            <div id="telegramSetupGuide" style="margin: 0 0 12px 0; padding: 12px; background: rgba(76, 175, 80, 0.05); border-left: 3px solid #4CAF50; border-radius: 4px; color: #ccc; font-size: 13px; line-height: 1.6; display: none;">
+              <strong style="color: #4CAF50;">📱 How to Create a Telegram Bot:</strong>
+              <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+                <li style="margin-bottom: 6px;">Open Telegram and search for <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-family: monospace;">@BotFather</code></li>
+                <li style="margin-bottom: 6px;">Send the command <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-family: monospace;">/newbot</code> and follow the prompts</li>
+                <li style="margin-bottom: 6px;">Choose a name and username for your bot (username must end in "bot")</li>
+                <li style="margin-bottom: 6px;">BotFather will give you a token like <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-family: monospace;">1234567890:ABCdefGHIjklMNOpqrs</code></li>
+                <li style="margin-bottom: 6px;"><strong>Copy this token</strong> and paste it in the "Bot Token" field below</li>
+                <li style="margin-bottom: 6px;">To get your Chat ID: Search for <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-family: monospace;">@userinfobot</code> in Telegram</li>
+                <li style="margin-bottom: 6px;">Send <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-family: monospace;">/start</code> to @userinfobot</li>
+                <li>It will reply with your Chat ID (a number) - copy that and paste it in "Authorized Chat IDs" below</li>
+              </ol>
+              <p style="margin: 8px 0 0 0; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 3px; font-size: 12px;">
+                <strong>💡 Tip:</strong> You can authorize multiple chat IDs by separating them with commas. This allows multiple admins to control the bot.
+              </p>
+            </div>
+            <div class="toggle-row" style="margin-top: 12px;">
+              <label class="switch">
+                <input type="checkbox" id="telegramEnabledToggle">
+                <span class="slider"></span>
+              </label>
+              <div class="toggle-copy">
+                <span class="toggle-title">Enable Telegram Bot</span>
+                <span id="telegramEnabledStatus" class="toggle-status">Disabled</span>
+              </div>
+            </div>
+            <div style="margin-top: 12px;">
+              <label for="telegramToken" style="display: block; margin-bottom: 4px; font-weight: 500;">Bot Token</label>
+              <input type="password" id="telegramToken" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace;">
+              <p class="passphrase-hint" style="margin-top: 4px;">Get from @BotFather on Telegram</p>
+            </div>
+            <div style="margin-top: 12px;">
+              <label for="telegramChatIds" style="display: block; margin-bottom: 4px; font-weight: 500;">Authorized Chat IDs</label>
+              <input type="text" id="telegramChatIds" placeholder="123456789, 987654321" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+              <p class="passphrase-hint" style="margin-top: 4px;">Comma-separated list of chat IDs allowed to control the bot</p>
+            </div>
+            <button type="button" id="telegramSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">Save Telegram Settings</button>
+            <div id="telegramStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
+          </div>
+        </div>
+        </article>
+
+        <article class="panel" data-panel-id="email" data-draggable="true" data-collapsible="true">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>Email Reports & Alerts 📧</h2>
+            <span class="panel-subtitle">Daily summaries and instant notifications</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body">
+          <div class="passphrase-card">
+            <label>Email Configuration<span class="help-icon" data-explainer="Configure email reports and alerts via OAuth. Sign in with your email provider to send daily summaries and instant alerts to yourself. All emails are sent from and to your authenticated account." data-explainer-placement="right">?</span></label>
+
+            <!-- Google OAuth Sign-in -->
+            <div style="margin-top: 12px; padding: 12px; background: #2a2a2a; border-radius: 4px;">
+              <div id="emailNotConnected" style="display: block;">
+                <p style="margin: 0 0 8px 0; padding: 8px; background: rgba(255, 193, 7, 0.1); border-left: 3px solid #FFC107; border-radius: 4px; color: #FFC107; font-size: 13px;">
+                  ⚠️ <strong>Coming Soon:</strong> OAuth authentication is planned for a future update. Email integration backend is not yet implemented.
+                </p>
+                <p style="margin: 8px 0 12px 0; color: #888; font-size: 13px;">Sign in to enable email reports and alerts sent to yourself</p>
+                <button type="button" id="emailGoogleSignIn" class="config-save-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0.5; cursor: not-allowed;" disabled>
+                  <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+                  Sign in with Google (Not Yet Available)
+                </button>
+              </div>
+              <div id="emailConnected" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div>
+                    <p style="margin: 0; font-weight: 500; color: #4CAF50;">✓ Connected</p>
+                    <p style="margin: 4px 0 0 0; font-size: 12px; color: #888;" id="emailConnectedAccount">Loading...</p>
+                  </div>
+                  <button type="button" id="emailDisconnect" class="config-cancel-btn" style="padding: 6px 12px;">Disconnect</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Daily Rollup Email -->
+            <div id="emailRollupSection" style="margin-top: 16px; display: none;">
+              <div class="toggle-row" style="margin-bottom: 12px;">
+                <label class="switch">
+                  <input type="checkbox" id="emailDailyRollupToggle">
+                  <span class="slider"></span>
+                </label>
+                <div class="toggle-copy">
+                  <span class="toggle-title">Daily Rollup Email<span class="help-icon" data-explainer="Sends a daily summary email to your authenticated Gmail account with the last 24 hours of activity. Choose which metrics to include and what time to receive it." data-explainer-placement="right">?</span></span>
+                  <span id="emailDailyRollupStatus" class="toggle-status">Disabled</span>
+                </div>
+              </div>
+
+              <div id="emailRollupConfig" style="padding-left: 12px; display: none;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #ccc;">Include in 24h Summary:</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_messages" checked style="cursor: pointer;">
+                    <span>📬 Messages sent/received</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_ai_requests" checked style="cursor: pointer;">
+                    <span>🤖 AI requests processed</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_mail" checked style="cursor: pointer;">
+                    <span>📧 Mail sent/received</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_onboardings" checked style="cursor: pointer;">
+                    <span>🎓 New onboardings</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_commands" checked style="cursor: pointer;">
+                    <span>⚡ Top commands used</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_users" checked style="cursor: pointer;">
+                    <span>👥 Active users</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_games" style="cursor: pointer;">
+                    <span>🎮 Games played</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="rollup_wiki" style="cursor: pointer;">
+                    <span>📚 Wiki activity</span>
+                  </label>
+                </div>
+                <div style="margin-top: 12px;">
+                  <label for="rollupTime" style="display: block; margin-bottom: 4px; font-weight: 500; color: #ccc;">Send time (24h format):</label>
+                  <input type="time" id="rollupTime" value="08:00" style="width: 120px; padding: 6px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0; border-radius: 4px;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Instant Alerts -->
+            <div id="emailAlertsSection" style="margin-top: 16px; display: none;">
+              <label style="display: block; margin-bottom: 12px; font-weight: 500; color: #ccc;">Instant Alerts:<span class="help-icon" data-explainer="Get immediate email notifications when critical events occur. All alerts are sent to your authenticated Gmail account." data-explainer-placement="right">?</span></label>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="toggle-row">
+                  <label class="switch">
+                    <input type="checkbox" id="emailAlertSpamToggle">
+                    <span class="slider"></span>
+                  </label>
+                  <div class="toggle-copy">
+                    <span class="toggle-title">🚨 Spam Detection<span class="help-icon" data-explainer="Get notified when anti-spam system triggers. Includes spammer username and timeout duration." data-explainer-placement="right">?</span></span>
+                    <span id="emailAlertSpamStatus" class="toggle-status">Disabled</span>
+                  </div>
+                </div>
+                <div class="toggle-row">
+                  <label class="switch">
+                    <input type="checkbox" id="emailAlertNetworkToggle">
+                    <span class="slider"></span>
+                  </label>
+                  <div class="toggle-copy">
+                    <span class="toggle-title">📡 Network Down (>1min)<span class="help-icon" data-explainer="Alert if mesh network connection is lost for more than 1 minute without automatic recovery." data-explainer-placement="right">?</span></span>
+                    <span id="emailAlertNetworkStatus" class="toggle-status">Disabled</span>
+                  </div>
+                </div>
+                <div class="toggle-row">
+                  <label class="switch">
+                    <input type="checkbox" id="emailAlertActivityToggle">
+                    <span class="slider"></span>
+                  </label>
+                  <div class="toggle-copy">
+                    <span class="toggle-title">📊 Heavy Activity Spike<span class="help-icon" data-explainer="Notifies when message volume suddenly spikes above normal levels. Includes list of active usernames." data-explainer-placement="right">?</span></span>
+                    <span id="emailAlertActivityStatus" class="toggle-status">Disabled</span>
+                  </div>
+                </div>
+                <div class="toggle-row">
+                  <label class="switch">
+                    <input type="checkbox" id="emailAlertErrorsToggle">
+                    <span class="slider"></span>
+                  </label>
+                  <div class="toggle-copy">
+                    <span class="toggle-title">⚠️ System Errors<span class="help-icon" data-explainer="Alert when critical system errors occur, including AI failures, database issues, or unexpected crashes." data-explainer-placement="right">?</span></span>
+                    <span id="emailAlertErrorsStatus" class="toggle-status">Disabled</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" id="emailSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px; display: none;">Save Email Settings</button>
+            <button type="button" id="emailTestBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; display: none;">Send Test Email</button>
+            <div id="emailStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
+          </div>
+        </div>
         </article>
 
         <article class="panel radio-panel" data-panel-id="radio-settings" data-draggable="true" data-collapsible="true">
@@ -25564,6 +25630,92 @@ def dashboard():
           sendCliCommand();
         }
       });
+
+      // Telegram setup guide toggle
+      const telegramSetupToggle = document.getElementById('telegramSetupToggle');
+      const telegramSetupGuide = document.getElementById('telegramSetupGuide');
+      const telegramSetupToggleText = document.getElementById('telegramSetupToggleText');
+      const telegramSetupToggleIcon = document.getElementById('telegramSetupToggleIcon');
+
+      if (telegramSetupToggle && telegramSetupGuide) {
+        telegramSetupToggle.addEventListener('click', (e) => {
+          e.preventDefault();
+          const isVisible = telegramSetupGuide.style.display !== 'none';
+          telegramSetupGuide.style.display = isVisible ? 'none' : 'block';
+          if (telegramSetupToggleText) {
+            telegramSetupToggleText.textContent = isVisible ? 'Show Setup Guide' : 'Hide Setup Guide';
+          }
+          if (telegramSetupToggleIcon) {
+            telegramSetupToggleIcon.textContent = isVisible ? '▼' : '▲';
+          }
+        });
+      }
+
+      // Telegram bot configuration
+      const telegramSaveBtn = document.getElementById('telegramSaveBtn');
+      const telegramEnabledToggle = document.getElementById('telegramEnabledToggle');
+      const telegramToken = document.getElementById('telegramToken');
+      const telegramChatIds = document.getElementById('telegramChatIds');
+      const telegramStatus = document.getElementById('telegramStatus');
+      const telegramEnabledStatus = document.getElementById('telegramEnabledStatus');
+
+      if (telegramSaveBtn) {
+        telegramSaveBtn.addEventListener('click', async () => {
+          const enabled = telegramEnabledToggle ? telegramEnabledToggle.checked : false;
+          const token = telegramToken ? telegramToken.value.trim() : '';
+          const chatIds = telegramChatIds ? telegramChatIds.value.trim() : '';
+
+          if (enabled && (!token || !chatIds)) {
+            if (telegramStatus) {
+              telegramStatus.style.display = 'block';
+              telegramStatus.style.background = 'rgba(244, 67, 54, 0.1)';
+              telegramStatus.style.color = '#f44336';
+              telegramStatus.textContent = '❌ Please provide both token and chat IDs to enable the bot';
+            }
+            return;
+          }
+
+          try {
+            const response = await fetch('/dashboard/telegram/save', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ enabled, token, chat_ids: chatIds })
+            });
+
+            const result = await response.json();
+
+            if (telegramStatus) {
+              telegramStatus.style.display = 'block';
+              if (result.ok) {
+                telegramStatus.style.background = 'rgba(76, 175, 80, 0.1)';
+                telegramStatus.style.color = '#4CAF50';
+                telegramStatus.textContent = enabled ? '✅ Telegram bot started successfully!' : '✅ Telegram bot stopped';
+              } else {
+                telegramStatus.style.background = 'rgba(244, 67, 54, 0.1)';
+                telegramStatus.style.color = '#f44336';
+                telegramStatus.textContent = `❌ ${result.error || 'Failed to save'}`;
+              }
+
+              setTimeout(() => {
+                telegramStatus.style.display = 'none';
+              }, 5000);
+            }
+          } catch (error) {
+            if (telegramStatus) {
+              telegramStatus.style.display = 'block';
+              telegramStatus.style.background = 'rgba(244, 67, 54, 0.1)';
+              telegramStatus.style.color = '#f44336';
+              telegramStatus.textContent = `❌ Error: ${error.message}`;
+            }
+          }
+        });
+      }
+
+      if (telegramEnabledToggle && telegramEnabledStatus) {
+        telegramEnabledToggle.addEventListener('change', () => {
+          telegramEnabledStatus.textContent = telegramEnabledToggle.checked ? 'Enabled' : 'Disabled';
+        });
+      }
     });
   </script>
 </body>
@@ -27315,6 +27467,149 @@ def keepalive_worker():
         except Exception:
             time.sleep(10)
 
+
+# =========================================
+# Telegram Bot Integration
+# =========================================
+
+def load_telegram_config():
+    """Load Telegram configuration from file."""
+    global telegram_config
+    telegram_config_file = Path("data/telegram_config.json")
+
+    if telegram_config_file.exists():
+        try:
+            with telegram_config_file.open('r', encoding='utf-8') as f:
+                telegram_config = json.load(f)
+        except Exception as e:
+            add_script_log(f"Failed to load Telegram config: {e}")
+            telegram_config = {}
+    else:
+        telegram_config = {}
+
+
+if TELEGRAM_AVAILABLE:
+    async def telegram_handle_message(update, context):
+        """Handle incoming Telegram messages and route them to mesh."""
+        if not update.message or not update.message.text:
+            return
+
+        chat_id = update.message.chat_id
+        text = update.message.text.strip()
+
+        # Check authorization
+        authorized_ids = telegram_config.get("authorized_chat_ids", [])
+        if chat_id not in authorized_ids:
+            await update.message.reply_text("⛔ Unauthorized. Contact the admin to add your Chat ID.")
+            return
+
+        # Parse command similar to dashboard CLI
+        try:
+            if text.startswith('/'):
+                # Execute as admin command
+                # Use first authorized admin as sender
+                admin_key = list(AUTHORIZED_ADMINS)[0] if AUTHORIZED_ADMINS else "!ffffffff"
+                response = parse_incoming_text(
+                    text=text,
+                    sender_id=admin_key,
+                    is_direct=True,
+                    channel_idx=None,
+                    skip_archive=False,
+                    request_id=str(uuid.uuid4())
+                )
+                if response:
+                    await update.message.reply_text(response.text if hasattr(response, 'text') else str(response))
+                else:
+                    await update.message.reply_text("✅ Command executed")
+
+            else:
+                # Check if first word is a channel name or shortname
+                parts = text.split(None, 1)
+                if not parts:
+                    await update.message.reply_text("❌ Empty message")
+                    return
+
+                first_word = parts[0]
+                remainder = parts[1] if len(parts) > 1 else ""
+
+                # Check for channel name
+                channel_names = {}
+                if interface and hasattr(interface, 'channels'):
+                    for ch_idx, ch_info in interface.channels.items():
+                        if 'name' in ch_info:
+                            channel_names[ch_idx] = ch_info['name']
+
+                target_channel = None
+                for ch_idx, ch_name in channel_names.items():
+                    if ch_name.lower() == first_word.lower():
+                        target_channel = ch_idx
+                        break
+
+                if target_channel is not None:
+                    # Send to channel
+                    if interface and remainder:
+                        interface.sendText(remainder, channelIndex=target_channel)
+                        await update.message.reply_text(f"📡 Sent to channel {channel_names[target_channel]}")
+                    else:
+                        await update.message.reply_text("❌ No message to send")
+                    return
+
+                # Check if shortname or node ID
+                target_node = get_node_id_from_shortname(first_word)
+                if not target_node and first_word.startswith('!'):
+                    target_node = first_word
+
+                if target_node and interface and remainder:
+                    interface.sendText(remainder, destinationId=target_node)
+                    await update.message.reply_text(f"💬 Sent DM to {first_word}")
+                else:
+                    await update.message.reply_text("❌ Unknown target. Use: /command, ChannelName message, or shortname message")
+
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {e}")
+            add_script_log(f"Telegram bot error: {e}")
+
+
+    def run_telegram_bot():
+        """Run the Telegram bot in a background thread."""
+        global telegram_app
+
+        if not TELEGRAM_AVAILABLE:
+            add_script_log("Telegram library not available")
+            return
+
+        token = telegram_config.get("token", "").strip()
+        if not token:
+            add_script_log("No Telegram bot token configured")
+            return
+
+        authorized_ids = telegram_config.get("authorized_chat_ids", [])
+        if not authorized_ids:
+            add_script_log("No authorized Telegram chat IDs configured")
+            return
+
+        try:
+            # Create application
+            telegram_app = Application.builder().token(token).build()
+
+            # Add handlers
+            telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_handle_message))
+            telegram_app.add_handler(MessageHandler(filters.COMMAND, telegram_handle_message))
+
+            # Run bot
+            add_script_log(f"Starting Telegram bot for {len(authorized_ids)} authorized chat(s)")
+            telegram_app.run_polling(stop_signals=None, close_loop=False)
+
+        except Exception as e:
+            add_script_log(f"Telegram bot error: {e}")
+            clean_log(f"Telegram bot error: {e}", "📱", show_always=True, rate_limit=False)
+else:
+    # Stub functions when Telegram library is not available
+    def run_telegram_bot():
+        add_script_log("Telegram bot not started: python-telegram-bot library not installed")
+        return
+
+
 def main():
     global interface, restart_count, server_start_time, reset_event, ALARM_TIMER_MANAGER
     server_start_time = server_start_time or datetime.now(timezone.utc)
@@ -27331,6 +27626,15 @@ def main():
 
     # Load anti-spam ban list
     _antispam_load_bans()
+
+    # Load Telegram configuration and start bot if enabled
+    load_telegram_config()
+    if telegram_config.get("enabled") and telegram_config.get("token") and telegram_config.get("authorized_chat_ids") and TELEGRAM_AVAILABLE:
+        global telegram_bot_thread, telegram_bot_stop_event
+        telegram_bot_stop_event = threading.Event()
+        telegram_bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+        telegram_bot_thread.start()
+        clean_log(f"Telegram bot started for {len(telegram_config.get('authorized_chat_ids', []))} authorized chat(s)", "📱", show_always=True)
 
     # Start the async response worker
     start_response_worker()
