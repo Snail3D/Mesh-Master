@@ -21401,6 +21401,34 @@ def dashboard():
 
       </section>
       <aside class="activity-column">
+        <!-- Command Line Interface -->
+        <article class="panel" data-panel-id="cli" style="margin-bottom: 12px;">
+          <div class="panel-header">
+            <h2>Command Line 🖥️</h2>
+          </div>
+          <div style="padding: 12px;">
+            <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-secondary);">
+              Send messages or run commands as admin:
+              <code style="color: var(--success);">SnailNet Hello!</code>
+              <code style="color: var(--success);">!abcd Hi there</code>
+              <code style="color: var(--info);">/checkmail</code>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input
+                type="text"
+                id="cliInput"
+                placeholder="Type message or command..."
+                style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); color: var(--text-primary); font-family: monospace;"
+              />
+              <button
+                id="cliSendBtn"
+                style="padding: 8px 16px; background: var(--success); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;"
+              >Send</button>
+            </div>
+            <div id="cliStatus" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
+          </div>
+        </article>
+
         <article class="panel log-panel" data-panel-id="log">
         <div class="panel-header">
           <h2>Activity 📡</h2>
@@ -25336,6 +25364,56 @@ def dashboard():
         const placement = icon.dataset.explainerPlacement || 'top';
         bindExplainer(icon, text, { placement });
       });
+
+      // CLI Command Line Interface
+      const cliInput = document.getElementById('cliInput');
+      const cliSendBtn = document.getElementById('cliSendBtn');
+      const cliStatus = document.getElementById('cliStatus');
+
+      async function sendCliCommand() {
+        const input = cliInput.value.trim();
+        if (!input) return;
+
+        cliStatus.textContent = 'Sending...';
+        cliStatus.style.color = 'var(--info)';
+        cliSendBtn.disabled = true;
+
+        try {
+          const response = await fetch('/dashboard/cli/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input })
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            cliStatus.textContent = `✓ ${result.message || 'Sent'}`;
+            cliStatus.style.color = 'var(--success)';
+            cliInput.value = '';
+          } else {
+            cliStatus.textContent = `✗ ${result.error || 'Failed'}`;
+            cliStatus.style.color = 'var(--error)';
+          }
+        } catch (err) {
+          cliStatus.textContent = `✗ Network error: ${err.message}`;
+          cliStatus.style.color = 'var(--error)';
+        } finally {
+          cliSendBtn.disabled = false;
+          setTimeout(() => {
+            if (cliStatus.textContent.startsWith('✓')) {
+              cliStatus.textContent = '';
+            }
+          }, 3000);
+        }
+      }
+
+      cliSendBtn.addEventListener('click', sendCliCommand);
+      cliInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          sendCliCommand();
+        }
+      });
     });
   </script>
 </body>
@@ -25581,6 +25659,120 @@ def _normalize_registry_entry(raw: Dict[str, Any]) -> Dict[str, Any]:
         'parameter_size': None,
         'quantization': None,
     }
+
+
+@app.route('/dashboard/cli/send', methods=['POST'])
+def dashboard_cli_send():
+    """Handle CLI commands from dashboard - acts like an admin mesh user."""
+    try:
+        data = request.get_json(force=True)
+        input_text = data.get('input', '').strip()
+
+        if not input_text:
+            return jsonify({'success': False, 'error': 'No input provided'}), 400
+
+        # Get first admin as the sender (dashboard user identity)
+        if not AUTHORIZED_ADMINS:
+            return jsonify({'success': False, 'error': 'No admins configured'}), 403
+
+        admin_key = list(AUTHORIZED_ADMINS)[0]
+
+        # Parse input to determine target and message
+        parts = input_text.split(None, 1)
+        if not parts:
+            return jsonify({'success': False, 'error': 'Empty input'}), 400
+
+        first_word = parts[0]
+        remainder = parts[1] if len(parts) > 1 else ""
+
+        # Check if it's a command
+        if input_text.startswith('/'):
+            # Execute command as admin
+            response = parse_incoming_text(
+                text=input_text,
+                sender_id=admin_key,
+                is_direct=True,
+                channel_idx=None
+            )
+
+            if response:
+                if isinstance(response, PendingReply):
+                    msg = response.text
+                elif isinstance(response, str):
+                    msg = response
+                else:
+                    msg = str(response)
+
+                return jsonify({
+                    'success': True,
+                    'message': f'Command executed',
+                    'response': msg
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'message': 'Command executed (no response)'
+                })
+
+        # Check if first word is a channel name
+        channel_names = config.get('channel_names', {})
+        target_channel = None
+        for ch_idx, ch_name in channel_names.items():
+            if ch_name.lower() == first_word.lower():
+                target_channel = int(ch_idx)
+                break
+
+        if target_channel is not None:
+            # Send to channel
+            if not remainder:
+                return jsonify({'success': False, 'error': 'No message provided'}), 400
+
+            if interface:
+                try:
+                    interface.sendText(remainder, channelIndex=target_channel)
+                    return jsonify({
+                        'success': True,
+                        'message': f'Sent to {first_word}'
+                    })
+                except Exception as e:
+                    return jsonify({'success': False, 'error': f'Send failed: {str(e)}'}), 500
+            else:
+                return jsonify({'success': False, 'error': 'Radio not connected'}), 503
+
+        # Check if first word is a shortname or node ID
+        target_node = None
+        if first_word.startswith('!'):
+            # Direct node ID
+            target_node = parse_node_id(first_word)
+        else:
+            # Try shortname
+            target_node = get_node_id_from_shortname(first_word)
+
+        if target_node:
+            # Send DM
+            if not remainder:
+                return jsonify({'success': False, 'error': 'No message provided'}), 400
+
+            if interface:
+                try:
+                    interface.sendText(remainder, destinationId=target_node)
+                    return jsonify({
+                        'success': True,
+                        'message': f'DM sent to {first_word}'
+                    })
+                except Exception as e:
+                    return jsonify({'success': False, 'error': f'Send failed: {str(e)}'}), 500
+            else:
+                return jsonify({'success': False, 'error': 'Radio not connected'}), 503
+
+        # Unknown target
+        return jsonify({
+            'success': False,
+            'error': f'Unknown target: {first_word}. Try a channel name, shortname, node ID, or /command'
+        }), 400
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/dashboard/ai/models/local', methods=['GET'])
