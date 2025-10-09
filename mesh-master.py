@@ -21233,6 +21233,99 @@ def dashboard():
             <span id="onboardStatsProgress">0</span> in progress
           </p>
         </div>
+
+        <!-- Telegram Bot Configuration -->
+        <div class="passphrase-card">
+          <label>📱 Telegram Bot<span class="help-icon" data-explainer="Connect a Telegram bot for remote mesh control. Send commands and messages directly from Telegram." data-explainer-placement="right">?</span></label>
+          <div class="toggle-row" style="margin-top: 12px;">
+            <label class="switch">
+              <input type="checkbox" id="telegramEnabledToggle">
+              <span class="slider"></span>
+            </label>
+            <div class="toggle-copy">
+              <span class="toggle-title">Enable Telegram Bot</span>
+              <span id="telegramEnabledStatus" class="toggle-status">Disabled</span>
+            </div>
+          </div>
+          <div style="margin-top: 12px;">
+            <label for="telegramToken" style="display: block; margin-bottom: 4px; font-weight: 500;">Bot Token</label>
+            <input type="password" id="telegramToken" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace;">
+            <p class="passphrase-hint" style="margin-top: 4px;">Get from @BotFather on Telegram</p>
+          </div>
+          <div style="margin-top: 12px;">
+            <label for="telegramChatIds" style="display: block; margin-bottom: 4px; font-weight: 500;">Authorized Chat IDs</label>
+            <input type="text" id="telegramChatIds" placeholder="123456789, 987654321" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+            <p class="passphrase-hint" style="margin-top: 4px;">Comma-separated list of chat IDs allowed to control the bot</p>
+          </div>
+          <button type="button" id="telegramSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">Save Telegram Settings</button>
+          <div id="telegramStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
+        </div>
+
+        <!-- Email Alerts Configuration -->
+        <div class="passphrase-card">
+          <label>📧 Email Alerts<span class="help-icon" data-explainer="Send email notifications for critical events like spam detection and system errors." data-explainer-placement="right">?</span></label>
+          <div class="toggle-row" style="margin-top: 12px;">
+            <label class="switch">
+              <input type="checkbox" id="emailEnabledToggle">
+              <span class="slider"></span>
+            </label>
+            <div class="toggle-copy">
+              <span class="toggle-title">Enable Email Alerts</span>
+              <span id="emailEnabledStatus" class="toggle-status">Disabled</span>
+            </div>
+          </div>
+          <div style="margin-top: 12px;">
+            <label for="emailSmtpHost" style="display: block; margin-bottom: 4px; font-weight: 500;">SMTP Host</label>
+            <input type="text" id="emailSmtpHost" placeholder="smtp.gmail.com" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+          </div>
+          <div style="margin-top: 12px; display: flex; gap: 8px;">
+            <div style="flex: 1;">
+              <label for="emailSmtpPort" style="display: block; margin-bottom: 4px; font-weight: 500;">SMTP Port</label>
+              <input type="number" id="emailSmtpPort" placeholder="587" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+            </div>
+            <div style="flex: 2;">
+              <label for="emailSmtpUser" style="display: block; margin-bottom: 4px; font-weight: 500;">Username</label>
+              <input type="text" id="emailSmtpUser" placeholder="your@email.com" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+            </div>
+          </div>
+          <div style="margin-top: 12px;">
+            <label for="emailSmtpPassword" style="display: block; margin-bottom: 4px; font-weight: 500;">Password / App Token</label>
+            <input type="password" id="emailSmtpPassword" placeholder="••••••••" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+            <p class="passphrase-hint" style="margin-top: 4px;">Use app-specific password for Gmail</p>
+          </div>
+          <div style="margin-top: 12px;">
+            <label for="emailRecipients" style="display: block; margin-bottom: 4px; font-weight: 500;">Alert Recipients</label>
+            <input type="text" id="emailRecipients" placeholder="admin@example.com, ops@example.com" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+            <p class="passphrase-hint" style="margin-top: 4px;">Comma-separated email addresses</p>
+          </div>
+          <div style="margin-top: 12px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Alert Triggers</label>
+            <div class="toggle-row" style="margin-bottom: 8px;">
+              <label class="switch">
+                <input type="checkbox" id="emailAlertSpamToggle">
+                <span class="slider"></span>
+              </label>
+              <div class="toggle-copy">
+                <span class="toggle-title">Spam Detection Alerts</span>
+                <span id="emailAlertSpamStatus" class="toggle-status">Enabled</span>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <label class="switch">
+                <input type="checkbox" id="emailAlertErrorsToggle">
+                <span class="slider"></span>
+              </label>
+              <div class="toggle-copy">
+                <span class="toggle-title">System Error Alerts</span>
+                <span id="emailAlertErrorsStatus" class="toggle-status">Enabled</span>
+              </div>
+            </div>
+          </div>
+          <button type="button" id="emailSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">Save Email Settings</button>
+          <button type="button" id="emailTestBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">Send Test Email</button>
+          <div id="emailStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
+        </div>
+
         <div class="command-groups" id="commandGroups"></div>
         </article>
 
@@ -21407,12 +21500,6 @@ def dashboard():
             <h2>Command Line 🖥️</h2>
           </div>
           <div style="padding: 12px;">
-            <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-secondary);">
-              Send messages or run commands as admin:
-              <code style="color: var(--success);">SnailNet Hello!</code>
-              <code style="color: var(--success);">!abcd Hi there</code>
-              <code style="color: var(--info);">/checkmail</code>
-            </div>
             <div style="display: flex; gap: 8px;">
               <input
                 type="text"
