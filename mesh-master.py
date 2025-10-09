@@ -11622,8 +11622,59 @@ def load_archive():
     else:
         print("No archive found; starting fresh.")
 
+def _rotate_archive_if_needed():
+  """Rotate archive if it exceeds size/age limits."""
+  try:
+    rotation_enabled = config.get('message_archive_rotation_enabled', True)
+    if not rotation_enabled:
+      return
+
+    if not os.path.exists(ARCHIVE_FILE):
+      return
+
+    # Check file size
+    max_size_mb = config.get('message_archive_max_size_mb', 10)
+    file_size_mb = os.path.getsize(ARCHIVE_FILE) / (1024 * 1024)
+
+    # Check file age
+    max_days = config.get('message_archive_max_days', 90)
+    file_mtime = os.path.getmtime(ARCHIVE_FILE)
+    file_age_days = (time.time() - file_mtime) / (24 * 3600)
+
+    if file_size_mb < max_size_mb and file_age_days < max_days:
+      return  # No rotation needed
+
+    # Rotate: move current archive to dated backup
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    archive_dir = "data/message_archives"
+    os.makedirs(archive_dir, exist_ok=True)
+
+    rotated_name = f"{archive_dir}/messages_archive_{timestamp}.json"
+    os.rename(ARCHIVE_FILE, rotated_name)
+
+    reason = f"size={file_size_mb:.1f}MB" if file_size_mb >= max_size_mb else f"age={file_age_days:.0f}d"
+    clean_log(f"Rotated archive ({reason}) → {rotated_name}", "🔄")
+
+    # Cleanup old rotated archives (keep only last 90 days worth)
+    cleanup_days = max_days
+    cutoff_time = time.time() - (cleanup_days * 24 * 3600)
+
+    for filename in os.listdir(archive_dir):
+      if filename.startswith('messages_archive_') and filename.endswith('.json'):
+        filepath = os.path.join(archive_dir, filename)
+        if os.path.getmtime(filepath) < cutoff_time:
+          os.remove(filepath)
+          clean_log(f"Deleted old archive: {filename}", "🗑️")
+
+  except Exception as e:
+    clean_log(f"Archive rotation error: {e}", "⚠️")
+
+
 def save_archive():
   try:
+    # Rotate before saving if needed
+    _rotate_archive_if_needed()
+
     with messages_lock:
       _prune_messages_locked()
       snapshot: List[Dict[str, Any]] = []
