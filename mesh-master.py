@@ -8169,6 +8169,7 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/c": "Shortcut for checking Mesh Mail.",
     "/emailhelp": "Explains how Mesh Mail works and available options.",
     "/wipe": "Clears stored Mesh Mail data (admin caution).",
+    "/deleteall": "Permanently delete all your data. Admins can target other users: /deleteall <shortname>",
     "/bible": "Shares a curated Bible verse with the channel. Usage: /bible [topic]",
     "/biblehelp": "Shows usage tips for the Bible verse command.",
     "/weather": "Fetches the latest weather forecast for your configured location.",
@@ -13764,6 +13765,150 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
       return PendingReply(f"ℹ️ Auto-scroll wasn't running. '{title}' is still active — use /exit to leave it.", "/stop command")
     return PendingReply("ℹ️ There wasn't an active auto-scroll session.", "/stop command")
 
+  elif cmd == "/deleteall":
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
+    sender_key = _safe_sender_key(sender_id)
+
+    # Check if this is an admin command with a target user
+    is_admin = bool(sender_key and sender_key in AUTHORIZED_ADMINS)
+    target_key = remainder.strip() if remainder else None
+
+    if target_key:
+      # Admin deleting another user's data
+      if not is_admin:
+        return _cmd_reply(cmd, "🔐 Only admins can delete other users' data.")
+      confirmation_key = f"deleteall_admin_{sender_key}_{target_key}"
+    else:
+      # User deleting their own data
+      target_key = sender_key
+      confirmation_key = f"deleteall_{sender_key}"
+
+    # Check for pending confirmation
+    if confirmation_key in PENDING_WIPE_REQUESTS:
+      choice = text.strip().lower()
+      if choice in {"yes", "y", "confirm"}:
+        PENDING_WIPE_REQUESTS.pop(confirmation_key, None)
+
+        # Delete all user data
+        deleted_items = []
+
+        # 1. Message archive
+        try:
+          with messages_lock:
+            original_count = len(messages)
+            messages[:] = [m for m in messages if _safe_sender_key(m.get('node_id')) != target_key]
+            removed = original_count - len(messages)
+            if removed > 0:
+              deleted_items.append(f"{removed} messages")
+              save_archive()
+        except Exception as e:
+          clean_log(f"Error deleting messages for {target_key}: {e}", "⚠️")
+
+        # 2. Mail messages
+        try:
+          mailboxes = MAIL_MANAGER.mailboxes_for_user(target_key)
+          for mailbox in mailboxes:
+            MAIL_MANAGER.handle_wipe(mailbox, actor_key=sender_key, is_admin=is_admin)
+          if mailboxes:
+            deleted_items.append(f"{len(mailboxes)} mailboxes")
+        except Exception as e:
+          clean_log(f"Error deleting mail for {target_key}: {e}", "⚠️")
+
+        # 3. User AI settings
+        try:
+          if os.path.exists(USER_AI_SETTINGS_FILE):
+            with open(USER_AI_SETTINGS_FILE, 'r', encoding='utf-8') as f:
+              settings = json.load(f)
+            if target_key in settings:
+              del settings[target_key]
+              with open(USER_AI_SETTINGS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=2)
+              deleted_items.append("AI settings")
+        except Exception as e:
+          clean_log(f"Error deleting AI settings for {target_key}: {e}", "⚠️")
+
+        # 4. Onboarding state
+        try:
+          if os.path.exists(ONBOARDING_STATE_FILE):
+            with open(ONBOARDING_STATE_FILE, 'r', encoding='utf-8') as f:
+              state = json.load(f)
+            if "users" in state and target_key in state["users"]:
+              del state["users"][target_key]
+              with open(ONBOARDING_STATE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(state, f, indent=2)
+              deleted_items.append("onboarding progress")
+        except Exception as e:
+          clean_log(f"Error deleting onboarding state for {target_key}: {e}", "⚠️")
+
+        # 5. Saved conversations
+        try:
+          USER_ENTRY_STORE.delete_all_for_user(target_key)
+          deleted_items.append("saved conversations")
+        except Exception as e:
+          clean_log(f"Error deleting saved conversations for {target_key}: {e}", "⚠️")
+
+        # 6. Game states
+        for game_file in ["wordle_state.json", "trivia_state.json", "cavalry_game_states.json"]:
+          try:
+            game_path = f"data/{game_file}"
+            if os.path.exists(game_path):
+              with open(game_path, 'r', encoding='utf-8') as f:
+                game_data = json.load(f)
+              if target_key in game_data:
+                del game_data[target_key]
+                with open(game_path, 'w', encoding='utf-8') as f:
+                  json.dump(game_data, f, indent=2)
+          except Exception as e:
+            clean_log(f"Error deleting {game_file} for {target_key}: {e}", "⚠️")
+
+        # 7. Clear any pending sessions
+        for pending_dict in [PENDING_POSITION_CONFIRM, PENDING_SAVE_WIZARDS, PENDING_VIBE_SELECTIONS,
+                            PENDING_MAILBOX_SELECTIONS, PENDING_MODEL_SELECTIONS, PENDING_SPAM_ALERTS,
+                            PENDING_WIPE_REQUESTS, PENDING_WIPE_SELECTIONS]:
+          pending_dict.pop(target_key, None)
+
+        summary = ", ".join(deleted_items) if deleted_items else "no data found"
+        actor_msg = f" by admin {sender_key}" if is_admin and target_key != sender_key else ""
+        clean_log(f"Deleted all data for {target_key}{actor_msg}: {summary}", "🗑️")
+
+        if target_key == sender_key:
+          return _cmd_reply(cmd, f"✅ All your data has been permanently deleted:\n{summary}")
+        else:
+          return _cmd_reply(cmd, f"✅ All data for {target_key} has been permanently deleted:\n{summary}")
+
+      elif choice in {"no", "n", "cancel"}:
+        PENDING_WIPE_REQUESTS.pop(confirmation_key, None)
+        return _cmd_reply(cmd, "👍 Deletion cancelled.")
+      else:
+        return _cmd_reply(cmd, "Please reply YES to confirm or NO to cancel.")
+
+    # Show confirmation prompt
+    PENDING_WIPE_REQUESTS[confirmation_key] = {"timestamp": time.time()}
+
+    if target_key == sender_key:
+      warning = (
+        "⚠️ DELETE ALL YOUR DATA?\n\n"
+        "This will permanently erase:\n"
+        "• All your messages\n"
+        "• Mail & mailboxes\n"
+        "• Saved conversations\n"
+        "• AI settings & preferences\n"
+        "• Game progress\n"
+        "• Onboarding state\n\n"
+        "🚨 THIS CANNOT BE UNDONE!\n\n"
+        "Reply YES to confirm or NO to cancel."
+      )
+    else:
+      warning = (
+        f"⚠️ DELETE ALL DATA FOR {target_key}?\n\n"
+        f"This will permanently erase all data for this user.\n\n"
+        f"🚨 THIS CANNOT BE UNDONE!\n\n"
+        f"Reply YES to confirm or NO to cancel."
+      )
+
+    return PendingReply(warning, "/deleteall confirm")
+
   elif cmd == "/exit":
     if not is_direct:
       return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
@@ -16013,7 +16158,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   # Check if user is permanently banned
   if sender_key and _antispam_check_banned(sender_key):
     if not check_only:
-      return PendingReply("🚫 You have been permanently banned from using this bot.", "banned")
+      return PendingReply("🚫 I'm not allowed to talk with you anymore. Contact an admin if you believe this is an error.", "banned")
     return False
   # If muted, suppress auto/AI replies; let commands still pass
   if sender_key and _is_user_muted(sender_key) and not text.startswith('/'):
