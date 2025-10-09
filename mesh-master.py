@@ -2113,6 +2113,7 @@ MOTD_FILE = "data/motd.json"
 LOG_FILE = "messages.log"
 ARCHIVE_FILE = "messages_archive.json"
 FEATURE_FLAGS_FILE = "data/feature_flags.json"
+ANTISPAM_BAN_FILE = "data/antispam_bans.json"
 ONBOARDING_STATE_FILE = "data/onboarding_state.json"
 
 print("Loading config files...")
@@ -3318,6 +3319,8 @@ PENDING_SAVE_WIZARDS: Dict[str, Dict[str, Any]] = {}
 PENDING_VIBE_SELECTIONS: Dict[str, Dict[str, Any]] = {}
 PENDING_MAILBOX_SELECTIONS: Dict[str, Dict[str, Any]] = {}
 PENDING_MODEL_SELECTIONS: Dict[str, Dict[str, Any]] = {}
+PENDING_SPAM_ALERTS: Dict[str, Dict[str, Any]] = {}  # Admin spam decision tracking (key = admin_key)
+PENDING_SPAM_ALERTS_BY_SPAMMER: Dict[str, Dict[str, Any]] = {}  # Track alert state by spammer (key = spammer_key)
 
 SAVE_WIZARD_TIMEOUT = 5 * 60
 VIBE_MENU_TIMEOUT = 3 * 60
@@ -7516,6 +7519,195 @@ def _antispam_format_time(until_ts: float, *, include_date: bool = False) -> str
     return dt.strftime("%H:%M")
 
 
+def _antispam_send_admin_alert(sender_key: str, level: int, until: float, interface_ref) -> None:
+    """Send spam detection alert to all admins with action options."""
+    if not interface_ref or not AUTHORIZED_ADMINS:
+        return
+
+    # Don't send alerts if admin has snoozed this user
+    if _antispam_is_snoozed(sender_key):
+        return
+
+    time_label = _antispam_format_time(until, include_date=(level == 2))
+    penalty_type = "10min timeout" if level == 1 else "24h lockout"
+
+    alert_msg = (
+        f"🚨 SPAM ALERT\n"
+        f"User: {sender_key}\n"
+        f"Action: {penalty_type}\n"
+        f"Until: {time_label}\n\n"
+        f"Reply:\n"
+        f"I - Ignore (snooze 24h)\n"
+        f"T - Keep timeout\n"
+        f"B - Permanent ban"
+    )
+
+    for admin_key in AUTHORIZED_ADMINS:
+        try:
+            # Get admin node ID from the interface
+            admin_node = None
+            if hasattr(interface_ref, 'nodes') and interface_ref.nodes:
+                for node_id, node in interface_ref.nodes.items():
+                    node_info = node.get('user', {})
+                    if node_info.get('id') == admin_key or node_info.get('longName') == admin_key:
+                        admin_node = node_id
+                        break
+
+            if admin_node:
+                send_direct_chunks(interface_ref, alert_msg, admin_node)
+                # Track this alert for the admin's response
+                PENDING_SPAM_ALERTS[admin_key] = {
+                    'spammer_key': sender_key,
+                    'level': level,
+                    'until': until,
+                    'timestamp': time.time(),
+                }
+                # Also track by spammer to detect duplicate responses
+                PENDING_SPAM_ALERTS_BY_SPAMMER[sender_key] = {
+                    'level': level,
+                    'until': until,
+                    'timestamp': time.time(),
+                    'handled_by': None,
+                }
+                clean_log(f"Sent spam alert to admin {admin_key} about {sender_key}", "🚨")
+        except Exception as exc:
+            clean_log(f"Failed to send spam alert to admin {admin_key}: {exc}", "⚠️")
+
+
+def _antispam_handle_admin_response(admin_key: str, response: str) -> Optional[PendingReply]:
+    """Handle admin response to spam alert."""
+    alert = PENDING_SPAM_ALERTS.get(admin_key)
+    if not alert:
+        return None
+
+    response = response.strip().lower()
+    spammer_key = alert['spammer_key']
+
+    # Check if another admin already handled this
+    spammer_alert = PENDING_SPAM_ALERTS_BY_SPAMMER.get(spammer_key)
+    if spammer_alert and spammer_alert.get('handled_by') and spammer_alert['handled_by'] != admin_key:
+        handled_by = spammer_alert['handled_by']
+        return PendingReply(f"Already handled by {handled_by}", "spam admin")
+
+    if response in {'i', 'ignore'}:
+        # Snooze alerts for this user for 24 hours
+        with ANTISPAM_LOCK:
+            state = ANTISPAM_STATE.get(spammer_key)
+            if state:
+                state['admin_snoozed_until'] = time.time() + (24 * 3600)
+                # Clear the timeout
+                state['timeout_until'] = None
+                state['timeout_level'] = 0
+                state['history'].clear()
+
+        # Mark as handled
+        if spammer_alert:
+            spammer_alert['handled_by'] = admin_key
+
+        # Clear all admin alerts for this spammer
+        for key in list(PENDING_SPAM_ALERTS.keys()):
+            if PENDING_SPAM_ALERTS[key].get('spammer_key') == spammer_key:
+                PENDING_SPAM_ALERTS.pop(key, None)
+
+        clean_log(f"Admin {admin_key} snoozed spam alerts for {spammer_key} (24h)", "🔕")
+        return PendingReply(f"✅ Ignored. No alerts for {spammer_key} for 24h.", "spam admin")
+
+    elif response in {'t', 'timeout', 'keep'}:
+        # Mark as handled
+        if spammer_alert:
+            spammer_alert['handled_by'] = admin_key
+
+        # Clear all admin alerts for this spammer
+        for key in list(PENDING_SPAM_ALERTS.keys()):
+            if PENDING_SPAM_ALERTS[key].get('spammer_key') == spammer_key:
+                PENDING_SPAM_ALERTS.pop(key, None)
+
+        clean_log(f"Admin {admin_key} kept timeout for {spammer_key}", "⏱️")
+        return PendingReply(f"✅ Timeout maintained for {spammer_key}.", "spam admin")
+
+    elif response in {'b', 'ban'}:
+        # Permanent ban
+        with ANTISPAM_BAN_LOCK:
+            ANTISPAM_BAN_LIST.add(spammer_key)
+
+        # Clear any timeout state
+        with ANTISPAM_LOCK:
+            state = ANTISPAM_STATE.get(spammer_key)
+            if state:
+                state['timeout_until'] = None
+                state['timeout_level'] = 0
+                state['history'].clear()
+
+        # Save ban list to disk
+        _antispam_save_bans()
+
+        # Mark as handled
+        if spammer_alert:
+            spammer_alert['handled_by'] = admin_key
+
+        # Clear all admin alerts for this spammer
+        for key in list(PENDING_SPAM_ALERTS.keys()):
+            if PENDING_SPAM_ALERTS[key].get('spammer_key') == spammer_key:
+                PENDING_SPAM_ALERTS.pop(key, None)
+
+        clean_log(f"Admin {admin_key} permanently banned {spammer_key}", "🔨")
+        return PendingReply(f"🔨 {spammer_key} permanently banned.", "spam admin")
+
+    return None
+
+
+def _antispam_is_admin(sender_key: Optional[str]) -> bool:
+    """Check if sender is an admin (exempt from spam detection)."""
+    return bool(sender_key and sender_key in AUTHORIZED_ADMINS)
+
+
+def _antispam_is_snoozed(sender_key: str) -> bool:
+    """Check if admin has snoozed alerts for this user."""
+    with ANTISPAM_LOCK:
+        state = ANTISPAM_STATE.get(sender_key)
+        if not state:
+            return False
+        snoozed_until = state.get('admin_snoozed_until')
+        if snoozed_until and time.time() < snoozed_until:
+            return True
+    return False
+
+
+def _antispam_load_bans() -> None:
+    """Load permanent ban list from disk."""
+    try:
+        if os.path.exists(ANTISPAM_BAN_FILE):
+            with open(ANTISPAM_BAN_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    with ANTISPAM_BAN_LOCK:
+                        ANTISPAM_BAN_LIST.clear()
+                        ANTISPAM_BAN_LIST.update(data)
+                    clean_log(f"Loaded {len(ANTISPAM_BAN_LIST)} banned users", "🔨")
+    except Exception as exc:
+        clean_log(f"Failed to load ban list: {exc}", "⚠️")
+
+
+def _antispam_save_bans() -> None:
+    """Save permanent ban list to disk."""
+    try:
+        os.makedirs(os.path.dirname(ANTISPAM_BAN_FILE), exist_ok=True)
+        with ANTISPAM_BAN_LOCK:
+            ban_list = list(ANTISPAM_BAN_LIST)
+        with open(ANTISPAM_BAN_FILE, 'w', encoding='utf-8') as f:
+            json.dump(ban_list, f, indent=2)
+    except Exception as exc:
+        clean_log(f"Failed to save ban list: {exc}", "⚠️")
+
+
+def _antispam_check_banned(sender_key: Optional[str]) -> bool:
+    """Check if user is permanently banned."""
+    if not sender_key:
+        return False
+    with ANTISPAM_BAN_LOCK:
+        return sender_key in ANTISPAM_BAN_LIST
+
+
 def _cooldown_register(sender_key: Optional[str], sender_node, interface_ref) -> None:
     if not COOLDOWN_ENABLED or not sender_key or interface_ref is None:
         return
@@ -7954,6 +8146,7 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/exit": "Shuts down Mesh-Master after saving state (admin only).",
     "/hop": "Shows the current LoRa hop limit setting (admin only).",
     "/hops": "Sets the LoRa hop limit (0-7, admin only). Usage: /hops <0-7>",
+    "/unban": "Remove a user from the permanent ban list (admin only). Usage: /unban <shortname>",
     "/save": "Saves the latest DM or chat thread so you can recall it later. Usage: /save [name]",
     "/recall": "Reloads a previously saved conversation transcript. Usage: /recall [name]",
     "/reset": "Clears cached AI context for a clean conversation restart.",
@@ -9406,6 +9599,11 @@ def _antispam_handle_penalty(sender_key: str, sender_node: Any, interface_ref, i
 
     _antispam_mark_notified(sender_key)
 
+    # Send admin alerts if enabled
+    cfg = _get_antispam_config()
+    if cfg.get('admin_alert_enabled', True):
+        _antispam_send_admin_alert(sender_key, level, until, interface_ref)
+
 
 def _antispam_after_response(
     sender_key: Optional[str],
@@ -9415,6 +9613,9 @@ def _antispam_after_response(
     count_response: bool = True,
 ) -> None:
     if not count_response or not sender_key:
+        return
+    # Admins are exempt from spam detection
+    if _antispam_is_admin(sender_key):
         return
     info = _antispam_register_trigger(sender_key)
     if info:
@@ -13701,6 +13902,27 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     PENDING_REBOOT_CONFIRM[sender_key] = {"ts": _now()}
     return PendingReply("⚠️ SYSTEM REBOOT requested.\n\nThis will restart the entire mesh-master server.\n\nReply Y to confirm or N to cancel.", "/reboot confirm")
 
+  elif cmd == "/unban":
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    if not remainder:
+      # Show current ban list
+      with ANTISPAM_BAN_LOCK:
+        if not ANTISPAM_BAN_LIST:
+          return _cmd_reply(cmd, "No users are currently banned.")
+        ban_list = "\n".join(f"• {user}" for user in sorted(ANTISPAM_BAN_LIST))
+        return _cmd_reply(cmd, f"🔨 Banned users:\n{ban_list}\n\nUsage: /unban <shortname>")
+
+    target_user = remainder.strip()
+    with ANTISPAM_BAN_LOCK:
+      if target_user in ANTISPAM_BAN_LIST:
+        ANTISPAM_BAN_LIST.remove(target_user)
+        _antispam_save_bans()
+        clean_log(f"Admin {sender_key} unbanned {target_user}", "✅")
+        return _cmd_reply(cmd, f"✅ {target_user} has been unbanned.")
+      else:
+        return _cmd_reply(cmd, f"❌ {target_user} is not banned.")
+
   elif cmd == "/hop":
     if not sender_key or sender_key not in AUTHORIZED_ADMINS:
       return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
@@ -15646,6 +15868,12 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       else:
         return PendingReply("Please reply Y or N to confirm the block.", "blacklist confirm")
 
+    # Handle admin spam alert responses
+    if sender_key in PENDING_SPAM_ALERTS and not lower.startswith('/'):
+      reply = _antispam_handle_admin_response(sender_key, text.strip())
+      if reply:
+        return reply
+
     if lower == "/stop":
       if check_only:
         return True
@@ -15782,6 +16010,11 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   # If blocked, suppress everything except 'unblock' handled above
   if sender_key and _is_user_blocked(sender_key):
     return None if not check_only else False
+  # Check if user is permanently banned
+  if sender_key and _antispam_check_banned(sender_key):
+    if not check_only:
+      return PendingReply("🚫 You have been permanently banned from using this bot.", "banned")
+    return False
   # If muted, suppress auto/AI replies; let commands still pass
   if sender_key and _is_user_muted(sender_key) and not text.startswith('/'):
     return None if not check_only else False
@@ -26532,6 +26765,9 @@ def main():
 
     # Load relay opt-out preferences
     _load_relay_opt_out()
+
+    # Load anti-spam ban list
+    _antispam_load_bans()
 
     # Start the async response worker
     start_response_worker()
