@@ -7253,12 +7253,11 @@ def _get_user_bible_progress(sender_key: str, preferred_language: str) -> Dict[s
             return progress
         order = _get_book_order()
         default_book = order[0] if order else 'Genesis'
-        default_language = 'es' if preferred_language == 'es' and default_book in BIBLE_RVR_BOOKS else 'en'
         progress = {
             'book': default_book,
             'chapter': 1,
             'verse': 1,
-            'language': default_language,
+            'language': 'en',  # Always use English
             'span': 0,
         }
         BIBLE_PROGRESS[sender_key] = progress
@@ -7279,9 +7278,8 @@ def _update_bible_progress(
     span = max(0, span)
     chapter = max(1, chapter)
     verse = max(1, verse)
-    books_source, lang_used = _get_books_and_language(book, language)
-    if not books_source or not lang_used:
-        lang_used = language or 'en'
+    lang_used = 'en'  # Always use English
+    books_source, _ = _get_books_and_language(book, 'en')
     chapter_count = len(books_source.get(book, [])) if books_source and book in books_source else 0
     if chapter_count > 0:
         if chapter > chapter_count:
@@ -9967,22 +9965,28 @@ def _set_saved_contexts_for_user(sender_key: str, entries: List[Dict[str, Any]])
     _persist_saved_contexts()
 
 
-def _set_context_session(sender_key: str, session: Dict[str, Any]) -> None:
+def _set_context_session(sender_key: str, session: Dict[str, Any], is_direct: bool = True) -> None:
     session = dict(session)
     session['created_at'] = session.get('created_at', _now())
     session['last_used'] = _now()
     session['expires_at'] = session.get('expires_at', _now() + CONTEXT_SESSION_TIMEOUT_SECONDS)
     session['language'] = session.get('language') or LANGUAGE_FALLBACK
+    session['is_direct'] = is_direct  # Store whether this context is for DM or channel
     with CONTEXT_SESSION_LOCK:
         CONTEXT_SESSIONS[sender_key] = session
 
 
-def _get_context_session(sender_key: Optional[str]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+def _get_context_session(sender_key: Optional[str], is_direct: bool = True) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     if not sender_key:
         return None, None
     with CONTEXT_SESSION_LOCK:
         session = CONTEXT_SESSIONS.get(sender_key)
         if not session:
+            return None, None
+        # Check if context matches the conversation type (DM vs channel)
+        session_is_direct = session.get('is_direct', True)
+        if session_is_direct != is_direct:
+            # Context is for different conversation type - don't use it
             return None, None
         expires_at = session.get('expires_at', 0)
         if expires_at and expires_at < _now():
@@ -10320,7 +10324,7 @@ def _activate_saved_context_session(sender_id: Any, sender_key: str, entry: Dict
         'prompt_addendum': prompt_addendum,
         'use_history': False,
     }
-    _set_context_session(sender_key, session)
+    _set_context_session(sender_key, session, is_direct=True)  # recall/chathistory are DM-only
     _touch_saved_context(sender_key, entry.get('id', ''))
     lines = [
         f"📂 Loaded conversation '{title}'.",
@@ -12260,7 +12264,7 @@ def _activate_find_result(
         'prompt_addendum': prompt_addendum,
         'language': lang_code,
     }
-    _set_context_session(sender_key, session_payload)
+    _set_context_session(sender_key, session_payload, is_direct=True)  # /find is DM-only
     clean_log(f"Offline knowledge context '{title}' ({entry_type}) opened for {user_label}", "📚", show_always=False)
 
     lines = [
@@ -12739,7 +12743,7 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
   session_notice = None
   sender_key = _safe_sender_key(sender_id) if sender_id is not None else None
   if sender_key:
-    session, session_notice = _get_context_session(sender_key)
+    session, session_notice = _get_context_session(sender_key, is_direct=is_direct)
   if session:
     extra_context = session.get('context')
     use_history = session.get('use_history', True)
@@ -13567,7 +13571,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
         'system_prompt_override': MESHTASTIC_KB_SYSTEM_PROMPT,
         'use_history': True,
       }
-      _set_context_session(sender_key, session_payload)
+      _set_context_session(sender_key, session_payload, is_direct=is_direct)
     preface = "⚙️ MeshTastic reference mode engaged. This will be a slow conversation—type /exit to leave this context window."
     combined = f"{preface}\n\n{response}" if response else preface
     return PendingReply(combined, "/meshtastic context")
@@ -14544,7 +14548,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
       if sender_key:
         progress = _get_user_bible_progress(sender_key, lang)
         span = max(0, int(progress.get('span', 0)))
-        preferred_language = progress.get('language') or ('es' if lang == 'es' else 'en')
+        preferred_language = 'en'  # Always use English
         book_name = progress.get('book')
         if book_name not in BIBLE_BOOK_ALIAS_MAP.values():
           order = _get_book_order()
