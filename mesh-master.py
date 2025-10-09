@@ -21495,26 +21495,22 @@ def dashboard():
       </section>
       <aside class="activity-column">
         <!-- Command Line Interface -->
-        <article class="panel" data-panel-id="cli" style="margin-bottom: 12px;">
-          <div class="panel-header">
-            <h2>Command Line 🖥️</h2>
+        <div style="margin-bottom: 12px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px;">
+          <div style="display: flex; gap: 8px;">
+            <input
+              type="text"
+              id="cliInput"
+              placeholder="Type message or command..."
+              style="flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); color: var(--text-primary); font-family: monospace; font-size: 14px;"
+            />
+            <button
+              id="cliSendBtn"
+              class="config-save-btn"
+              style="padding: 10px 20px; min-width: 80px;"
+            >Send</button>
           </div>
-          <div style="padding: 12px;">
-            <div style="display: flex; gap: 8px;">
-              <input
-                type="text"
-                id="cliInput"
-                placeholder="Type message or command..."
-                style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); color: var(--text-primary); font-family: monospace;"
-              />
-              <button
-                id="cliSendBtn"
-                style="padding: 8px 16px; background: var(--success); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;"
-              >Send</button>
-            </div>
-            <div id="cliStatus" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
-          </div>
-        </article>
+          <div id="cliStatus" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
+        </div>
 
         <article class="panel log-panel" data-panel-id="log">
         <div class="panel-header">
