@@ -78,14 +78,14 @@
       },
       "!a3cb5c4e": {
         "first_seen": 1759178322.7911708,
-        "last_check": 1760073298.1170769,
+        "last_check": 1760073521.66396,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1760073324.974967
+        "last_heartbeat": 1760073554.7555919
       },
       "telegram_7340030703": {
         "first_seen": 1760064096.196475,
@@ -435,14 +435,14 @@
     "subscribers": {
       "!a3cb5c4e": {
         "first_seen": 1759918470.1721995,
-        "last_check": 1760073298.1170769,
+        "last_check": 1760073521.66396,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1760073324.974967
+        "last_heartbeat": 1760073554.7555919
       },
       "!376be684": {
         "first_seen": 1759918543.7862144,
@@ -562,18 +562,39 @@
       },
       "!a3cb5c4e": {
         "first_seen": 1760073094.0344598,
-        "last_check": 1760073298.1170769,
+        "last_check": 1760073521.66396,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1760073324.974967
+        "last_heartbeat": 1760073554.7555919
       }
     },
     "messages": {},
     "encryption_key": "bOyL3q3L0Q6-_wam8ZlCwxjKpB-RK-PFKIZCYMLCXlc=",
     "mailbox_name": "boos"
+  },
+  "hwa": {
+    "pin_hash": "ed053874ca199cc53e11c9f4aeaeccd07da652d1c19e3cbdbad5fd9fadba2532",
+    "owner": "!a3cb5c4e",
+    "created": 1760073521.6642997,
+    "failures": {},
+    "subscribers": {
+      "!a3cb5c4e": {
+        "first_seen": 1760073554.7726963,
+        "last_check": 0.0,
+        "node_id": "!a3cb5c4e",
+        "short": "Lucy",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true
+      }
+    },
+    "messages": {},
+    "encryption_key": "j6lJ4Bwd3Ea5bmMVr8QWgpm3e8tIPy8gCLZvaZ7dgc8=",
+    "mailbox_name": "hwa"
   }
 }
