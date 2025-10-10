@@ -9951,21 +9951,21 @@ def process_responses_worker():
 
                     # Send the response via mesh unless it was already streamed out
                     chunk_delay = pending.chunk_delay if pending else None
-                    clean_log(f"🐛 Response send check: interface={interface_ref is not None}, text={len(response_text) if response_text else 0}, sent={already_sent}, sender={sender_node}", "🐛", show_always=True, rate_limit=False)
+                    add_script_log(f"Response send check: interface={interface_ref is not None}, text={len(response_text) if response_text else 0}, sent={already_sent}, sender={sender_node}")
 
                     # Check if this is a Telegram query (send regardless of already_sent status)
                     is_telegram_query = isinstance(sender_node, str) and sender_node.startswith("telegram_")
-                    clean_log(f"🐛 Checking if Telegram: type={type(sender_node)}, value={sender_node}, is_tg={is_telegram_query}", "🐛", show_always=True, rate_limit=False)
+                    add_script_log(f"Checking if Telegram: type={type(sender_node)}, value={sender_node}, is_tg={is_telegram_query}")
 
                     if is_telegram_query and response_text:
                         # Telegram query - send via Telegram HTTP API
                         try:
                             chat_id = int(sender_node.replace("telegram_", ""))
-                            clean_log(f"📱 Sending AI response to Telegram chat {chat_id}", "📱", show_always=True, rate_limit=False)
+                            add_script_log(f"Sending AI response to Telegram chat {chat_id}")
 
                             # Get bot token from the telegram_app (already running bot)
                             bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
-                            clean_log(f"🐛 Bot token: {bot_token[:10]}... (len={len(bot_token)})", "🐛", show_always=True, rate_limit=False)
+                            add_script_log(f"Bot token: {bot_token[:10]}... (len={len(bot_token)})")
                             max_telegram_len = 4096
 
                             def send_to_telegram_sync():
@@ -9975,13 +9975,13 @@ def process_responses_worker():
                                 try:
                                     if len(response_text) <= max_telegram_len:
                                         r = requests.post(url, json={"chat_id": chat_id, "text": response_text}, timeout=10)
-                                        clean_log(f"🐛 HTTP response: {r.status_code}, {r.text[:100]}", "🐛", show_always=True, rate_limit=False)
+                                        add_script_log(f"HTTP response: {r.status_code}, {r.text[:100]}")
                                     else:
                                         # Send in chunks
                                         for i in range(0, len(response_text), max_telegram_len):
                                             chunk = response_text[i:i+max_telegram_len]
                                             r = requests.post(url, json={"chat_id": chat_id, "text": chunk}, timeout=10)
-                                            clean_log(f"🐛 HTTP chunk response: {r.status_code}", "🐛", show_always=True, rate_limit=False)
+                                            add_script_log(f"HTTP chunk response: {r.status_code}")
                                             if chunk_delay:
                                                 time.sleep(chunk_delay)
                                     clean_log(f"✅ Telegram AI response sent to {chat_id}", "✅", show_always=True, rate_limit=False)
@@ -13047,7 +13047,7 @@ def send_to_ollama(
 
         # ALWAYS log response length for debugging
         resp_preview = (full_text[:80] + "...") if full_text and len(full_text) > 80 else (full_text or "[EMPTY]")
-        clean_log(f"🐛 Ollama STREAMING response ({len(full_text) if full_text else 0} chars): {resp_preview}", "🔍", show_always=True, rate_limit=False)
+        add_script_log(f"Ollama STREAMING response ({len(full_text) if full_text else 0} chars): {resp_preview}")
 
         clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
         # Append processing time to buffer before final flush
@@ -13098,11 +13098,11 @@ def send_to_ollama(
 
             # ALWAYS log response length for debugging
             resp_preview = (resp[:80] + "...") if resp and len(resp) > 80 else (resp or "[EMPTY]")
-            clean_log(f"🐛 Ollama response ({len(resp) if resp else 0} chars): {resp_preview}", "🔍", show_always=True, rate_limit=False)
+            add_script_log(f"Ollama response ({len(resp) if resp else 0} chars): {resp_preview}")
 
             if not resp:
                 # Log the full JSON response for debugging empty responses
-                clean_log(f"⚠️ Ollama returned empty response. Full JSON: {jr}", "🐛", show_always=True, rate_limit=False)
+                add_script_log(f"⚠️ Ollama returned empty response. Full JSON: {jr}")
                 resp = "Mongo no know... Mongo only pawn in game of life"
             elapsed = max(0.01, time.perf_counter() - start_time)
             clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
@@ -16847,7 +16847,7 @@ def on_receive(packet=None, interface=None, **kwargs):
   except Exception:
     is_text = False
 
-  clean_log(f"🐛 portnum={portnum}, is_text={is_text}", "🐛", show_always=True, rate_limit=False)
+  add_script_log(f"portnum={portnum}, is_text={is_text}")
 
   if not is_text:
     info_print(f"[Info] Ignoring non-text packet: portnum={portnum}")
@@ -16870,14 +16870,14 @@ def on_receive(packet=None, interface=None, **kwargs):
 
     # De-dup: if we have seen the same text/from/to/channel very recently, drop it
     rx_key = _rx_make_key(packet, text, ch_idx)
-    clean_log(f"🐛 Before dup: text='{(text or '')[:30]}', ch={ch_idx}", "🐛", show_always=True, rate_limit=False)
+    add_script_log(f"Before dup: text='{(text or '')[:30]}', ch={ch_idx}")
     if _rx_seen_before(rx_key):
       info_print(f"[Info] Duplicate RX suppressed for from={sender_node} ch={ch_idx} (len={len(text or '')})")
-      clean_log(f"🐛 DUPLICATE - dropping", "🐛", show_always=True, rate_limit=False)
+      add_script_log(f"DUPLICATE - dropping")
       return
     sender_display = _node_display_label(sender_node)
     normalized_text = (text or "").strip()
-    clean_log(f"🐛 Passed dup: '{normalized_text[:30]}'", "🐛", show_always=True, rate_limit=False)
+    add_script_log(f"Passed dup: '{normalized_text[:30]}'")
 
     # Check if this is a relay message and track the sender for auto-reply
     if normalized_text.startswith("📨 Relay from "):
@@ -16918,7 +16918,7 @@ def on_receive(packet=None, interface=None, **kwargs):
 
     # Forward to Telegram with context
     try:
-        clean_log(f"🐛 TG fwd: to={to_node_int}, bc={BROADCAST_ADDR}, direct={to_node_int != BROADCAST_ADDR}", "🐛", show_always=True, rate_limit=False)
+        add_script_log(f"TG fwd: to={to_node_int}, bc={BROADCAST_ADDR}, direct={to_node_int != BROADCAST_ADDR}")
         # Skip forwarding if user is responding to a pending prompt (privacy - don't expose PINs, passwords, etc.)
         is_pending_response = False
         if sender_key:
@@ -16969,7 +16969,7 @@ def on_receive(packet=None, interface=None, **kwargs):
                     # Channel message - show in format: GROUPNAME|SHORTNAME: message
                     sender_shortname = get_node_shortname(sender_node)
                     channel_name = "Unknown"
-                    clean_log(f"🐛 Channel lookup: ch_idx={ch_idx}, has_interface={interface is not None}", "🐛", show_always=True, rate_limit=False)
+                    add_script_log(f"Channel lookup: ch_idx={ch_idx}, has_interface={interface is not None}")
                     if interface:
                         # Try multiple ways to get channel info
                         channels = None
@@ -16978,7 +16978,7 @@ def on_receive(packet=None, interface=None, **kwargs):
                         elif hasattr(interface, 'localNode'):
                             channels = getattr(interface.localNode, 'channels', None)
 
-                        clean_log(f"🐛 Channels found: {channels is not None}, type={type(channels) if channels else None}", "🐛", show_always=True, rate_limit=False)
+                        add_script_log(f"Channels found: {channels is not None}, type={type(channels) if channels else None}")
 
                         if channels:
                             # Channels can be either a dict or a list
@@ -16989,7 +16989,7 @@ def on_receive(packet=None, interface=None, **kwargs):
                             else:
                                 ch_info = {}
 
-                            clean_log(f"🐛 ch_info for idx {ch_idx}: {str(ch_info)[:200]}", "🐛", show_always=True, rate_limit=False)
+                            add_script_log(f"ch_info for idx {ch_idx}: {str(ch_info)[:200]}")
 
                             # Get channel name - try different possible structures
                             channel_name = None
@@ -17013,18 +17013,18 @@ def on_receive(packet=None, interface=None, **kwargs):
                             if not channel_name:
                                 channel_name = f"Channel {ch_idx}"
 
-                            clean_log(f"🐛 Resolved channel name: '{channel_name}'", "🐛", show_always=True, rate_limit=False)
+                            add_script_log(f"Resolved channel name: '{channel_name}'")
                         else:
                             channel_name = f"Channel {ch_idx}"
                     telegram_message = f"{channel_name}|{sender_shortname}: {normalized_text}"
 
-                    clean_log(f"🐛 Forwarding: {telegram_message}", "🐛", show_always=True, rate_limit=False)
+                    add_script_log(f"Forwarding: {telegram_message}")
                     send_to_telegram(telegram_message)
                 else:
                     # DM - just notify that a DM was received (no details for privacy)
-                    clean_log(f"🐛 Sending DM notification to Telegram", "🐛", show_always=True, rate_limit=False)
+                    add_script_log(f"Sending DM notification to Telegram")
                     send_to_telegram("📨 dm received")
-                    clean_log(f"🐛 DM notification sent", "🐛", show_always=True, rate_limit=False)
+                    add_script_log(f"DM notification sent")
     except Exception as e:
         add_script_log(f"Failed to forward to Telegram: {e}")
 
@@ -17365,7 +17365,7 @@ def save_telegram_config():
         telegram_bot_stop_event = threading.Event()
         telegram_bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
         telegram_bot_thread.start()
-        clean_log(f"Telegram bot started for {len(chat_ids)} authorized chat(s)", "📱", show_always=True, rate_limit=False)
+        add_script_log(f"Telegram bot started for {len(chat_ids)} authorized chat(s)")
     else:
         reasons = []
         if not enabled:
@@ -17376,7 +17376,7 @@ def save_telegram_config():
             reasons.append("no chat IDs")
         if not TELEGRAM_AVAILABLE:
             reasons.append("library not available")
-        clean_log(f"Telegram bot stopped ({', '.join(reasons) if reasons else 'unknown'})", "📱", show_always=True, rate_limit=False)
+        add_script_log(f"Telegram bot stopped ({', '.join(reasons) if reasons else 'unknown'})")
 
     return jsonify({"ok": True, "config": telegram_data})
 
@@ -27826,7 +27826,7 @@ if TELEGRAM_AVAILABLE:
         text = update.message.text.strip()
 
         add_script_log(f"Telegram message received from {chat_id}: {text}")
-        clean_log(f"📱 Telegram: {text}", "📱", show_always=True, rate_limit=False)
+        add_script_log(f"Telegram: {text}")
 
         # Parse command similar to dashboard CLI
         try:
@@ -27853,17 +27853,17 @@ if TELEGRAM_AVAILABLE:
                 parts = text.split(None, 1)
                 target_name = parts[0] if parts else None
                 message_text = parts[1] if len(parts) > 1 else ""
-                clean_log(f"📱 Telegram non-cmd: target='{target_name}', msg='{message_text[:20]}'", "📱", show_always=True, rate_limit=False)
+                add_script_log(f"Telegram non-cmd: target='{target_name}', msg='{message_text[:20]}'")
 
                 # Try to resolve as shortname (for DM)
                 target_node_id = None
                 if target_name:
                     target_node_id = get_node_id_from_shortname(target_name)
-                    clean_log(f"📱 Node lookup: '{target_name}' -> {target_node_id}", "📱", show_always=True, rate_limit=False)
+                    add_script_log(f"Node lookup: '{target_name}' -> {target_node_id}")
 
                     # Don't send to self (AI node) - treat as AI query instead
                     if target_node_id and (target_node_id == "AI" or target_node_id == FORCE_NODE_NUM):
-                        clean_log(f"📱 Target is AI node, treating as AI query", "📱", show_always=True, rate_limit=False)
+                        add_script_log(f"Target is AI node, treating as AI query")
                         target_node_id = None
 
                 # Try to resolve as channel name
@@ -27879,7 +27879,7 @@ if TELEGRAM_AVAILABLE:
                     if channels:
                         # Search for matching channel (case-insensitive)
                         target_lower = target_name.lower()
-                        clean_log(f"📱 Channel lookup: '{target_lower}', type={type(channels)}", "📱", show_always=True, rate_limit=False)
+                        add_script_log(f"Channel lookup: '{target_lower}', type={type(channels)}")
 
                         # Handle both list and dict formats
                         if isinstance(channels, list):
@@ -27897,23 +27897,23 @@ if TELEGRAM_AVAILABLE:
 
                                     if ch_name and ch_name.lower() == target_lower:
                                         target_channel_idx = idx
-                                        clean_log(f"📱 Channel MATCH: {idx} ({ch_name})", "📱", show_always=True, rate_limit=False)
+                                        add_script_log(f"Channel MATCH: {idx} ({ch_name})")
                                         break
                         elif isinstance(channels, dict):
                             for idx, ch_info in channels.items():
                                 ch_name = ch_info.get('name', '').lower() if isinstance(ch_info, dict) else ''
                                 if ch_name == target_lower:
                                     target_channel_idx = idx
-                                    clean_log(f"📱 Channel MATCH: {idx} ({ch_name})", "📱", show_always=True, rate_limit=False)
+                                    add_script_log(f"Channel MATCH: {idx} ({ch_name})")
                                     break
 
                         if target_channel_idx is None:
-                            clean_log(f"📱 No channel match for '{target_lower}'", "📱", show_always=True, rate_limit=False)
+                            add_script_log(f"No channel match for '{target_lower}'")
 
-                clean_log(f"📱 Check DM: node={target_node_id}, msg='{message_text}', both={bool(target_node_id and message_text)}", "📱", show_always=True, rate_limit=False)
+                add_script_log(f"Check DM: node={target_node_id}, msg='{message_text}', both={bool(target_node_id and message_text)}")
                 if target_node_id and message_text:
                     # It's a DM to a specific node - queue to relay system for ACK tracking
-                    clean_log(f"📱 Sending DM to {target_name}", "📱", show_always=True, rate_limit=False)
+                    add_script_log(f"Sending DM to {target_name}")
                     if interface:
                         # Send DM directly and send ACK notification to Telegram
                         import threading
@@ -27982,9 +27982,9 @@ if TELEGRAM_AVAILABLE:
                         await update.message.reply_text("❌ Interface not available")
                 else:
                     # Not a DM or channel, treat as AI query - queue directly to AsyncAI
-                    clean_log(f"📱 AI query: '{text}'", "📱", show_always=True, rate_limit=False)
+                    add_script_log(f"AI query: '{text}'")
                     ai_enabled = is_ai_enabled()
-                    clean_log(f"📱 AI enabled check: {ai_enabled}", "📱", show_always=True, rate_limit=False)
+                    add_script_log(f"AI enabled check: {ai_enabled}")
 
                     if ai_enabled:
                         await update.message.reply_text(f"🤖 Processing...")
@@ -28005,12 +28005,12 @@ if TELEGRAM_AVAILABLE:
                         task = (text, telegram_sender, True, None, None, interface)
                         try:
                             response_queue.put(task, block=False)
-                            clean_log(f"📱 AI query queued (queue: {response_queue.qsize()})", "📱", show_always=True, rate_limit=False)
+                            add_script_log(f"AI query queued (queue: {response_queue.qsize()})")
                         except Exception as e:
                             clean_log(f"❌ Queue put failed: {e}", "❌", show_always=True, rate_limit=False)
                             await update.message.reply_text(f"❌ Queue full: {e}")
                     else:
-                        clean_log(f"📱 AI disabled, sending error", "📱", show_always=True, rate_limit=False)
+                        add_script_log(f"AI disabled, sending error")
                         await update.message.reply_text("❌ AI is disabled")
 
         except Exception as e:
@@ -28064,7 +28064,7 @@ if TELEGRAM_AVAILABLE:
 
         except Exception as e:
             add_script_log(f"Telegram bot error: {e}")
-            clean_log(f"Telegram bot error: {e}", "📱", show_always=True, rate_limit=False)
+            add_script_log(f"Telegram bot error: {e}")
 else:
     # Stub functions when Telegram library is not available
     def run_telegram_bot():
@@ -28138,7 +28138,7 @@ def main():
         telegram_bot_stop_event = threading.Event()
         telegram_bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
         telegram_bot_thread.start()
-        clean_log(f"Telegram bot started for {len(telegram_config.get('authorized_chat_ids', []))} authorized chat(s)", "📱", show_always=True)
+        add_script_log(f"Telegram bot started for {len(telegram_config.get('authorized_chat_ids', []))} authorized chat(s)")
 
         # Start Telegram error monitoring
         threading.Thread(target=telegram_error_monitor, daemon=True).start()
