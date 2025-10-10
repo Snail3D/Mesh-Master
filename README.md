@@ -272,9 +272,13 @@ Mesh Mail is an async messaging system (like email) built for mesh networks.
 **Reading Mail:**
 ```bash
 /c                          # Check all subscribed mailboxes
-/c mailbox                  # Check specific mailbox
-/c mailbox keyword          # Search mailbox for keyword
-/checkmail                  # Alias for /c
+                            # Response: "You have 3 messages in 'ops' mailbox. (1 unread)"
+
+/c supplies                 # Check specific mailbox
+                            # Response: "You have 5 messages in 'supplies' mailbox. (3 unread)"
+
+/c ops briefing             # Search for "briefing" in ops mailbox
+                            # Shows up to 5 matching messages
 ```
 
 **Management:**
