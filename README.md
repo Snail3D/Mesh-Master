@@ -95,9 +95,325 @@ Alice gets: "✅ ACK by Charlie"
 - Health endpoints: `GET /ready`, `/live`, `/healthz`, `/heartbeat`, plus `/dashboard` and `/logs` frontends.  
 - `/send` and `/ui_send` POST endpoints enable automated workflows; optional `/discord_webhook` bridge for cross-platform relays.
 
+### Telegram Integration
+MESH MASTER 2.0 includes full Telegram bot integration for remote mesh control and monitoring.
+
+**Features:**
+- **Remote Command Control** — Send any mesh command from Telegram (same permissions as dashboard)
+- **Real-time Notifications** — Receive relay ACK confirmations, system alerts, and activity updates
+- **Secure Access Control** — Whitelist specific Telegram chat IDs for authorized control
+- **Bidirectional Communication** — Send messages to mesh from Telegram, receive mesh messages in Telegram
+- **Status Monitoring** — Check mesh health, node status, and system metrics remotely
+
+**Setup:**
+1. Create a bot with [@BotFather](https://t.me/BotFather) on Telegram
+2. Copy the bot token
+3. Get your Chat ID (message the bot, then check `/dashboard` → Telegram panel)
+4. Configure in `config.json`:
+   ```json
+   {
+     "telegram_bot_enabled": true,
+     "telegram_bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+     "telegram_chat_ids": [123456789, 987654321]
+   }
+   ```
+5. Restart Mesh Master
+
+**Usage:**
+- Send commands directly: `/nodes`, `/ai how's the weather?`, `/relay hello`
+- Receive notifications when relays are acknowledged
+- Monitor system health and errors
+- Control mesh operations from anywhere with internet access
+
+**Security:**
+- Only whitelisted chat IDs can control the bot
+- Commands execute with same permissions as dashboard users
+- Bot token stored securely (never logged or displayed)
+
+---
+
+### Security & Privacy Features
+
+MESH MASTER 2.0 includes comprehensive security enhancements to protect sensitive data:
+
+#### Message Content Redaction
+All message content is automatically redacted in logs to protect privacy:
+- **Debug/info logs** show `[X chars]` instead of full message text
+- **File logs** (`mesh-master.log`) never contain message content
+- **Dashboard activity feed** shows icons and metadata, not content
+- **Console output** protects user privacy while maintaining debugging capabilities
+
+Example log output:
+```
+🤖 [AsyncAI] Queueing response for Node_abc: [47 chars]
+📡 Relay to snmo: [23 chars]
+```
+
+#### PIN Protection & Encryption
+Mesh Mail system includes robust PIN security:
+- **Hashed PINs** — Stored as bcrypt hashes, never plain text
+- **Brute-force throttling** — Exponential backoff after failed attempts
+- **Encryption keys** — Auto-generated per mailbox for content encryption
+- **Owner verification** — Only mailbox owners can change PINs
+- **Secure storage** — `data/mail_security.json` is gitignored and local-only
+
+#### URL Content Filtering
+Web search and crawl commands block inappropriate content:
+- **Adult content filter** — Blocks adult/NSFW sites from `/web` results
+- **Warez filter** — Prevents piracy/illegal download sites
+- **Humorous error messages** — User-friendly blocked content notifications
+- **Whitelist override** — Admins can configure exceptions if needed
+
+#### Data Gitignoring
+All sensitive user data is automatically excluded from git:
+- `data/mail_security.json` — Mailbox PINs and encryption keys
+- `data/logs/` — Private user log entries
+- `data/relay_optout.json` — User privacy preferences
+- `data/onboarding_state.json` — User onboarding progress
+- `*.log` files — All runtime logs
+- `messages_archive.json` — Message history
+- `mesh_mail.db` — Mail database
+
+This ensures:
+- ✅ Safe git updates without losing user data
+- ✅ No accidental commits of sensitive information
+- ✅ Privacy preservation across code changes
+- ✅ Secure multi-user deployments
+
+---
+
+### Relay System (Network Bridge)
+
+The relay system enables cross-network message delivery using shortnames.
+
+#### How It Works
+
+**Basic Usage:**
+```
+snmo hello there
+/snmo hello there
+```
+Both send "hello there" to the node with shortname "snmo"
+
+**Architecture:**
+- **Shortname Cache** — Thread-safe lookup table (shortname → node_id)
+- **Queue-Based Processing** — 3 worker threads, 100-item queue capacity
+- **Multi-Chunk Support** — Long messages automatically split (160 chars/chunk)
+- **ACK Tracking** — 20-second timeout per chunk, real-time confirmation
+- **Cross-Network Bridge** — If Mesh Master sees networks A & B, users on A can relay to users on B
+
+**ACK Confirmation:**
+```
+✅ ACK by NodeName — Message delivered successfully
+❌ No ACK from NodeName — Delivery failed (node offline or out of range)
+```
+
+**Offline Message Queue:**
+When a relay fails (recipient offline), messages are automatically queued:
+- **Storage:** Up to 10 messages per user
+- **Expiry:** 24 hours from queue time
+- **Retry:** 3 delivery attempts when recipient comes online
+- **Notification:** Recipient gets all queued messages when they reconnect
+
+**Privacy Controls:**
+```
+/optout  — Disable receiving relays (others can't relay to you)
+/optin   — Re-enable receiving relays
+```
+Preferences persist in `data/relay_optout.json` across reboots.
+
+**Use Cases:**
+- Send messages to specific nodes across different channels
+- Bridge isolated mesh networks (e.g., hikers on trail + base camp)
+- Coordinate team communications without channel flooding
+- Store-and-forward for intermittent nodes
+
+**Technical Details:**
+- Relay requests processed asynchronously (non-blocking)
+- Concurrent relay handling with thread-safe state management
+- Per-chunk ACK tracking for reliable multi-chunk delivery
+- Automatic shortname cache updates from node database
+- Graceful degradation when recipient node is unreachable
+
+---
+
+### Mesh Mail System
+
+Mesh Mail is an async messaging system (like email) built for mesh networks.
+
+#### Core Features
+
+**PIN-Protected Mailboxes:**
+- Create mailboxes with optional 4+ digit PINs
+- Owner-only mailbox management
+- Encrypted content storage
+- Brute-force attack protection
+
+**Multi-User Collaboration:**
+- Subscribers automatically notified of new mail
+- Unread message counts tracked per user
+- Quiet hours support (configurable)
+- Reminder notifications (hourly, configurable frequency)
+
+**AI-Powered Summaries:**
+- `/c mailbox question` — Ask questions about mailbox content
+- Uses `llama3.2:1b` model for fast, concise answers
+- Searches recent messages (configurable limit)
+- Context-aware responses based on message history
+
+#### Commands
+
+**Sending Mail:**
+```bash
+/m mailbox message          # Send to mailbox
+/mail recipient message     # Direct mail command
+```
+
+**Reading Mail:**
+```bash
+/c                          # Check all your subscribed mailboxes
+/c mailbox                  # Check specific mailbox
+/c mailbox question         # Ask AI question about mailbox content
+/checkmail                  # Alias for /c
+```
+
+**Management:**
+```bash
+/emailhelp                  # Show mail system help
+/wipe mailbox name          # Delete a mailbox (owner only)
+/wipe chathistory           # Clear AI chat history
+/wipe personality           # Reset AI personality
+/wipe all mailbox           # Wipe mailbox and all data
+```
+
+#### Mailbox Creation Flow
+
+1. User sends `/m newbox first message`
+2. System detects new mailbox, prompts for owner confirmation
+3. User confirms, optionally sets PIN
+4. Mailbox created with encryption
+5. Subscribers auto-added (sender = first subscriber)
+
+#### Notification System
+
+**Heartbeat-Driven:**
+- Checks for unread mail every ~30 seconds (heartbeat interval)
+- Sends notifications to subscribers with unread counts
+- Respects quiet hours and reminder frequency settings
+
+**Configuration:**
+```json
+{
+  "mail_notify_enabled": true,
+  "mail_notify_reminders_enabled": true,
+  "mail_notify_reminder_hours": 1.0,
+  "mail_notify_max_reminders": 3,
+  "mail_notify_quiet_hours_enabled": true,
+  "mail_quiet_start_hour": 20,
+  "mail_quiet_end_hour": 8,
+  "mail_notify_include_self": false,
+  "mail_notify_heartbeat_only": true
+}
+```
+
+**Reminder Logic:**
+- First notification: Immediate when mail arrives
+- Reminders: Every N hours (default: 1 hour) up to max reminders (default: 3)
+- Quiet hours: No notifications between 20:00-08:00 (configurable)
+- Include self: Whether sender gets their own mail notifications
+
+#### Security Features
+
+**PIN Protection:**
+- PINs hashed with bcrypt (never stored plain text)
+- Exponential backoff on failed attempts: 1s → 2s → 4s → 8s...
+- Max attempts tracked per user
+- Lockout after too many failed attempts
+
+**Encryption:**
+- Auto-generated encryption keys per mailbox
+- Content encrypted at rest
+- Keys stored in `data/mail_security.json` (gitignored)
+
+**Access Control:**
+- Owner verification for destructive operations
+- Subscriber management (owner can add/remove)
+- PIN required for viewing protected mailboxes
+
+#### Storage
+
+**Database:** `mesh_mail.db` (SQLite)
+- Messages table with timestamps, sender, content
+- Efficient querying for recent messages
+- Automatic cleanup of old messages (configurable)
+
+**Security File:** `data/mail_security.json`
+```json
+{
+  "mailbox_name": {
+    "owner": "node_id",
+    "pin_hash": "bcrypt_hash",
+    "encryption_key": "base64_key",
+    "subscribers": {
+      "node_id": {
+        "last_read_ts": 1234567890,
+        "unread_count": 3,
+        "last_notification_ts": 1234567800,
+        "notification_count": 1
+      }
+    }
+  }
+}
+```
+
+#### Use Cases
+
+**Team Coordination:**
+```
+/m ops Mission briefing at 0600 tomorrow
+/m ops Updated weather forecast: rain expected
+/c ops What time is the briefing?
+```
+
+**Information Sharing:**
+```
+/m intel Saw 3 hikers at waypoint B, heading north
+/m supplies Need more batteries, low on channel 2
+/c supplies What do we need?
+```
+
+**Long-Form Messages:**
+```
+/m journal Today we reached the summit after 6 hours...
+/m notes Remember to check radio settings before departure
+```
+
+**Collaborative Planning:**
+```
+/m planning Route A blocked, suggest Route B via creek
+/c planning What routes have been suggested?
+```
+
+#### AI Search Example
+
+```
+User: /c ops mission
+Bot: You have 5 messages in 'ops' mailbox. (3 unread)
+
+User: /c ops when is the briefing?
+Bot: The briefing is scheduled for 0600 tomorrow morning.
+
+User: /c ops what's the weather?
+Bot: Rain is expected, according to the updated forecast.
+```
+
+The AI searches recent messages (configurable `mail_search_max_messages`) and provides context-aware answers based on mailbox content.
+
+---
+
 ### Integrations & Extensibility
-- Native Ollama support tuned for low-bandwidth meshes (`llama3.2:1b` by default) with adjustable context size, chunk delays, and timeout controls.  
-- Home Assistant relay can forward a dedicated channel (with optional PIN requirement) to the Conversation API.  
+- Native Ollama support tuned for low-bandwidth meshes (`llama3.2:1b` by default) with adjustable context size, chunk delays, and timeout controls.
+- Home Assistant relay can forward a dedicated channel (with optional PIN requirement) to the Conversation API.
 - Feature flags (`feature_flags.json`) let operators disable specific commands or restrict replies to DMs/broadcasts.
 
 ---
@@ -698,14 +1014,7 @@ Access the dashboard at `http://localhost:5000/dashboard` or `http://<your-ip>:5
 - **GitHub Version Control** — View current branch and available versions, switch branches directly from the dashboard.
 - **Configuration Editor** — Edit settings by category (Serial Connection, AI, Messaging, etc.) with inline help tooltips.
 
-**Health Monitoring:**
-- **Logs:** `/logs` (HTML) and `/logs/raw` (plain text); streaming SSE feed powers the dashboard in real time.
-- **Health probes:**
-  - `GET /ready` → HTTP 200 only when the radio link is up (503 otherwise).
-  - `GET /live` → process liveness.
-  - `GET /healthz` → full JSON snapshot (connection, queue depth, worker status, AI timing, last error).
-- **Heartbeat:** Watch `mesh-master.log` for the `💓 HB` line every ~30 seconds summarizing RX/TX/AI ages.
-- **REST hooks:** `POST /send` and `POST /ui_send` accept JSON payloads for automations; `/discord_webhook` bridges Discord events into the mesh when enabled.
+---
 
 ## Onboarding System
 
