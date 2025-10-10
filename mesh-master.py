@@ -28073,6 +28073,48 @@ else:
         return
 
 
+def telegram_error_monitor():
+    """Monitor system health and send repeated alerts to Telegram when errors occur."""
+    last_alert_time = 0
+    last_status = None
+    alert_interval = 60  # Send alert every 60 seconds when disconnected
+
+    while True:
+        try:
+            time.sleep(5)  # Check every 5 seconds
+
+            # Check if Telegram is configured and available
+            if not telegram_config.get("enabled") or not telegram_app:
+                continue
+
+            current_status = connection_status
+            current_time = time.time()
+
+            # If disconnected and enough time has passed since last alert
+            if current_status == "Disconnected":
+                if current_time - last_alert_time >= alert_interval:
+                    error_msg = last_error_message if last_error_message else "System disconnected"
+                    alert_message = f"🚨 SYSTEM ALERT 🚨\n\nStatus: Disconnected\nError: {error_msg}\nTime: {datetime.now().strftime('%H:%M:%S')}"
+
+                    # Send to Telegram
+                    send_to_telegram(alert_message)
+                    last_alert_time = current_time
+                    clean_log(f"📱 Sent error alert to Telegram", "📱", show_always=True, rate_limit=False)
+
+            # If status changed from Disconnected to Connected, send recovery notice
+            elif current_status == "Connected" and last_status == "Disconnected":
+                recovery_message = f"✅ SYSTEM RECOVERED\n\nConnection restored\nTime: {datetime.now().strftime('%H:%M:%S')}"
+                send_to_telegram(recovery_message)
+                clean_log(f"📱 Sent recovery notice to Telegram", "📱", show_always=True, rate_limit=False)
+                last_alert_time = 0  # Reset alert timer
+
+            last_status = current_status
+
+        except Exception as e:
+            clean_log(f"Telegram monitor error: {e}", "⚠️", show_always=False)
+            time.sleep(30)  # Wait longer if error occurred
+
+
 def main():
     global interface, restart_count, server_start_time, reset_event, ALARM_TIMER_MANAGER
     server_start_time = server_start_time or datetime.now(timezone.utc)
@@ -28098,6 +28140,10 @@ def main():
         telegram_bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
         telegram_bot_thread.start()
         clean_log(f"Telegram bot started for {len(telegram_config.get('authorized_chat_ids', []))} authorized chat(s)", "📱", show_always=True)
+
+        # Start Telegram error monitoring
+        threading.Thread(target=telegram_error_monitor, daemon=True).start()
+        clean_log(f"Telegram error monitor started (1-min alert interval)", "📱", show_always=True)
 
     # Start the async response worker
     start_response_worker()
