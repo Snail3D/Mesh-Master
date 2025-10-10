@@ -26446,7 +26446,7 @@ def dashboard():
     </div>
   </div>
 
-  <button id="tutorialHelpIcon" class="tutorial-help-icon" style="display: none;" aria-label="Start tutorial">?</button>
+  <button id="tutorialHelpIcon" class="tutorial-help-icon" style="display: flex;" aria-label="Start tutorial">?</button>
 
   <style>
     .tutorial-overlay {
