@@ -28034,6 +28034,9 @@ def main():
     clean_log("Starting MESH-MASTER server...", "🚀", show_always=True)
     load_archive()
 
+    # Load and migrate saved contexts (encrypts if needed)
+    _ensure_saved_contexts_loaded()
+
     # Initialize onboarding state
     _initialize_onboarding_state()
 
