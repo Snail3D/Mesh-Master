@@ -168,15 +168,7 @@ class MailStore:
             items = self._data.get(key, [])
             if limit <= 0:
                 return []
-            # DEBUG: Check items BEFORE copying
-            print(f"MailStore.get_last({mailbox}): Found {len(items)} items in _data['{key}']")
-            for i, item in enumerate(items[-limit:]):
-                print(f"  BEFORE copy - Item {i}: sender_id={item.get('sender_id')}, sender_short={item.get('sender_short')}")
             result = [dict(item) for item in items[-limit:]]
-            # DEBUG: Log what we're returning AFTER copy
-            print(f"MailStore.get_last({mailbox}): Returning {len(result)} items")
-            for i, item in enumerate(result):
-                print(f"  AFTER copy - Item {i}: sender_id={item.get('sender_id')}, sender_short={item.get('sender_short')}")
             return result
 
     def get_all(self, mailbox: str) -> List[dict]:

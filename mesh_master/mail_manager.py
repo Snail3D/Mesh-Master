@@ -1077,7 +1077,7 @@ class MailManager:
             self.clean_log(f"Mail store write failed: {exc}")
             return PendingReply("Failed to store message. Please try again.", "/m command")
 
-        self.clean_log(f"Mail sent to {mailbox}", "✉️📬", show_always=False)
+        self.clean_log("Mail sent", "✉️📬", show_always=False)
         lines = [
             f"Saved message to '{mailbox}'.",
             f"Use /c {mailbox} to check the latest messages.",
@@ -1325,7 +1325,7 @@ class MailManager:
         if sender_key:
             self._mark_all_mailboxes_checked(sender_key, sender_id, sender_short, exclude=mailbox)
             self.user_engaged(sender_key, node_id=sender_id, skip_prompt=True)
-        self.clean_log(f"Inbox checked: {mailbox}", "📬🔍", show_always=False)
+        self.clean_log("Inbox checked", "📬🔍", show_always=False)
         return PendingReply(
             response_text,
             "/c command",
@@ -1535,7 +1535,7 @@ class MailManager:
                 except Exception:
                     pass
         if entry:
-            self.clean_log(f"Mail sent to {mailbox}", "✉️📬", show_always=False)
+            self.clean_log("Mail sent", "✉️📬", show_always=False)
 
         self._set_mailbox_security(mailbox, sender_key, pin)
         try:
@@ -1631,7 +1631,7 @@ class MailManager:
             return PendingReply("Failed to wipe mailbox. Please try again.", "/wipe command")
 
         if cleared:
-            self.clean_log(f"Inbox cleared: {mailbox}", "📬🧹", show_always=False)
+            self.clean_log("Inbox cleared", "📬🧹", show_always=False)
             with self.security_lock:
                 entry = self.security.get(self._security_key(mailbox))
                 if entry:
