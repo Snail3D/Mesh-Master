@@ -13,8 +13,7 @@
 - **Network Bridge Relay with ACK Tracking** — Forward messages to any node by shortname: `snmo hello there` or `/snmo hello there`. Real-time ACK confirmation shows which node acknowledged. Multi-chunk support for long messages. Acts as a bridge across multiple mesh networks—if this node sees networks A and B, users on network A can relay to users on network B seamlessly. **NEW:** Offline message queue stores failed relays and automatically delivers when recipient comes online (up to 3 attempts, 24-hour expiry).
 - **Relay Privacy Controls** — `/optout` disables receiving relays (others can't relay to you), `/optin` re-enables. Privacy preferences persist across reboots and updates in `data/relay_optout.json`.
 - **Cross-Network Node Discovery** — `/nodes` lists all nodes seen in the last 24 hours across all channels/networks (sorted newest first). `/node <shortname>` shows detailed signal info (SNR, signal strength, last heard, hops, battery level, power status) with modem-aware thresholds. `/networks` lists all connected channels.
-- **Context-Aware AI Help** — `/system <question>` provides AI responses with full system awareness (~50k token context including all commands, architecture, your settings, network state). Auto-activates during onboarding and after `/help` or `/menu` for seamless learning.
-- **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard. Context-aware help available at any step.
+- **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard.
 - **Private Logs & Public Reports** — `/log` creates private entries visible only to you; `/report` creates public entries searchable by everyone via `/find`. **NEW:** Fuzzy matching with "Did you mean" suggestions for misspelled names. Command aliases: `/readlog`, `/readlogs`, `/checklog`, `/checklogs` (logs) and `/readreport`, `/readreports`, `/checkreport`, `/checkreports` (reports).
 - **Enhanced Privacy & Security** — Message content redacted in all debug/info logs (shows `[X chars]` instead of full text). URL filter blocks adult and warez sites from crawling and search results with humorous error message. All sensitive user data gitignored.
 - **Enhanced Dashboard** — Real-time activity feed (20-line mobile-optimized view), radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector. Accessible on mobile devices via `http://<your-ip>:5000/dashboard`.
@@ -59,22 +58,7 @@ Charlie receives message, ACKs back
 Alice gets: "✅ ACK by Charlie"
 ```
 
-### Context-Aware AI Help System
-MESH MASTER 2.0 includes an intelligent help system that provides AI responses with full awareness of your system configuration, available commands, and network state.
-
-**Features:**
-- **`/system <question>`** — Ask questions with ~50k token context including all commands, architecture details, your current settings, and network status
-- **Auto-activation:** System context automatically activates during onboarding and after `/help` or `/menu` commands
-- **Single-use mode:** After help commands, the next AI question gets full system context, then clears to avoid overhead
-- **Persistent mode:** During onboarding, context remains active for the entire session (30-minute timeout)
-- **Frustration detection:** AI can gently suggest `/reset` to clear conversation memory when you seem stuck
-
-**Example queries:**
-- `/system how does the relay work?` — Get detailed explanation of relay system with ACK tracking
-- `/system what LLM am I using?` — See your current model and provider configuration
-- `/system how do I search my logs?` — Learn about `/checklog`, `/readlog`, and `/find` commands
-
-### Persistent Mesh Intelligence
+### AI Assistant Features
 - End-to-end message history survives restarts (`messages_archive.json`) with configurable limits.
 - Background async workers keep RX/TX responsive while Ollama generates replies.
 - Tone and personalities can be adjusted at runtime with `/vibe`; the core system prompt is fixed. MOTD can be updated via DM-only admin commands.
@@ -687,8 +671,8 @@ Create the `state` directory (and `touch` the files listed above) before the fir
 
 ## Everyday Commands
 
-- **Getting started** — `/onboard`, `/onboarding`, or `/onboardme` for an interactive tour with context-aware help (DM only).
-- **AI conversations** — `/ai`, `/bot`, `/query`, or `/data` (DM or configured channels). `/system <question>` for context-aware help with full system knowledge.
+- **Getting started** — `/onboard`, `/onboarding`, or `/onboardme` for an interactive tour (DM only).
+- **AI conversations** — `/ai`, `/bot`, `/query`, or `/data` (DM or configured channels).
 - **Network & Relay** — `<shortname> <message>` to relay messages across networks. `/nodes` lists all reachable nodes, `/node <shortname>` shows signal details, `/networks` lists connected channels. `/optout` to disable receiving relays, `/optin` to re-enable.
 - **Mesh mail** — `/m <mailbox> <message>` or `/mail <recipient> <message>`, `/c [mailbox]` or `/checkmail`, `/emailhelp`, `/wipe ...`.
 - **Quick knowledge** — `/bible [topic]`, `/chucknorris`, `/elpaso`, `/meshtastic`, `/offline wiki`, `/web <query>`, `/wiki <topic>`, `/find <query>`, `/drudge`, `/weather`.
