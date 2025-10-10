@@ -157,6 +157,22 @@ Mesh Mail system includes robust PIN security:
 - **Owner verification** — Only mailbox owners can change PINs
 - **Secure storage** — `data/mail_security.json` is gitignored and local-only
 
+#### Chat Context Encryption
+Saved conversation contexts (`/save` and `/recall`) are encrypted per radio ID:
+- **Radio ID as key** — Each user's contexts encrypted with key derived from their radio ID (SHA256)
+- **Fernet encryption** — Industry-standard symmetric encryption for all conversation data
+- **Encrypted fields** — context, summary, and search_blob are all encrypted
+- **Isolation** — Different radio IDs cannot decrypt each other's contexts
+- **Transparent migration** — Existing plaintext contexts automatically encrypted on startup
+- **File access insufficient** — Reading `data/saved_contexts.json` shows only ciphertext
+
+Security model:
+```
+Radio ID (!12345678) → SHA256 hash → Fernet key → Encrypt/decrypt contexts
+```
+
+Only the correct radio ID can decrypt its own conversation history. This protects privacy in multi-user mesh networks and prevents filesystem-level snooping.
+
 #### URL Content Filtering
 Web search and crawl commands block inappropriate content:
 - **Adult content filter** — Blocks adult/NSFW sites from `/web` results
@@ -167,6 +183,7 @@ Web search and crawl commands block inappropriate content:
 #### Data Gitignoring
 All sensitive user data is automatically excluded from git:
 - `data/mail_security.json` — Mailbox PINs and encryption keys
+- `data/saved_contexts.json` — Encrypted conversation contexts
 - `data/logs/` — Private user log entries
 - `data/relay_optout.json` — User privacy preferences
 - `data/onboarding_state.json` — User onboarding progress
