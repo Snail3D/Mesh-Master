@@ -17162,12 +17162,13 @@ def on_receive(packet=None, interface=None, **kwargs):
 
   except OSError as e:
     error_code = getattr(e, 'errno', None) or getattr(e, 'winerror', None)
-    print(f"⚠️ OSError detected in on_receive: {e} (error code: {error_code})")
     if error_code in (10053, 10054, 10060):
-      print("⚠️ Connection error detected. Restarting interface...")
+      clean_log("Radio disconnected!", "⚠️", show_always=True, rate_limit=False)
       global connection_status
       connection_status = "Disconnected"
       reset_event.set()
+    else:
+      print(f"⚠️ OSError detected in on_receive: {e} (error code: {error_code})")
     # Instead of re-raising, simply return to prevent thread crash
     return
   except Exception as e:
@@ -28255,8 +28256,7 @@ def main():
                 pass
             error_code = getattr(e, 'errno', None) or getattr(e, 'winerror', None)
             if error_code in (10053, 10054, 10060):
-                clean_log("Connection lost! Attempting to reconnect...", "🔄", show_always=True)
-                add_script_log(f"Connection forcibly closed: {e} (error code: {error_code})")
+                clean_log("Radio disconnected! Reconnecting...", "🔄", show_always=True, rate_limit=False)
                 time.sleep(5)
                 reset_event.clear()
                 continue
