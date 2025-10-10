@@ -20134,6 +20134,38 @@ def dashboard():
       flex-direction: column;
       gap: 2px;
       min-width: 180px;
+      flex-shrink: 1;
+    }
+    @media (max-width: 768px) {
+      .config-row {
+        flex-direction: column;
+        gap: 8px;
+      }
+      .config-key {
+        min-width: 0;
+        width: 100%;
+      }
+      .config-value {
+        width: 100%;
+      }
+      .config-display-line {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+      .config-input, .config-select {
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+      .config-save-btn, .config-edit-btn {
+        width: 100%;
+        margin-left: 0 !important;
+        margin-top: 8px;
+      }
+      .config-status {
+        width: 100%;
+        text-align: left;
+        margin-left: 0 !important;
+      }
     }
     .config-key-label {
       font-weight: 600;
@@ -20734,6 +20766,7 @@ def dashboard():
       overflow: hidden;
       resize: both;
       min-height: 320px;
+      max-height: 400px;
       min-width: 280px;
       max-width: 100%;
     }
