@@ -1721,6 +1721,16 @@ def add_script_log(message):
     if not DEBUG_ENABLED and any(p in message for p in NOISE_PATTERNS):
         return
 
+    # Don't show Telegram alert content in Activity Center
+    TELEGRAM_ALERT_PATTERNS = (
+        "SYSTEM ALERT",
+        "SYSTEM RECOVERED",
+        "Status: Disconnected",
+        "Connection restored",
+    )
+    if any(p in message for p in TELEGRAM_ALERT_PATTERNS):
+        return
+
     # Use local system time for script logs (viewer shows this clock)
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     log_entry = f"{timestamp} - {message}"
@@ -7999,142 +8009,6 @@ COMMAND_ALIASES: Dict[str, Dict[str, Any]] = {
     "/scripturetrivia": {"canonical": "/bibletrivia", "languages": ["en"]},
     "/disasterquiz": {"canonical": "/disastertrivia", "languages": ["en"]},
     "/prepquiz": {"canonical": "/disastertrivia", "languages": ["en"]},
-
-    # Spanish
-    "/ayuda": {"canonical": "/help", "languages": ["es"]},
-    "/ayudame": {"canonical": "/help", "languages": ["es"]},
-    "/clima": {"canonical": "/weather", "languages": ["es"]},
-    "/tiempo": {"canonical": "/weather", "languages": ["es"]},
-    "/pronostico": {"canonical": "/weather", "languages": ["es"]},
-    "/mensaje": {"canonical": "/motd", "languages": ["es"]},
-    "/mensajedia": {"canonical": "/motd", "languages": ["es"]},
-    "/biblia": {"canonical": "/bible", "languages": ["es", "pl", "sw"]},
-    "/versiculo": {"canonical": "/bible", "languages": ["es"]},
-    "/versiculobiblico": {"canonical": "/bible", "languages": ["es"]},
-    "/ayudabiblia": {"canonical": "/biblehelp", "languages": ["es"]},
-    "/bibliaayuda": {"canonical": "/biblehelp", "languages": ["es"]},
-    "/bibliahelp": {"canonical": "/biblehelp", "languages": ["es"]},
-    "/datoelpaso": {"canonical": "/elpaso", "languages": ["es"]},
-    "/hechoelpaso": {"canonical": "/elpaso", "languages": ["es"]},
-    "/cambiarmensaje": {"canonical": "/changemotd", "languages": ["es"]},
-    "/cambiaprompt": {"canonical": "/changeprompt", "languages": ["es"]},
-    "/verprompt": {"canonical": "/showprompt", "languages": ["es"]},
-    "/aventura": {"canonical": "/adventure", "languages": ["es"]},
-    "/reiniciar": {"canonical": "/reset", "languages": ["es"]},
-    "/enviarsms": {"canonical": "/sms", "languages": ["es"]},
-    "/informemalla": {"canonical": "/meshinfo", "languages": ["es"]},
-    "/estadomalla": {"canonical": "/meshinfo", "languages": ["es"]},
-    "/estadomesh": {"canonical": "/meshinfo", "languages": ["es"]},
-    "/bromas": {"canonical": "/jokes", "languages": ["es"]},
-    "/chistes": {"canonical": "/jokes", "languages": ["es"]},
-    "/triviabiblica": {"canonical": "/bibletrivia", "languages": ["es"]},
-    "/triviadesastres": {"canonical": "/disastertrivia", "languages": ["es"]},
-    "/triviageneral": {"canonical": "/trivia", "languages": ["es"]},
-    "/acertijos": {"canonical": "/trivia", "languages": ["es"]},
-    "/matematicas": {"canonical": "/mathquiz", "languages": ["es"]},
-    "/matemáticas": {"canonical": "/mathquiz", "languages": ["es"]},
-    "/quizmatematico": {"canonical": "/mathquiz", "languages": ["es"]},
-    "/electricidad": {"canonical": "/electricalquiz", "languages": ["es"]},
-    "/triviaelectrica": {"canonical": "/electricalquiz", "languages": ["es"]},
-
-    # French
-    "/aide": {"canonical": "/help", "languages": ["fr"]},
-    "/meteo": {"canonical": "/weather", "languages": ["fr"]},
-    "/temps": {"canonical": "/weather", "languages": ["fr"]},
-    "/messagedujour": {"canonical": "/motd", "languages": ["fr"]},
-    "/verset": {"canonical": "/bible", "languages": ["fr"]},
-    "/blaguechuck": {"canonical": "/chucknorris", "languages": ["fr"]},
-    "/faitelpaso": {"canonical": "/elpaso", "languages": ["fr"]},
-    "/modifiermotd": {"canonical": "/changemotd", "languages": ["fr"]},
-    "/modifierprompt": {"canonical": "/changeprompt", "languages": ["fr"]},
-    "/afficherprompt": {"canonical": "/showprompt", "languages": ["fr"]},
-    "/reinitialiser": {"canonical": "/reset", "languages": ["fr"]},
-    "/envoyersms": {"canonical": "/sms", "languages": ["fr"]},
-
-    # German
-    "/hilfe": {"canonical": "/help", "languages": ["de"]},
-    "/wetter": {"canonical": "/weather", "languages": ["de"]},
-    "/wetterbericht": {"canonical": "/weather", "languages": ["de"]},
-    "/tagesnachricht": {"canonical": "/motd", "languages": ["de"]},
-    "/bibel": {"canonical": "/bible", "languages": ["de"]},
-    "/bibelvers": {"canonical": "/bible", "languages": ["de"]},
-    "/chuckwitz": {"canonical": "/chucknorris", "languages": ["de"]},
-    "/elpasofakt": {"canonical": "/elpaso", "languages": ["de"]},
-    "/motdaendern": {"canonical": "/changemotd", "languages": ["de"]},
-    "/promptaendern": {"canonical": "/changeprompt", "languages": ["de"]},
-    "/promptanzeigen": {"canonical": "/showprompt", "languages": ["de"]},
-    "/zuruecksetzen": {"canonical": "/reset", "languages": ["de"]},
-    "/smssenden": {"canonical": "/sms", "languages": ["de"]},
-
-    # Chinese (pinyin)
-    "/bangzhu": {"canonical": "/help", "languages": ["zh"]},
-    "/tianqi": {"canonical": "/weather", "languages": ["zh"]},
-    "/shengjing": {"canonical": "/bible", "languages": ["zh"]},
-    "/elpasoshishi": {"canonical": "/elpaso", "languages": ["zh"]},
-    "/xiugaixiaoxi": {"canonical": "/changemotd", "languages": ["zh"]},
-    "/xiugaiprompt": {"canonical": "/changeprompt", "languages": ["zh"]},
-    "/chakantishi": {"canonical": "/showprompt", "languages": ["zh"]},
-    "/chongzhi": {"canonical": "/reset", "languages": ["zh"]},
-    "/fasongduanxin": {"canonical": "/sms", "languages": ["zh"]},
-
-    # Polish
-    "/pomoc": {"canonical": "/help", "languages": ["pl"]},
-    "/pogoda": {"canonical": "/weather", "languages": ["pl", "uk"]},
-    "/prognoza": {"canonical": "/weather", "languages": ["pl", "hr"]},
-    "/wiadomosc": {"canonical": "/motd", "languages": ["pl"]},
-    "/wiadomoscdnia": {"canonical": "/motd", "languages": ["pl"]},
-    "/werset": {"canonical": "/bible", "languages": ["pl"]},
-    "/faktelpaso": {"canonical": "/elpaso", "languages": ["pl", "uk"]},
-    "/zmienwiadomosc": {"canonical": "/changemotd", "languages": ["pl"]},
-    "/zmienprompt": {"canonical": "/changeprompt", "languages": ["pl"]},
-    "/naprawprompt": {"canonical": "/changeprompt", "languages": ["pl"]},
-    "/pokazprompt": {"canonical": "/showprompt", "languages": ["pl"]},
-    "/resetuj": {"canonical": "/reset", "languages": ["pl"]},
-    "/wyslijsms": {"canonical": "/sms", "languages": ["pl"]},
-
-    # Croatian (Latin, with diacritics where relevant)
-    "/pomoć": {"canonical": "/help", "languages": ["hr"]},
-    "/vrijeme": {"canonical": "/weather", "languages": ["hr"]},
-    "/poruka": {"canonical": "/motd", "languages": ["hr"]},
-    "/porukadana": {"canonical": "/motd", "languages": ["hr"]},
-    "/biblija": {"canonical": "/bible", "languages": ["hr"]},
-    "/stih": {"canonical": "/bible", "languages": ["hr"]},
-    "/cinjenicaelpaso": {"canonical": "/elpaso", "languages": ["hr"]},
-    "/promijeniporuku": {"canonical": "/changemotd", "languages": ["hr"]},
-    "/promijeniprompt": {"canonical": "/changeprompt", "languages": ["hr"]},
-    "/popraviprompt": {"canonical": "/changeprompt", "languages": ["hr"]},
-    "/prikaziprompt": {"canonical": "/showprompt", "languages": ["hr"]},
-    "/resetiraj": {"canonical": "/reset", "languages": ["hr"]},
-    "/poslijsms": {"canonical": "/sms", "languages": ["hr"]},
-
-    # Ukrainian (transliterated)
-    "/dopomoga": {"canonical": "/help", "languages": ["uk"]},
-    "/prognoz": {"canonical": "/weather", "languages": ["uk"]},
-    "/povidomlennia": {"canonical": "/motd", "languages": ["uk"]},
-    "/povidomlennia_dnya": {"canonical": "/motd", "languages": ["uk"]},
-    "/bibliya": {"canonical": "/bible", "languages": ["uk"]},
-    "/virsh": {"canonical": "/bible", "languages": ["uk"]},
-    "/zminypovidomlennia": {"canonical": "/changemotd", "languages": ["uk"]},
-    "/zminyprompt": {"canonical": "/changeprompt", "languages": ["uk"]},
-    "/vyprompt": {"canonical": "/changeprompt", "languages": ["uk"]},
-    "/pokazhyprompt": {"canonical": "/showprompt", "languages": ["uk"]},
-    "/skynuty": {"canonical": "/reset", "languages": ["uk"]},
-    "/vidpravysms": {"canonical": "/sms", "languages": ["uk"]},
-
-    # Kiswahili
-    "/msaada": {"canonical": "/help", "languages": ["sw"]},
-    "/haliyahewa": {"canonical": "/weather", "languages": ["sw"]},
-    "/utabiri": {"canonical": "/weather", "languages": ["sw"]},
-    "/ujumbe": {"canonical": "/motd", "languages": ["sw"]},
-    "/ujumbe_wa_siku": {"canonical": "/motd", "languages": ["sw"]},
-    "/mstari": {"canonical": "/bible", "languages": ["sw"]},
-    "/fakielpaso": {"canonical": "/elpaso", "languages": ["sw"]},
-    "/badilisha_ujumbe": {"canonical": "/changemotd", "languages": ["sw"]},
-    "/badilisha_prompt": {"canonical": "/changeprompt", "languages": ["sw"]},
-    "/rekebisha_prompt": {"canonical": "/changeprompt", "languages": ["sw"]},
-    "/onyesha_prompt": {"canonical": "/showprompt", "languages": ["sw"]},
-    "/wekaupya": {"canonical": "/reset", "languages": ["sw"]},
-    "/tumasms": {"canonical": "/sms", "languages": ["sw"]},
 }
 
 COMMAND_SUMMARIES: Dict[str, str] = {
@@ -13797,7 +13671,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
           "mailbox": mailbox,
           "language": lang,
         }
-      return PendingReply(f"🧹 Delete mailbox '{mailbox}' permanently? Reply Y or N.", "/wipe confirm")
+      return PendingReply(f"🧹 Clear all messages from '{mailbox}'? Reply Y or N.", "/wipe confirm")
 
     if sub in {"chathistory", "chat", "history"}:
       if sender_key:
