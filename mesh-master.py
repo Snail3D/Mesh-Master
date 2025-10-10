@@ -3302,6 +3302,7 @@ except FileNotFoundError:
 
 ADMIN_PASSWORD = str(config.get("admin_password", "password") or "password")
 ADMIN_PASSWORD_NORM = ADMIN_PASSWORD.strip().casefold()
+ADMIN_PASSWORD_HINT = str(config.get("admin_password_hint", "Default password") or "Default password")
 
 
 def _register_admin_display(sender_key: str, sender_id: Any = None, *, label: Optional[str] = None) -> None:
@@ -17257,6 +17258,11 @@ def api_auth_status():
     """Check authentication status."""
     return jsonify({'authenticated': is_authenticated()})
 
+@app.route("/api/auth/password-hint", methods=["GET"])
+def api_password_hint():
+    """Get password hint (public endpoint)."""
+    return jsonify({'hint': ADMIN_PASSWORD_HINT})
+
 @app.route("/messages", methods=["GET"])
 def get_messages_api():
   dprint("GET /messages => returning current messages")
@@ -19859,6 +19865,39 @@ def login_page():
             color: #999;
             font-size: 12px;
         }
+        .hint-container {
+            text-align: center;
+            margin-top: 15px;
+        }
+        .hint-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: underline;
+            padding: 5px;
+        }
+        .hint-btn:hover {
+            color: #764ba2;
+        }
+        .hint-display {
+            background: #f0f7ff;
+            border: 1px solid #b3d9ff;
+            color: #0066cc;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 14px;
+            display: none;
+        }
+        .hint-display strong {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
     </style>
 </head>
 <body>
@@ -19868,6 +19907,7 @@ def login_page():
         <p class="subtitle">Dashboard Login</p>
 
         <div class="error" id="error"></div>
+        <div class="hint-display" id="hintDisplay"></div>
 
         <form id="loginForm">
             <div class="form-group">
@@ -19877,10 +19917,15 @@ def login_page():
             <button type="submit" class="btn">Login</button>
         </form>
 
+        <div class="hint-container">
+            <button type="button" class="hint-btn" id="showHintBtn">💡 Show Password Hint</button>
+        </div>
+
         <div class="footer">Mesh Master v2.0 • Secure Dashboard Access</div>
     </div>
 
     <script>
+        // Handle login form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const password = document.getElementById('password').value;
@@ -19906,6 +19951,29 @@ def login_page():
             } catch (error) {
                 errorDiv.textContent = 'Login failed. Please try again.';
                 errorDiv.style.display = 'block';
+            }
+        });
+
+        // Handle password hint button
+        document.getElementById('showHintBtn').addEventListener('click', async () => {
+            const hintDisplay = document.getElementById('hintDisplay');
+            const hintBtn = document.getElementById('showHintBtn');
+
+            // Toggle hint display
+            if (hintDisplay.style.display === 'block') {
+                hintDisplay.style.display = 'none';
+                hintBtn.textContent = '💡 Show Password Hint';
+            } else {
+                try {
+                    const response = await fetch('/api/auth/password-hint');
+                    const data = await response.json();
+                    hintDisplay.innerHTML = '<strong>Password Hint:</strong>' + data.hint;
+                    hintDisplay.style.display = 'block';
+                    hintBtn.textContent = '🔒 Hide Hint';
+                } catch (error) {
+                    hintDisplay.innerHTML = '<strong>Error:</strong> Could not load hint';
+                    hintDisplay.style.display = 'block';
+                }
             }
         });
     </script>
