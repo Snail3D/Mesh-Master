@@ -846,7 +846,7 @@ def _value_delta(current: Optional[Union[int, float]], previous: Optional[Union[
 
 def _gather_dashboard_metrics() -> Dict[str, Any]:
     global LAST_METRICS_SNAPSHOT
-    now = datetime.now(timezone.utc)
+    now = datetime.now().astimezone()
     uptime_delta = now - server_start_time if server_start_time else timedelta(0)
     uptime_label = _humanize_uptime(uptime_delta)
     stats_snapshot = STATS.snapshot()
@@ -1370,7 +1370,7 @@ STALE_LOG_MAX_AGE_DAYS = 365
 STALE_LOG_PATTERNS = ("game", "dm", "record", "history")
 STALE_LOG_DIRECTORIES = ["log", "logs", "data/logs", "data/records"]
 script_logs = []  # In-memory log entries (most recent 200)
-server_start_time = datetime.now(timezone.utc)  # Now using UTC time
+server_start_time = datetime.now().astimezone()  # Local system time
 restart_count = 0
 _viewer_filter_enabled = True  # Default: filter noise in /logs and /logs_stream
 
@@ -11552,7 +11552,7 @@ def _rotate_archive_if_needed():
       return  # No rotation needed
 
     # Rotate: move current archive to dated backup
-    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().astimezone().strftime('%Y%m%d_%H%M%S')
     archive_dir = "data/message_archives"
     os.makedirs(archive_dir, exist_ok=True)
 
@@ -11701,7 +11701,7 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
     with the device node number when the human-readable node name is used as `node_id`).
     """
     # Determine who to show as the display name and what numeric node_id to store
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
 
     stored_node_id = None
     if force_node is not None:
@@ -27994,7 +27994,7 @@ def telegram_error_monitor():
 
 def main():
     global interface, restart_count, server_start_time, reset_event, ALARM_TIMER_MANAGER
-    server_start_time = server_start_time or datetime.now(timezone.utc)
+    server_start_time = server_start_time or datetime.now().astimezone()
     restart_count += 1
     add_script_log(f"Server restarted. Restart count: {restart_count}")
     clean_log("Starting MESH-MASTER server...", "🚀", show_always=True)
