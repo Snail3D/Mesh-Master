@@ -376,26 +376,31 @@ Mesh Mail is an async messaging system (like email) built for mesh networks.
 ```
 /m ops Mission briefing at 0600 tomorrow
 /m ops Updated weather forecast: rain expected
-/c ops What time is the briefing?
+/c ops briefing
+  → Shows messages containing "briefing" in ops mailbox
 ```
 
 **Information Sharing:**
 ```
 /m intel Saw 3 hikers at waypoint B, heading north
 /m supplies Need more batteries, low on channel 2
-/c supplies What do we need?
+/c supplies batteries
+  → Shows messages containing "batteries" in supplies mailbox
 ```
 
 **Long-Form Messages:**
 ```
 /m journal Today we reached the summit after 6 hours...
 /m notes Remember to check radio settings before departure
+/c notes
+  → Shows all messages in notes mailbox
 ```
 
 **Collaborative Planning:**
 ```
 /m planning Route A blocked, suggest Route B via creek
-/c planning What routes have been suggested?
+/c planning route
+  → Shows messages containing "route" in planning mailbox
 ```
 
 #### Search Example
