@@ -78,18 +78,18 @@
       },
       "!a3cb5c4e": {
         "first_seen": 1759178322.7911708,
-        "last_check": 1760073521.66396,
+        "last_check": 1760075033.3819582,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1760074575.9396455
+        "last_heartbeat": 1760075033.3628943
       },
       "telegram_7340030703": {
         "first_seen": 1760064096.196475,
-        "last_check": 1760074798.3843732,
+        "last_check": 1760074982.4022555,
         "node_id": "telegram_7340030703",
         "short": "Node_telegram_7340030703",
         "unread": [],
@@ -435,14 +435,14 @@
     "subscribers": {
       "!a3cb5c4e": {
         "first_seen": 1759918470.1721995,
-        "last_check": 1760073521.66396,
+        "last_check": 1760075033.3819582,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1760074575.9396455
+        "last_heartbeat": 1760075033.3628943
       },
       "!376be684": {
         "first_seen": 1759918543.7862144,
@@ -481,7 +481,7 @@
     "subscribers": {
       "telegram_7340030703": {
         "first_seen": 1760064280.1955795,
-        "last_check": 1760074798.3843732,
+        "last_check": 1760074982.4022555,
         "node_id": "telegram_7340030703",
         "short": "Node_telegram_7340030703",
         "unread": [],
@@ -527,7 +527,7 @@
     "subscribers": {
       "telegram_7340030703": {
         "first_seen": 1760064064.6623034,
-        "last_check": 1760074798.3843732,
+        "last_check": 1760074982.4022555,
         "node_id": "telegram_7340030703",
         "short": "Node_telegram_7340030703",
         "unread": [],
@@ -552,7 +552,7 @@
     "subscribers": {
       "telegram_7340030703": {
         "first_seen": 1760072951.1687005,
-        "last_check": 1760074798.3843732,
+        "last_check": 1760074982.4022555,
         "node_id": "telegram_7340030703",
         "short": "Node_telegram_7340030703",
         "unread": [],
@@ -562,14 +562,14 @@
       },
       "!a3cb5c4e": {
         "first_seen": 1760073094.0344598,
-        "last_check": 1760073521.66396,
+        "last_check": 1760075033.3819582,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1760074575.9396455
+        "last_heartbeat": 1760075033.3628943
       }
     },
     "messages": {},
@@ -584,14 +584,14 @@
     "subscribers": {
       "!a3cb5c4e": {
         "first_seen": 1760073554.7726963,
-        "last_check": 0.0,
+        "last_check": 1760075033.3819582,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1760074575.9396455
+        "last_heartbeat": 1760075033.3628943
       }
     },
     "messages": {},
@@ -606,7 +606,7 @@
     "subscribers": {
       "telegram_7340030703": {
         "first_seen": 1760073853.891423,
-        "last_check": 1760074798.3843732,
+        "last_check": 1760074982.4022555,
         "node_id": "telegram_7340030703",
         "short": "Node_telegram_7340030703",
         "unread": [],
@@ -627,7 +627,7 @@
     "subscribers": {
       "telegram_7340030703": {
         "first_seen": 1760074161.0835502,
-        "last_check": 1760074798.3843732,
+        "last_check": 1760074982.4022555,
         "node_id": "telegram_7340030703",
         "short": "Node_telegram_7340030703",
         "unread": [],
@@ -644,20 +644,47 @@
     "pin_hash": "061a17b4051d92288f0d4710db5e304aec7d8f2d20020ea8cbedf9ee328dec8c",
     "owner": "telegram_7340030703",
     "created": 1760074798.3848155,
-    "failures": {},
+    "failures": {
+      "!a3cb5c4e": {
+        "count": 1,
+        "blocked": false,
+        "last": 1760075033.3824694
+      }
+    },
     "subscribers": {
       "telegram_7340030703": {
         "first_seen": 1760074882.6070657,
-        "last_check": 0.0,
+        "last_check": 1760074982.4022555,
         "node_id": "telegram_7340030703",
         "short": "Node_telegram_7340030703",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true
+      },
+      "!a3cb5c4e": {
+        "first_seen": 1760075009.2596495,
+        "last_check": 1760075033.3819582,
+        "node_id": "!a3cb5c4e",
+        "short": "!a3cb5c4e",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "last_heartbeat": 1760075033.3628943
       }
     },
-    "messages": {},
+    "messages": {
+      "865bd7cf-5458-4d6a-9aea-37e8635de119": {
+        "id": "865bd7cf-5458-4d6a-9aea-37e8635de119",
+        "mailbox": "sss",
+        "sender_key": "telegram_7340030703",
+        "sender_node": "telegram_7340030703",
+        "sender_short": "Node_telegram_7340030703",
+        "timestamp": "2025-10-10T05:43:02.402980+00:00",
+        "body": "gAAAAABo6JzmtYq2DQxIKJ3mvulgm2kb2Kc_0yPfe4y0MRJSG-LHzbmv2RV05TJZVplccA_u0AwdBNekrc_A6O7Wgdc8pEZCKw==",
+        "readers": {}
+      }
+    },
     "encryption_key": "SAE1iY0PyiZS8sWG-vwLy1QcB4BZv-4gR8JKSrpe6tk=",
     "mailbox_name": "sss"
   }
