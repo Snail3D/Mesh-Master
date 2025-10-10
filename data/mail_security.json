@@ -27,12 +27,12 @@
     "subscribers": {
       "!376be684": {
         "first_seen": 1759103875.7552705,
-        "last_check": 1759918596.2182713,
+        "last_check": 1760065021.30564,
         "node_id": "!376be684",
         "short": "SnMo",
         "unread": [],
         "pending_notice": false,
-        "last_heartbeat": 1759918596.199687,
+        "last_heartbeat": 1760073082.002367,
         "trusted": true,
         "reminders": {}
       }
@@ -57,29 +57,45 @@
     "pin_hash": "0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
     "owner": "!376be684",
     "created": 1759178148.4253778,
-    "failures": {},
+    "failures": {
+      "telegram_7340030703": {
+        "count": 0,
+        "blocked": false,
+        "last": 1760064148.2465196
+      }
+    },
     "subscribers": {
       "!376be684": {
         "first_seen": 1759178148.42542,
-        "last_check": 1759918596.2182822,
+        "last_check": 1760065021.30564,
         "node_id": "!376be684",
         "short": "SnMo",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1759918596.199687
+        "last_heartbeat": 1760073082.002367
       },
       "!a3cb5c4e": {
         "first_seen": 1759178322.7911708,
-        "last_check": 1759918528.1017244,
+        "last_check": 1760073298.1170769,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1759918528.0937853
+        "last_heartbeat": 1760073324.974967
+      },
+      "telegram_7340030703": {
+        "first_seen": 1760064096.196475,
+        "last_check": 1760073186.1870399,
+        "node_id": "telegram_7340030703",
+        "short": "Node_telegram_7340030703",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true
       }
     },
     "messages": {
@@ -93,7 +109,8 @@
         "body": "sup with it",
         "readers": {
           "!a3cb5c4e": 1759178322.7937868,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "a5fb2d2e-bca0-4256-9f03-a2d0f975ce04": {
@@ -106,7 +123,8 @@
         "body": "we gud?",
         "readers": {
           "!a3cb5c4e": 1759178733.3398132,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "5732f83232c4c3d04a790214e3e769f39eaa8620": {
@@ -119,7 +137,8 @@
         "body": "ok sounds good",
         "readers": {
           "!a3cb5c4e": 1759896756.4527469,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "0e3e9242d76e304862e139106aee648a21e2688b": {
@@ -132,7 +151,8 @@
         "body": "ok sounds good thanks",
         "readers": {
           "!a3cb5c4e": 1759896983.1818175,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "958b533fa597345ee2fffa89002b723de8f0b020": {
@@ -145,7 +165,8 @@
         "body": "yes",
         "readers": {
           "!a3cb5c4e": 1759898701.3337371,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "6f32a00e8fb81d16c668aa507be34f72a4b58eab": {
@@ -158,7 +179,8 @@
         "body": "sounds like a plan",
         "readers": {
           "!a3cb5c4e": 1759899725.7607534,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "a73b349eacb9c899f62ece8395ab761fa08b2070": {
@@ -171,7 +193,8 @@
         "body": "testing for Claude, do you get the joke?",
         "readers": {
           "!a3cb5c4e": 1759899898.1882114,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "a776ef212f50194a68bb3b3041911fdc2d71be19": {
@@ -184,7 +207,8 @@
         "body": "ok man does this work yet?",
         "readers": {
           "!a3cb5c4e": 1759900068.4144957,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "4014090102e7372e2e30efb2040b139b6cf1cb61": {
@@ -197,7 +221,8 @@
         "body": "please finally work",
         "readers": {
           "!a3cb5c4e": 1759900241.1979783,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "910cae31b7b13c316492a1ed11ac0f9bb1affbd3": {
@@ -210,7 +235,8 @@
         "body": "Claude, you got this buddy",
         "readers": {
           "!a3cb5c4e": 1759900541.0737572,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "eddf9c77e28b2d1d1affe30c579f316eab130207": {
@@ -223,7 +249,8 @@
         "body": "sounds excellent trackin all",
         "readers": {
           "!a3cb5c4e": 1759900629.418586,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "0f3e565b-0bce-4b8d-b909-14ff733dd257": {
@@ -236,7 +263,8 @@
         "body": "sup wit it? Fixed?",
         "readers": {
           "!a3cb5c4e": 1759900629.418586,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "8f9807ae93a8e7d4ab595ba40018f070397ca582": {
@@ -249,7 +277,8 @@
         "body": "ok she’s purrin or not",
         "readers": {
           "!a3cb5c4e": 1759901103.5143957,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "df203a8233fd3365a8bb8b370694fb9c13b74f85": {
@@ -262,7 +291,8 @@
         "body": "Roger that",
         "readers": {
           "!a3cb5c4e": 1759901313.0795305,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "3f433368f944eb74ece20e0452229ae1159d0314": {
@@ -275,7 +305,8 @@
         "body": "got this?",
         "readers": {
           "!a3cb5c4e": 1759901780.784412,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "23cb7738f64f2ac9b40941f0ef2923a9b7417193": {
@@ -288,7 +319,8 @@
         "body": "yo yo",
         "readers": {
           "!a3cb5c4e": 1759901780.784412,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "5dad923216e570879ffdb509b77e5f3b5ea2d8d6": {
@@ -301,7 +333,8 @@
         "body": "I gotcha yep",
         "readers": {
           "!a3cb5c4e": 1759901958.8336713,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "c0364eb3ffc3bd9a932b20fddd1f6d178a6f4572": {
@@ -314,7 +347,8 @@
         "body": "I hear ya loud and clear",
         "readers": {
           "!a3cb5c4e": 1759901958.8336713,
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771
         }
       },
       "ddc19ee856996174330202d4742802f062adcdc7": {
@@ -326,7 +360,9 @@
         "timestamp": "2025-10-08T05:39:30.935512+00:00",
         "body": "you got it man.",
         "readers": {
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771,
+          "!a3cb5c4e": 1760073094.0416417
         }
       },
       "6a0e3614f046fb314dd971d30721281316f036fe": {
@@ -338,7 +374,9 @@
         "timestamp": "2025-10-08T05:40:58.489731+00:00",
         "body": "howdy",
         "readers": {
-          "!376be684": 1759918596.2182822
+          "!376be684": 1759918596.2182822,
+          "telegram_7340030703": 1760064148.250771,
+          "!a3cb5c4e": 1760073094.0416417
         }
       }
     },
@@ -363,13 +401,13 @@
       },
       "!376be684": {
         "first_seen": 1759399854.2388463,
-        "last_check": 1759918596.2182417,
+        "last_check": 1760065021.30564,
         "node_id": "!376be684",
         "short": "SnMo",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
-        "last_heartbeat": 1759918596.199687,
+        "last_heartbeat": 1760073082.002367,
         "trusted": true
       }
     },
@@ -397,24 +435,24 @@
     "subscribers": {
       "!a3cb5c4e": {
         "first_seen": 1759918470.1721995,
-        "last_check": 1759918528.1017244,
+        "last_check": 1760073298.1170769,
         "node_id": "!a3cb5c4e",
         "short": "Lucy",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
         "trusted": true,
-        "last_heartbeat": 1759918528.0937853
+        "last_heartbeat": 1760073324.974967
       },
       "!376be684": {
         "first_seen": 1759918543.7862144,
-        "last_check": 1759918596.2166016,
+        "last_check": 1760065021.30564,
         "node_id": "!376be684",
         "short": "SnMo",
         "unread": [],
         "pending_notice": false,
         "reminders": {},
-        "last_heartbeat": 1759918596.199687,
+        "last_heartbeat": 1760073082.002367,
         "trusted": true
       }
     },
@@ -428,10 +466,114 @@
         "timestamp": "2025-10-08T10:15:28.101887+00:00",
         "body": "hey there bronco",
         "readers": {
-          "!376be684": 1759918596.2166016
+          "!376be684": 1759918596.2166016,
+          "!a3cb5c4e": 1760073094.0416212
         }
       }
     },
     "mailbox_name": "dirty"
+  },
+  "sugar": {
+    "pin_hash": "0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+    "owner": "telegram_7340030703",
+    "created": 1760063790.4412296,
+    "failures": {},
+    "subscribers": {
+      "telegram_7340030703": {
+        "first_seen": 1760064280.1955795,
+        "last_check": 1760073186.1870399,
+        "node_id": "telegram_7340030703",
+        "short": "Node_telegram_7340030703",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true
+      },
+      "!376be684": {
+        "first_seen": 1760064369.7828422,
+        "last_check": 1760065021.30564,
+        "node_id": "!376be684",
+        "short": "SnMo",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "last_heartbeat": 1760073082.002367,
+        "trusted": true
+      }
+    },
+    "messages": {
+      "5a1a0a46-f3cc-4708-be09-16339c092741": {
+        "id": "5a1a0a46-f3cc-4708-be09-16339c092741",
+        "mailbox": "sugar",
+        "sender_key": "telegram_7340030703",
+        "sender_node": "telegram_7340030703",
+        "sender_short": "Node_telegram_7340030703",
+        "timestamp": "2025-10-10T02:45:18.954589+00:00",
+        "body": "gAAAAABo6HM-tqPaewEGucua39b2TOqnr7u-nytDXquvARf4wIC-Q1r4QKcQ3VY7TZnhmyL2L4y6ejEKcgzwNdej-NGsaZhOYzDS22KsU5QmK6ci4M-HCddmFaFbVVlDXTD1_z2ZpcMHJ5jO65uETIoLZHI4o9rtho7GAISnDUEwUYAtmJXGKhN33RMjWj8lub7kisUv2ij-86sKnow0_IzmZ2FInouTzP5mcCqERtE1A-d8JYDZ6HKXmAze-c0Y8IZzi3umdhlYxyb-n0TjmyCiSsaEkwtEHw==",
+        "readers": {
+          "telegram_7340030703": 1760064335.6179824,
+          "!376be684": 1760064428.2246616
+        }
+      }
+    },
+    "encryption_key": "iTyKHnO2Q5oPhbsOfP96a7HT8QgytjPftWaKcblOT6w=",
+    "mailbox_name": "sugar"
+  },
+  "boo": {
+    "pin_hash": null,
+    "owner": null,
+    "created": 1760064041.2118528,
+    "failures": {},
+    "subscribers": {
+      "telegram_7340030703": {
+        "first_seen": 1760064064.6623034,
+        "last_check": 1760073186.1870399,
+        "node_id": "telegram_7340030703",
+        "short": "Node_telegram_7340030703",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {}
+      }
+    },
+    "messages": {},
+    "mailbox_name": "boo"
+  },
+  "help": {
+    "pin_hash": null,
+    "owner": null,
+    "created": 1760071052.8717575,
+    "failures": {}
+  },
+  "boos": {
+    "pin_hash": "6cc6eefb674286f7d1a0e4adaa840670dafa7870f77c7d6d73d5924c44ce3bff",
+    "owner": "telegram_7340030703",
+    "created": 1760072940.0164664,
+    "failures": {},
+    "subscribers": {
+      "telegram_7340030703": {
+        "first_seen": 1760072951.1687005,
+        "last_check": 1760073186.1870399,
+        "node_id": "telegram_7340030703",
+        "short": "Node_telegram_7340030703",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true
+      },
+      "!a3cb5c4e": {
+        "first_seen": 1760073094.0344598,
+        "last_check": 1760073298.1170769,
+        "node_id": "!a3cb5c4e",
+        "short": "Lucy",
+        "unread": [],
+        "pending_notice": false,
+        "reminders": {},
+        "trusted": true,
+        "last_heartbeat": 1760073324.974967
+      }
+    },
+    "messages": {},
+    "encryption_key": "bOyL3q3L0Q6-_wam8ZlCwxjKpB-RK-PFKIZCYMLCXlc=",
+    "mailbox_name": "boos"
   }
 }

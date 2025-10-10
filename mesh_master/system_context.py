@@ -613,7 +613,6 @@ def activate_system_context():
     SYSTEM_CONTEXT_ACTIVE = True
     SYSTEM_CONTEXT_TIMESTAMP = time.time()
     SYSTEM_CONTEXT_SINGLE_USE = False
-    print(f"[CONTEXT DEBUG] activate_system_context() called: ACTIVE={SYSTEM_CONTEXT_ACTIVE}, ts={SYSTEM_CONTEXT_TIMESTAMP}")
 
 
 def activate_system_context_singleuse():
@@ -655,8 +654,6 @@ def consume_system_context() -> bool:
     global SYSTEM_CONTEXT_SINGLE_USE
 
     active = is_system_context_active()
-    # Debug: print state
-    print(f"[CONTEXT DEBUG] consume_system_context() called: ACTIVE={SYSTEM_CONTEXT_ACTIVE}, active={active}, single_use={SYSTEM_CONTEXT_SINGLE_USE}")
 
     if not active:
         return False
