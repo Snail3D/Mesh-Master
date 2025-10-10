@@ -60,9 +60,12 @@ import subprocess
 import math
 import textwrap
 import uuid
+import base64
+import hashlib
 from contextlib import suppress
 from typing import Optional, Set, Dict, Any, List, Tuple, Union, Sequence
 from dataclasses import dataclass, field
+from cryptography.fernet import Fernet
 # Optional system metrics libraries
 try:
     import psutil  # type: ignore
@@ -10125,7 +10128,52 @@ def _normalize_context_key(value: Optional[str]) -> str:
     return " ".join(unidecode(str(value or "")).lower().split())
 
 
+def _derive_context_encryption_key(radio_id: str) -> bytes:
+    """
+    Derive a Fernet encryption key from a radio ID.
+    Uses SHA256 to create a deterministic 32-byte key, then base64 encodes it.
+    """
+    # Hash the radio ID to get deterministic 32 bytes
+    hash_bytes = hashlib.sha256(radio_id.encode('utf-8')).digest()
+    # Fernet requires base64-encoded 32-byte keys
+    return base64.urlsafe_b64encode(hash_bytes)
+
+
+def _encrypt_context_data(data: str, radio_id: str) -> str:
+    """
+    Encrypt context data using a key derived from the radio ID.
+    Returns base64-encoded ciphertext.
+    """
+    try:
+        key = _derive_context_encryption_key(radio_id)
+        fernet = Fernet(key)
+        encrypted_bytes = fernet.encrypt(data.encode('utf-8'))
+        return encrypted_bytes.decode('utf-8')
+    except Exception as e:
+        clean_log(f"⚠️ Context encryption failed for {radio_id}: {e}", "⚠️")
+        return data  # Fall back to unencrypted if encryption fails
+
+
+def _decrypt_context_data(encrypted_data: str, radio_id: str) -> str:
+    """
+    Decrypt context data using a key derived from the radio ID.
+    Returns decrypted plaintext, or error marker if decryption fails.
+    """
+    try:
+        key = _derive_context_encryption_key(radio_id)
+        fernet = Fernet(key)
+        decrypted_bytes = fernet.decrypt(encrypted_data.encode('utf-8'))
+        return decrypted_bytes.decode('utf-8')
+    except Exception as e:
+        clean_log(f"⚠️ Context decryption failed for {radio_id}: {e}", "⚠️")
+        return "[🔒 Encrypted - wrong radio ID or corrupted data]"
+
+
 def _ensure_saved_contexts_loaded() -> None:
+    """
+    Load saved contexts from disk, decrypting sensitive fields per radio ID.
+    Each user's contexts are decrypted with a key derived from their radio ID.
+    """
     global SAVED_CONTEXTS
     with SAVED_CONTEXT_LOCK:
         if SAVED_CONTEXTS:
@@ -10135,26 +10183,53 @@ def _ensure_saved_contexts_loaded() -> None:
     if isinstance(raw, dict):
         users = raw.get("users") or {}
         if isinstance(users, dict):
-            for key, entries in users.items():
-                key_str = str(key)
+            for radio_id, entries in users.items():
+                radio_id_str = str(radio_id)
                 bucket: List[Dict[str, Any]] = []
                 if isinstance(entries, list):
                     for entry in entries:
                         if isinstance(entry, dict):
-                            bucket.append(dict(entry))
-                contexts[key_str] = bucket
+                            decrypted_entry = dict(entry)
+                            # Decrypt sensitive fields: context, summary, search_blob
+                            if "context" in decrypted_entry and decrypted_entry["context"]:
+                                decrypted_entry["context"] = _decrypt_context_data(decrypted_entry["context"], radio_id_str)
+                            if "summary" in decrypted_entry and decrypted_entry["summary"]:
+                                decrypted_entry["summary"] = _decrypt_context_data(decrypted_entry["summary"], radio_id_str)
+                            if "search_blob" in decrypted_entry and decrypted_entry["search_blob"]:
+                                decrypted_entry["search_blob"] = _decrypt_context_data(decrypted_entry["search_blob"], radio_id_str)
+                            bucket.append(decrypted_entry)
+                contexts[radio_id_str] = bucket
     with SAVED_CONTEXT_LOCK:
         SAVED_CONTEXTS = contexts
 
 
 def _persist_saved_contexts() -> None:
+    """
+    Persist saved contexts to disk, encrypting sensitive fields per radio ID.
+    Each user's contexts are encrypted with a key derived from their radio ID.
+    """
     with SAVED_CONTEXT_LOCK:
-        payload = {"users": SAVED_CONTEXTS}
+        # Deep copy and encrypt sensitive fields for each user
+        encrypted_payload = {"users": {}}
+        for radio_id, entries in SAVED_CONTEXTS.items():
+            encrypted_entries = []
+            for entry in entries:
+                encrypted_entry = dict(entry)  # Copy the entry
+                # Encrypt sensitive fields: context, summary, search_blob
+                if "context" in encrypted_entry and encrypted_entry["context"]:
+                    encrypted_entry["context"] = _encrypt_context_data(encrypted_entry["context"], radio_id)
+                if "summary" in encrypted_entry and encrypted_entry["summary"]:
+                    encrypted_entry["summary"] = _encrypt_context_data(encrypted_entry["summary"], radio_id)
+                if "search_blob" in encrypted_entry and encrypted_entry["search_blob"]:
+                    encrypted_entry["search_blob"] = _encrypt_context_data(encrypted_entry["search_blob"], radio_id)
+                encrypted_entries.append(encrypted_entry)
+            encrypted_payload["users"][radio_id] = encrypted_entries
+
     try:
         SAVED_CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
-    write_atomic(str(SAVED_CONTEXT_FILE), json.dumps(payload, indent=2, ensure_ascii=False))
+    write_atomic(str(SAVED_CONTEXT_FILE), json.dumps(encrypted_payload, indent=2, ensure_ascii=False))
 
 
 def _get_saved_contexts_for_user(sender_key: Optional[str]) -> List[Dict[str, Any]]:
