@@ -5651,9 +5651,9 @@ def _load_proverbs(language: Optional[str]) -> List[str]:
         return cached
 
     if lang_key == "es":
-        verses = _build_proverb_list("data/bible_rvr.json", "Proverbios")
-        if not verses:
-            verses = _build_proverb_list("data/bible_web.json", "Proverbs")
+        # Spanish Bible removed - use English
+        # verses = _build_proverb_list("data/bible_rvr.json", "Proverbios")
+        verses = _build_proverb_list("data/bible_web.json", "Proverbs")
     else:
         verses = _build_proverb_list("data/bible_web.json", "Proverbs")
 
@@ -6629,7 +6629,9 @@ BIBLE_WEB_VERSES = BIBLE_WEB_DATA.get("verses", [])
 BIBLE_WEB_ORDER = BIBLE_WEB_DATA.get("book_order", list(BIBLE_WEB_BOOKS.keys()))
 
 try:
-    BIBLE_RVR_DATA = safe_load_json("data/bible_rvr.json", {})
+    # Spanish Bible removed - English only
+    BIBLE_RVR_DATA = {}
+    # BIBLE_RVR_DATA = safe_load_json("data/bible_rvr.json", {})
     if not isinstance(BIBLE_RVR_DATA, dict):
         BIBLE_RVR_DATA = {}
 except Exception:
@@ -6817,7 +6819,9 @@ for canonical, display in BIBLE_SPANISH_DISPLAY_OVERRIDES.items():
         if alias and alias not in BIBLE_RVR_ABBREVIATIONS[canonical]:
             BIBLE_RVR_ABBREVIATIONS[canonical].append(alias)
 
-BIBLE_VERSES_DATA_ES = safe_load_json("data/bible_jesus_verses_es.json", [])
+# Spanish Bible verses removed - English only
+BIBLE_VERSES_DATA_ES = []
+# BIBLE_VERSES_DATA_ES = safe_load_json("data/bible_jesus_verses_es.json", [])
 if not BIBLE_VERSES_DATA_ES and BIBLE_RVR_VERSES:
     BIBLE_VERSES_DATA_ES = BIBLE_RVR_VERSES
 
@@ -7338,7 +7342,9 @@ def _update_bible_progress(
         _save_bible_progress()
 
 CHUCK_NORRIS_FACTS = safe_load_json("data/chuck_api_jokes.json", [])
-CHUCK_NORRIS_FACTS_ES = safe_load_json("data/chuck_api_jokes_es.json", [])
+# Spanish Chuck Norris jokes removed - English only
+CHUCK_NORRIS_FACTS_ES = []
+# CHUCK_NORRIS_FACTS_ES = safe_load_json("data/chuck_api_jokes_es.json", [])
 BLOND_JOKES = safe_load_json("data/blond_jokes.json", [])
 YO_MOMMA_JOKES = safe_load_json("data/yo_momma_jokes.json", [])
 EL_PASO_FACTS = safe_load_json("data/el_paso_people_facts.json", [])
