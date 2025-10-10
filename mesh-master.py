@@ -26826,14 +26826,20 @@ def dashboard():
       }
 
       function startTour(tourName) {
+        console.log('startTour called with:', tourName);
+        console.log('Available tours:', Object.keys(tours));
+        console.log('Overlay element:', overlay);
+
         if (!tours[tourName]) {
           console.error('Tour not found:', tourName);
           return;
         }
 
+        console.log('Starting tour:', tourName, 'with', tours[tourName].length, 'steps');
         currentTour = tours[tourName];
         currentStep = 0;
         overlay.classList.add('active');
+        console.log('Overlay classes:', overlay.className);
         renderStep();
       }
 
@@ -26966,6 +26972,13 @@ def dashboard():
     } else {
       TutorialEngine.init();
     }
+
+    // Expose globally for debugging
+    window.TutorialEngine = TutorialEngine;
+    window.testTutorial = () => {
+      console.log('Test function called');
+      TutorialEngine.startTour('dashboard');
+    };
   </script>
 </body>
 </html>
