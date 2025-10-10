@@ -26640,15 +26640,15 @@ def dashboard():
       position: fixed;
       bottom: 24px;
       right: 24px;
-      width: 56px;
-      height: 56px;
+      width: 37px;
+      height: 37px;
       background: linear-gradient(135deg, #3c92ff 0%, #569cd6 100%);
       border: none;
       border-radius: 50%;
       color: #fff;
-      font-size: 24px;
+      font-size: 18px;
       cursor: pointer;
-      box-shadow: 0 6px 24px rgba(60, 146, 255, 0.4);
+      box-shadow: 0 4px 16px rgba(60, 146, 255, 0.4);
       transition: all 0.3s ease;
       z-index: 9999;
       display: flex;
@@ -26707,10 +26707,12 @@ def dashboard():
         nextBtn.addEventListener('click', () => nextStep());
         skipBtn.addEventListener('click', () => endTour());
         closeBtn.addEventListener('click', () => endTour());
-        helpIcon.addEventListener('click', () => {
-          startTour('dashboard');
-          helpIcon.style.display = 'none';
-        });
+        if (helpIcon) {
+          helpIcon.addEventListener('click', () => {
+            console.log('Help icon clicked, starting dashboard tour');
+            startTour('dashboard');
+          });
+        }
 
         defineTours();
         checkFirstVisit();
