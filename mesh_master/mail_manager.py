@@ -75,6 +75,7 @@ class MailManager:
         self.security_path = security_path
         self.security_lock = threading.Lock()
         self.security: Dict[str, Dict[str, Any]] = self._load_security()
+        self.last_mailbox_cleanup = 0.0  # Track last stale mailbox cleanup
         self.display_max_messages = max(1, int(message_limit))
         self.follow_up_delay = max(0.0, float(follow_up_delay))
         self.notify_enabled = bool(notify_enabled)
@@ -390,6 +391,38 @@ class MailManager:
             stale_keys = [key for key, ctx in self.reply_contexts.items() if ctx.get('captured', 0) < cutoff]
             for key in stale_keys:
                 self.reply_contexts.pop(key, None)
+
+    def _cleanup_stale_mailboxes(self) -> None:
+        """Delete mailboxes that haven't been accessed in 100 days"""
+        STALE_MAILBOX_DAYS = 100
+        cutoff = time.time() - (STALE_MAILBOX_DAYS * 24 * 3600)
+
+        with self.security_lock:
+            mailboxes_to_delete = []
+            for mailbox_name, entry in self.security.items():
+                # Check created time and last access from any subscriber
+                created = entry.get('created', 0)
+                subscribers = entry.get('subscribers', {})
+
+                # Get the most recent activity (either creation or last check by any subscriber)
+                last_activity = created
+                for sub_data in subscribers.values():
+                    last_check = sub_data.get('last_check', 0)
+                    if last_check > last_activity:
+                        last_activity = last_check
+
+                # If no activity for 100+ days, mark for deletion
+                if last_activity < cutoff:
+                    mailboxes_to_delete.append(mailbox_name)
+
+            # Delete stale mailboxes
+            for mailbox_name in mailboxes_to_delete:
+                self.clean_log(f"Auto-deleting stale mailbox: {mailbox_name} (100+ days inactive)", "🗑️", show_always=True)
+                self.security.pop(mailbox_name, None)
+                self.store.delete_mailbox(mailbox_name)
+
+            if mailboxes_to_delete:
+                self._save_security()
 
     def _store_reply_context(
         self,
@@ -1305,6 +1338,12 @@ class MailManager:
         if not self.notify_enabled or not sender_key:
             return
         now = time.time()
+
+        # Run stale mailbox cleanup once per day
+        if now - self.last_mailbox_cleanup > (24 * 3600):
+            self._cleanup_stale_mailboxes()
+            self.last_mailbox_cleanup = now
+
         aggregated: List[Tuple[str, int]] = []
         reminder_actions: List[Dict[str, Any]] = []
         pending_notice_subs: List[Dict[str, Any]] = []
