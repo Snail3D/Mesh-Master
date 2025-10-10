@@ -20316,7 +20316,27 @@ def dashboard():
     }
     .config-cancel-btn:hover {
       background: rgba(244, 71, 71, 0.22);
-      border-color: rgba(244, 71, 71, 0.45);
+    }
+    /* Compact PSK buttons */
+    [data-ch-action="psk-generate"],
+    [data-ch-action="psk-enter"] {
+      font-size: 10px;
+      padding: 3px 8px;
+      min-width: 60px;
+    }
+    /* Compact channel name input */
+    [data-ch-field="name"] {
+      width: 140px !important;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+    /* Compact PSK label */
+    [data-ch-field="psk-label"] {
+      font-size: 11px;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .config-edit-area {
       display: flex;
@@ -21502,135 +21522,6 @@ def dashboard():
             </div>
             <button type="button" id="telegramSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">Save Telegram Settings</button>
             <div id="telegramStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
-          </div>
-        </div>
-        </article>
-
-        <article class="panel" data-panel-id="email" data-draggable="true" data-collapsible="true">
-        <div class="panel-header">
-          <div class="panel-title">
-            <h2>Email Reports & Alerts 📧</h2>
-            <span class="panel-subtitle">Daily summaries and instant notifications</span>
-          </div>
-          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
-        </div>
-        <div class="panel-body">
-          <div class="passphrase-card">
-            <label>Email Configuration<span class="help-icon" data-explainer="Configure email reports and alerts via OAuth. Sign in with your email provider to send daily summaries and instant alerts to yourself. All emails are sent from and to your authenticated account." data-explainer-placement="right">?</span></label>
-
-            <!-- Email notifications (using Telegram for now) -->
-            <div style="margin-top: 12px; padding: 12px; background: #2a2a2a; border-radius: 4px;">
-              <p style="margin: 0 0 8px 0; padding: 8px; background: rgba(76, 175, 80, 0.1); border-left: 3px solid #4CAF50; border-radius: 4px; color: #4CAF50; font-size: 13px;">
-                ✓ <strong>Telegram Integration Active</strong> - You're receiving notifications via Telegram bot. Email notifications coming in a future update.
-              </p>
-            </div>
-
-            <!-- Daily Rollup Email -->
-            <div id="emailRollupSection" style="margin-top: 16px; display: none;">
-              <div class="toggle-row" style="margin-bottom: 12px;">
-                <label class="switch">
-                  <input type="checkbox" id="emailDailyRollupToggle">
-                  <span class="slider"></span>
-                </label>
-                <div class="toggle-copy">
-                  <span class="toggle-title">Daily Rollup Email<span class="help-icon" data-explainer="Sends a daily summary email to your authenticated Gmail account with the last 24 hours of activity. Choose which metrics to include and what time to receive it." data-explainer-placement="right">?</span></span>
-                  <span id="emailDailyRollupStatus" class="toggle-status">Disabled</span>
-                </div>
-              </div>
-
-              <div id="emailRollupConfig" style="padding-left: 12px; display: none;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #ccc;">Include in 24h Summary:</label>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_messages" checked style="cursor: pointer;">
-                    <span>📬 Messages sent/received</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_ai_requests" checked style="cursor: pointer;">
-                    <span>🤖 AI requests processed</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_mail" checked style="cursor: pointer;">
-                    <span>📧 Mail sent/received</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_onboardings" checked style="cursor: pointer;">
-                    <span>🎓 New onboardings</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_commands" checked style="cursor: pointer;">
-                    <span>⚡ Top commands used</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_users" checked style="cursor: pointer;">
-                    <span>👥 Active users</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_games" style="cursor: pointer;">
-                    <span>🎮 Games played</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="rollup_wiki" style="cursor: pointer;">
-                    <span>📚 Wiki activity</span>
-                  </label>
-                </div>
-                <div style="margin-top: 12px;">
-                  <label for="rollupTime" style="display: block; margin-bottom: 4px; font-weight: 500; color: #ccc;">Send time (24h format):</label>
-                  <input type="time" id="rollupTime" value="08:00" style="width: 120px; padding: 6px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0; border-radius: 4px;">
-                </div>
-              </div>
-            </div>
-
-            <!-- Instant Alerts -->
-            <div id="emailAlertsSection" style="margin-top: 16px; display: none;">
-              <label style="display: block; margin-bottom: 12px; font-weight: 500; color: #ccc;">Instant Alerts:<span class="help-icon" data-explainer="Get immediate email notifications when critical events occur. All alerts are sent to your authenticated Gmail account." data-explainer-placement="right">?</span></label>
-              <div style="display: flex; flex-direction: column; gap: 8px;">
-                <div class="toggle-row">
-                  <label class="switch">
-                    <input type="checkbox" id="emailAlertSpamToggle">
-                    <span class="slider"></span>
-                  </label>
-                  <div class="toggle-copy">
-                    <span class="toggle-title">🚨 Spam Detection<span class="help-icon" data-explainer="Get notified when anti-spam system triggers. Includes spammer username and timeout duration." data-explainer-placement="right">?</span></span>
-                    <span id="emailAlertSpamStatus" class="toggle-status">Disabled</span>
-                  </div>
-                </div>
-                <div class="toggle-row">
-                  <label class="switch">
-                    <input type="checkbox" id="emailAlertNetworkToggle">
-                    <span class="slider"></span>
-                  </label>
-                  <div class="toggle-copy">
-                    <span class="toggle-title">📡 Network Down (>1min)<span class="help-icon" data-explainer="Alert if mesh network connection is lost for more than 1 minute without automatic recovery." data-explainer-placement="right">?</span></span>
-                    <span id="emailAlertNetworkStatus" class="toggle-status">Disabled</span>
-                  </div>
-                </div>
-                <div class="toggle-row">
-                  <label class="switch">
-                    <input type="checkbox" id="emailAlertActivityToggle">
-                    <span class="slider"></span>
-                  </label>
-                  <div class="toggle-copy">
-                    <span class="toggle-title">📊 Heavy Activity Spike<span class="help-icon" data-explainer="Notifies when message volume suddenly spikes above normal levels. Includes list of active usernames." data-explainer-placement="right">?</span></span>
-                    <span id="emailAlertActivityStatus" class="toggle-status">Disabled</span>
-                  </div>
-                </div>
-                <div class="toggle-row">
-                  <label class="switch">
-                    <input type="checkbox" id="emailAlertErrorsToggle">
-                    <span class="slider"></span>
-                  </label>
-                  <div class="toggle-copy">
-                    <span class="toggle-title">⚠️ System Errors<span class="help-icon" data-explainer="Alert when critical system errors occur, including AI failures, database issues, or unexpected crashes." data-explainer-placement="right">?</span></span>
-                    <span id="emailAlertErrorsStatus" class="toggle-status">Disabled</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <button type="button" id="emailSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px; display: none;">Save Email Settings</button>
-            <button type="button" id="emailTestBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; display: none;">Send Test Email</button>
-            <div id="emailStatus" style="margin-top: 8px; padding: 8px; border-radius: 4px; display: none;"></div>
           </div>
         </div>
         </article>
@@ -22861,13 +22752,19 @@ def dashboard():
                   <button type="button" class="config-edit-btn" data-ch-action="psk-generate">Generate</button>
                   <button type="button" class="config-edit-btn" data-ch-action="psk-enter">Enter…</button>
                 </label>
-                <label class="switch" title="Uplink enabled">
-                  <input type="checkbox" data-ch-field="uplink" ${uplink ? 'checked' : ''}>
-                  <span class="slider"></span>
+                <label style="display:flex; gap:6px; align-items:center;">
+                  <span style="min-width:60px; color:var(--text-secondary)" title="MQTT Uplink: Forward messages to MQTT broker">Uplink</span>
+                  <label class="switch" title="MQTT Uplink enabled">
+                    <input type="checkbox" data-ch-field="uplink" ${uplink ? 'checked' : ''}>
+                    <span class="slider"></span>
+                  </label>
                 </label>
-                <label class="switch" title="Downlink enabled">
-                  <input type="checkbox" data-ch-field="downlink" ${downlink ? 'checked' : ''}>
-                  <span class="slider"></span>
+                <label style="display:flex; gap:6px; align-items:center;">
+                  <span style="min-width:60px; color:var(--text-secondary)" title="MQTT Downlink: Receive messages from MQTT broker">Downlink</span>
+                  <label class="switch" title="MQTT Downlink enabled">
+                    <input type="checkbox" data-ch-field="downlink" ${downlink ? 'checked' : ''}>
+                    <span class="slider"></span>
+                  </label>
                 </label>
                 <button type="button" class="config-save-btn" data-ch-action="save">Save</button>
                 <button type="button" class="admin-remove-btn" data-ch-action="remove" ${deletable ? '' : 'disabled'}>Remove</button>
