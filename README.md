@@ -10,13 +10,24 @@
 ---
 
 ## 2.0 Headline Upgrades
+
+### Latest Updates (October 2025)
+- **Per-Channel Message Tracking** — Activity dashboard now shows message counts for each configured channel with 30-day historical charts on hover. Channel names auto-populate from radio settings (e.g., "LongFast", "SnailNet").
+- **Relay Message Metrics** — Track relay messages sent with 24-hour counts, deltas, and 30-day trend charts. Monitor network bridge activity from the dashboard.
+- **Remote Dashboard Access (Tailscale)** — New config section for easy Tailscale VPN setup. Access your dashboard securely from anywhere with automatic hostname detection and passwordless SSH support.
+- **Security Audit Trail** — All config changes logged to `data/config_audit.json` with timestamps. Security-sensitive changes (passwords, tokens, auth keys) trigger instant Telegram alerts with masked values.
+- **Activity Feed Cleanup** — Startup/shutdown alerts filtered from dashboard activity feed for cleaner monitoring. Only real events and user activity displayed.
+- **Enhanced Activity Metrics** — All metrics now persist across reboots with 30-day historical charts: messages (total, direct, AI-authored, email, relay), per-channel activity, new nodes, ACK telemetry, games, and more.
+- **Mobile-Optimized Charts** — Responsive chart popups with touch-device detection, dynamic positioning, and mobile-friendly sizing for all metrics.
+
+### Core Features
 - **Network Bridge Relay with ACK Tracking** — Forward messages to any node by shortname: `snmo hello there` or `/snmo hello there`. Real-time ACK confirmation shows which node acknowledged. Multi-chunk support for long messages. Acts as a bridge across multiple mesh networks—if this node sees networks A and B, users on network A can relay to users on network B seamlessly. **NEW:** Offline message queue stores failed relays and automatically delivers when recipient comes online (up to 3 attempts, 24-hour expiry).
 - **Relay Privacy Controls** — `/optout` disables receiving relays (others can't relay to the user), `/optin` re-enables. Privacy preferences persist across reboots and updates in `data/relay_optout.json`.
 - **Cross-Network Node Discovery** — `/nodes` lists all nodes seen in the last 24 hours across all channels/networks (sorted newest first). `/node <shortname>` shows detailed signal info (SNR, signal strength, last heard, hops, battery level, power status) with modem-aware thresholds. `/networks` lists all connected channels.
 - **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard.
 - **Private Logs & Public Reports** — `/log` creates private entries visible only to the author; `/report` creates public entries searchable by everyone via `/find`. **NEW:** Fuzzy matching with "Did you mean" suggestions for misspelled names. Command aliases: `/readlog`, `/readlogs`, `/checklog`, `/checklogs` (logs) and `/readreport`, `/readreports`, `/checkreport`, `/checkreports` (reports).
-- **Enhanced Privacy & Security** — Message content redacted in all debug/info logs (shows `[X chars]` instead of full text). URL filter blocks adult and warez sites from crawling and search results with humorous error message. All sensitive user data gitignored.
-- **Enhanced Dashboard** — Real-time activity feed (20-line mobile-optimized view), radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector. Accessible on mobile devices via `http://<your-ip>:5000/dashboard`.
+- **Enhanced Privacy & Security** — Message content redacted in all debug/info logs (shows `[X chars]` instead of full text). URL filter blocks adult and warez sites from crawling and search results with humorous error message. Security audit trail with Telegram alerts for sensitive changes. All sensitive user data gitignored.
+- **Enhanced Dashboard** — Real-time activity feed (20-line mobile-optimized view), per-channel metrics with 30-day charts, relay tracking, radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector. Accessible remotely via Tailscale or locally at `http://<your-ip>:5000/dashboard`.
 - **Data Persistence** — All user data (logs, reports, mail, settings, game states, relay preferences) now protected by `.gitignore` and persists across git updates and system reboots.
 - **Mesh Mail** — PIN-protected inboxes, multi-user notifications, and one-shot llama summaries keep longer messages flowing across the mesh.
 - **Game Hub** — Chess & Checkers duels, Blackjack, Yahtzee rounds, Tic-Tac-Toe, Hangman, Wordle, Word Ladder, Adventure stories, Cipher drills, Bingo, Morse, Rock–Paper–Scissors, Coinflip, Quiz Battle, **Mesh Master Quiz** (`/masterquiz` - 50 comprehensive questions), **Meshtastic Quiz** (`/meshtasticquiz` - 50 detailed questions), and more—all DM-friendly and multilingual.

@@ -194,6 +194,7 @@ data/mail_security.json
 data/logs/
 data/reports/
 data/onboarding_state.json
+data/config_audit.json
 data/saved_contexts.json
 data/feature_flags.json
 data/user_access.json
