@@ -80,9 +80,9 @@ Displays quick command reference and links to documentation.
 **Scope:** DM or configured channels
 **Example:**
 ```
-/ai What's the weather forecast?
-/bot Explain how LoRa works
-/query What time is it?
+/ai Explain how LoRa works
+/bot What is SNR?
+/query Calculate the distance to the horizon at 100m elevation
 ```
 Uses configured Ollama model (default: `llama3.2:1b` or `wizard-math:7b`).
 
@@ -132,7 +132,7 @@ Useful when starting a new conversation topic or if AI context becomes confused.
 
 ### `/chathistory`
 **Aliases:** None
-**Function:** View your conversation history with the AI
+**Function:** View conversation history with the AI
 **Scope:** DM only
 **Example:**
 ```
@@ -202,7 +202,7 @@ Shows all channels Mesh Master is monitoring.
 ```
 /optout
 ```
-Prevents others from relaying messages to you. Preference persists across reboots.
+Prevents others from relaying messages to the user. Preference persists across reboots.
 
 ---
 
@@ -214,7 +214,7 @@ Prevents others from relaying messages to you. Preference persists across reboot
 ```
 /optin
 ```
-Allows others to relay messages to you again.
+Allows others to relay messages to the user again.
 
 ---
 
@@ -278,24 +278,24 @@ Displays detailed mail commands and usage instructions.
 
 ### `/log`
 **Aliases:** None
-**Function:** Create private log entry (only you can see)
+**Function:** Create private log entry (visible only to the author)
 **Scope:** DM only
 **Example:**
 ```
 /log mission Reached checkpoint A at 1400 hours
 /log notes Remember to check batteries
 ```
-Creates/appends to private log file in `data/logs/your_shortname_mission.json`.
+Creates/appends to private log file in `data/logs/[shortname]_mission.json`.
 
 ---
 
 ### `/checklog`
 **Aliases:** `/readlog`, `/readlogs`, `/checklogs`
-**Function:** View your private log entries
+**Function:** View private log entries
 **Scope:** DM only
 **Usage:**
 ```
-/checklog                   # List all your logs
+/checklog                   # List all logs
 /checklog mission           # View specific log
 /readlog mission            # Same as /checklog
 ```
@@ -338,7 +338,7 @@ Creates/appends to public report file in `data/reports/weather.json`.
 /find mission briefing
 ```
 Searches:
-- Your private logs
+- User's private logs
 - Public reports
 - Offline wiki articles
 - Web crawl cache
@@ -657,7 +657,7 @@ Tests knowledge of LoRa, mesh networking, SNR, modem presets, security, etc.
 **Usage:**
 ```
 /bingo start                # Start game
-/bingo card                 # Show your card
+/bingo card                 # Show card
 /bingo call                 # Call next number
 /bingo mark 25              # Mark number
 ```
@@ -828,6 +828,142 @@ Gracefully shuts down the system.
 /reboot
 ```
 Reboots Raspberry Pi or host machine.
+
+---
+
+### `/admin`
+**Function:** Display admin console with available commands
+**Example:**
+```
+/admin
+```
+Shows admin control options: `/ai on/off`, `/channels+dm on`, `/channels on`, `/dm on`, `/autoping on/off`, `/status`, `/whatsoff`, `/aliases`, `/<command> on/off`.
+
+---
+
+### `/status`
+**Function:** Show current system status and feature flags
+**Example:**
+```
+/status
+```
+Displays AI status, message mode (channels+dm/channels/dm), autoping status, disabled commands, and admin whitelist.
+
+---
+
+### `/whatsoff`
+**Function:** List all disabled commands
+**Example:**
+```
+/whatsoff
+```
+Shows which commands are currently disabled via feature flags.
+
+---
+
+### `/allcommands`
+**Function:** List all enabled commands
+**Example:**
+```
+/allcommands
+```
+Displays comma-separated list of all enabled commands (excludes disabled ones).
+
+---
+
+### `/ai on|off`
+**Function:** Enable or disable AI responses
+**Example:**
+```
+/ai on
+/ai off
+```
+Toggles AI functionality system-wide.
+
+---
+
+### `/channels+dm on`
+**Function:** Set AI to respond in both channels and DMs
+**Example:**
+```
+/channels+dm on
+```
+Changes message mode to allow AI responses in all contexts.
+
+---
+
+### `/channels on`
+**Function:** Set AI to respond only in channels
+**Example:**
+```
+/channels on
+```
+Restricts AI responses to channel messages only.
+
+---
+
+### `/dm on`
+**Function:** Set AI to respond only in DMs
+**Example:**
+```
+/dm on
+```
+Restricts AI responses to direct messages only.
+
+---
+
+### `/autoping on|off`
+**Function:** Enable or disable automatic ping responses
+**Example:**
+```
+/autoping on
+/autoping off
+```
+Toggles automatic position/status replies.
+
+---
+
+### `/<command> on|off`
+**Function:** Enable or disable specific commands
+**Example:**
+```
+/weather on
+/weather off
+/games off
+```
+Dynamically enable or disable any command. Use `/status` to see current state.
+
+---
+
+### Admin Whitelist Process
+
+Admin access is controlled via the `admin_whitelist` in `data/feature_flags.json`:
+
+**Configuration:**
+```json
+{
+  "admin_whitelist": [
+    "!12345678",
+    "telegram_987654321"
+  ]
+}
+```
+
+**Whitelist Format:**
+- **Meshtastic nodes:** Use `!` prefix with 8-digit hex ID (e.g., `!12345678`)
+- **Telegram users:** Use `telegram_` prefix with chat ID (e.g., `telegram_987654321`)
+
+**Managing Admins:**
+1. Edit `data/feature_flags.json` manually
+2. Add sender IDs to the `admin_whitelist` array
+3. Restart Mesh Master service
+4. Changes persist across updates and reboots
+
+**Security Notes:**
+- Admin commands are DM-only
+- Non-whitelisted users receive "🔐 Admin only" message
+- Initial admin can be set in `config.json` (loaded on first boot)
+- Changing admin passphrase preserves existing whitelist
 
 ---
 
