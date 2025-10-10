@@ -11,10 +11,10 @@
 
 ## 2.0 Headline Upgrades
 - **Network Bridge Relay with ACK Tracking** — Forward messages to any node by shortname: `snmo hello there` or `/snmo hello there`. Real-time ACK confirmation shows which node acknowledged. Multi-chunk support for long messages. Acts as a bridge across multiple mesh networks—if this node sees networks A and B, users on network A can relay to users on network B seamlessly. **NEW:** Offline message queue stores failed relays and automatically delivers when recipient comes online (up to 3 attempts, 24-hour expiry).
-- **Relay Privacy Controls** — `/optout` disables receiving relays (others can't relay to you), `/optin` re-enables. Privacy preferences persist across reboots and updates in `data/relay_optout.json`.
+- **Relay Privacy Controls** — `/optout` disables receiving relays (others can't relay to the user), `/optin` re-enables. Privacy preferences persist across reboots and updates in `data/relay_optout.json`.
 - **Cross-Network Node Discovery** — `/nodes` lists all nodes seen in the last 24 hours across all channels/networks (sorted newest first). `/node <shortname>` shows detailed signal info (SNR, signal strength, last heard, hops, battery level, power status) with modem-aware thresholds. `/networks` lists all connected channels.
 - **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard.
-- **Private Logs & Public Reports** — `/log` creates private entries visible only to you; `/report` creates public entries searchable by everyone via `/find`. **NEW:** Fuzzy matching with "Did you mean" suggestions for misspelled names. Command aliases: `/readlog`, `/readlogs`, `/checklog`, `/checklogs` (logs) and `/readreport`, `/readreports`, `/checkreport`, `/checkreports` (reports).
+- **Private Logs & Public Reports** — `/log` creates private entries visible only to the author; `/report` creates public entries searchable by everyone via `/find`. **NEW:** Fuzzy matching with "Did you mean" suggestions for misspelled names. Command aliases: `/readlog`, `/readlogs`, `/checklog`, `/checklogs` (logs) and `/readreport`, `/readreports`, `/checkreport`, `/checkreports` (reports).
 - **Enhanced Privacy & Security** — Message content redacted in all debug/info logs (shows `[X chars]` instead of full text). URL filter blocks adult and warez sites from crawling and search results with humorous error message. All sensitive user data gitignored.
 - **Enhanced Dashboard** — Real-time activity feed (20-line mobile-optimized view), radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector. Accessible on mobile devices via `http://<your-ip>:5000/dashboard`.
 - **Data Persistence** — All user data (logs, reports, mail, settings, game states, relay preferences) now protected by `.gitignore` and persists across git updates and system reboots.
@@ -217,7 +217,7 @@ When a relay fails (recipient offline), messages are automatically queued:
 
 **Privacy Controls:**
 ```
-/optout  — Disable receiving relays (others can't relay to you)
+/optout  — Disable receiving relays (others can't relay to the user)
 /optin   — Re-enable receiving relays
 ```
 Preferences persist in `data/relay_optout.json` across reboots.
@@ -271,7 +271,7 @@ Mesh Mail is an async messaging system (like email) built for mesh networks.
 
 **Reading Mail:**
 ```bash
-/c                          # Check all your subscribed mailboxes
+/c                          # Check all subscribed mailboxes
 /c mailbox                  # Check specific mailbox
 /c mailbox keyword          # Search mailbox for keyword
 /checkmail                  # Alias for /c
@@ -839,14 +839,7 @@ Open your browser and go to:
 - **Local:** `http://localhost:5000/dashboard`
 - **From another device:** `http://YOUR_IP:5000/dashboard`
 
-### 2. Verify Connection
-
-In the dashboard, check the Activity Feed for:
-```
-🟢 Connection successful!
-```
-
-### 3. Test Basic Commands
+### 2. Test Basic Commands
 
 Send a direct message to your node via Meshtastic app:
 ```
@@ -855,7 +848,7 @@ Send a direct message to your node via Meshtastic app:
 
 You should receive the main menu response.
 
-### 4. Configure AI Model (Optional)
+### 3. Configure AI Model (Optional)
 
 If using a different model:
 ```bash
@@ -868,12 +861,12 @@ ollama pull wizard-math:7b
 
 Update `ollama_model` in config.json and restart.
 
-### 5. Explore Features
+### 4. Explore Features
 
 Try these commands in a DM to your node:
 - `/onboard` - Interactive tutorial
 - `/help` - Command reference
-- `/ai What is the weather?` - Test AI
+- `/ai Explain how LoRa works` - Test AI
 - `/games` - See available games
 - `/nodes` - List mesh nodes
 
@@ -995,11 +988,11 @@ Create the `state` directory (and `touch` the files listed above) before the fir
 - **Network & Relay** — `<shortname> <message>` to relay messages across networks. `/nodes` lists all reachable nodes, `/node <shortname>` shows signal details, `/networks` lists connected channels. `/optout` to disable receiving relays, `/optin` to re-enable.
 - **Mesh mail** — `/m <mailbox> <message>` or `/mail <recipient> <message>`, `/c [mailbox]` or `/checkmail`, `/emailhelp`, `/wipe ...`.
 - **Quick knowledge** — `/bible [topic]`, `/chucknorris`, `/elpaso`, `/meshtastic`, `/offline wiki`, `/web <query>`, `/wiki <topic>`, `/find <query>`, `/drudge`, `/weather`.
-- **Field notes** — `/log <title>` for private notes (only you can see), `/checklog [title]` or `/readlog [title]` to view your logs; `/report <title>` for public reports (searchable by all), `/checkreport [title]` or `/readreport [title]` to view reports. Both are DM-only. Use `/find <query>` to search with fuzzy matching.
+- **Field notes** — `/log <title>` for private notes (visible only to the author), `/checklog [title]` or `/readlog [title]` to view logs; `/report <title>` for public reports (searchable by all), `/checkreport [title]` or `/readreport [title]` to view reports. Both are DM-only. Use `/find <query>` to search with fuzzy matching.
 - **Personality & context** — `/aipersonality [persona]` (list/set/prompt/reset), `/vibe [tone]`, `/save [name]`, `/recall [name]`, `/reset`, `/chathistory`.
 - **Games** — `/games`, `/hangman start`, `/wordle start`, `/wordladder start cold warm`, `/adventure start`, `/cipher start`, `/quizbattle start`, `/morse start`, `/rps`, `/coinflip`, `/yahtzee`, `/blackjack`.
 - **Location & status** — `/test`, `/motd`, `/menu`, Meshtastic "Request Position," `/about`.
-- **Admin (DM-only)** — `/changemotd <message>`, `/changeprompt <text>`, `/showprompt`, `/printprompt`, `/showmodel`, `/selectmodel`, `/hops <0-7>`, `/stop`, `/exit`, `/reboot`.
+- **Admin (DM-only)** — `/admin` (console), `/status`, `/whatsoff`, `/allcommands`, `/ai on/off`, `/channels+dm on`, `/channels on`, `/dm on`, `/autoping on/off`, `/<command> on/off`, `/changemotd`, `/changeprompt`, `/showprompt`, `/showmodel`, `/selectmodel`, `/hops <0-7>`, `/stop`, `/reboot`. See [COMMANDS.md](COMMANDS.md) for whitelist configuration.
 
 All commands are case-insensitive. Special commands buffer ~3 seconds before responding to reduce radio congestion.
 
@@ -1026,7 +1019,7 @@ New users receive an interactive 9-step guided tour when they send `/onboard`, `
 1. **Welcome** — Introduction to MESH-MASTER capabilities
 2. **Main Menu** — How to access `/menu` for all features
 3. **Mesh Mail** — Sending and receiving messages with `/mail` and `/checkmail`
-4. **Logs & Reports** — Private logs (visible only to you) vs. public reports (searchable by all)
+4. **Logs & Reports** — Private logs (visible only to the author) vs. public reports (searchable by all)
 5. **Games** — Overview of available games and the `/games` command
 6. **AI Assistance** — How to ask questions and interact with the AI
 7. **Helpful Tools** — Weather, alarms, timers, Bible verses, web search, Wikipedia
