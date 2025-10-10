@@ -26722,7 +26722,7 @@ def dashboard():
         tours.dashboard = [
           {
             title: 'Welcome to Mesh Master! 🎉',
-            content: '<p>Let me show you around! This tour will teach you everything you need to know about running your mesh network.</p><p><strong>You'll learn:</strong></p><ul><li>How to see what's happening on your network</li><li>How to send messages to people</li><li>How to control the AI assistant</li><li>How to customize commands</li><li>How to connect Telegram</li></ul><p>It only takes a few minutes. Let's go!</p>',
+            content: '<p>Let me show you around! This tour will teach you everything you need to know about running your mesh network.</p><p><strong>You\\'ll learn:</strong></p><ul><li>How to see what\\'s happening on your network</li><li>How to send messages to people</li><li>How to control the AI assistant</li><li>How to customize commands</li><li>How to connect Telegram</li></ul><p>It only takes a few minutes. Let\\'s go!</p>',
             position: 'center'
           },
           {
@@ -26739,7 +26739,7 @@ def dashboard():
           },
           {
             title: 'Settings ⚙️',
-            content: '<p>This is where you change how Mesh Master works:</p><ul><li><strong>AI Model:</strong> Pick which AI brain to use (bigger = smarter but slower)</li><li><strong>Search Models:</strong> Download new AI brains</li><li><strong>Edit Settings:</strong> Change any value by clicking on it</li></ul><p>Don't worry - you can't break anything! All changes can be undone.</p>',
+            content: '<p>This is where you change how Mesh Master works:</p><ul><li><strong>AI Model:</strong> Pick which AI brain to use (bigger = smarter but slower)</li><li><strong>Search Models:</strong> Download new AI brains</li><li><strong>Edit Settings:</strong> Change any value by clicking on it</li></ul><p>Don\\'t worry - you can\\'t break anything! All changes can be undone.</p>',
             target: '[data-panel-id="config-overview"]',
             position: 'bottom'
           },
