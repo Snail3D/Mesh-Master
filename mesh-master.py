@@ -27651,7 +27651,7 @@ def connect_interface():
             max_attempts = 10
             attempt = 0
             last_exc = None
-            print(f"SerialInterface on '{SERIAL_PORT}' (default baud, will switch to {SERIAL_BAUD}) …")
+            add_script_log(f"SerialInterface on '{SERIAL_PORT}' (default baud, will switch to {SERIAL_BAUD})")
             while attempt < max_attempts:
                 attempt += 1
                 try:
@@ -28148,26 +28148,18 @@ def main():
     start_response_worker()
 
     if RADIO_STALE_RX_THRESHOLD:
-        clean_log(
-            f"Radio watchdog armed (stale RX>{RADIO_STALE_RX_THRESHOLD}s)",
-            "🛡️",
-            show_always=True,
-        )
+        add_script_log(f"Radio watchdog armed (stale RX>{RADIO_STALE_RX_THRESHOLD}s)")
     else:
-        clean_log("Radio watchdog RX disabled", "🛡️", show_always=True)
+        add_script_log("Radio watchdog RX disabled")
 
     if RADIO_STALE_TX_THRESHOLD:
-        clean_log(
-            f"Radio watchdog armed (stale TX>{RADIO_STALE_TX_THRESHOLD}s)",
-            "🛡️",
-            show_always=True,
-        )
+        add_script_log(f"Radio watchdog armed (stale TX>{RADIO_STALE_TX_THRESHOLD}s)")
     else:
-        clean_log("Radio watchdog TX disabled", "🛡️", show_always=True)
+        add_script_log("Radio watchdog TX disabled")
 
     # Determine Flask port: prefer environment `MESH_MASTER_PORT`, then config keys, then default 5000
     flask_port = SERVER_PORT
-    clean_log(f"Launching Flask web interface on port {flask_port}...", "🌐", show_always=True)
+    add_script_log(f"Launching Flask web interface on port {flask_port}...")
     api_thread = threading.Thread(
         target=app.run,
         kwargs={"host": "0.0.0.0", "port": flask_port, "debug": False},
@@ -28205,7 +28197,7 @@ def main():
     while True:
         try:
             print("---------------------------------------------------")
-            clean_log("Connecting to Meshtastic device...", "🔗", show_always=True, rate_limit=True)
+            add_script_log("Connecting to Meshtastic device...")
             try:
                 pub.unsubscribe(on_receive, "meshtastic.receive")
             except Exception:
