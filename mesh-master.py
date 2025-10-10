@@ -27786,7 +27786,7 @@ def send_to_telegram(message: str):
         return
 
     # Send to all authorized chats using synchronous HTTP to avoid event loop issues
-    clean_log(f"🐛 TG sending to {len(authorized_ids)} chats: {message[:50]}", "🐛", show_always=True, rate_limit=False)
+    add_script_log(f"TG sending to {len(authorized_ids)} chats: {message[:50]}")
     import threading
     import requests
 
@@ -27806,9 +27806,9 @@ def send_to_telegram(message: str):
                     timeout=10
                 )
                 response.raise_for_status()
-                clean_log(f"✅ TG sent to {chat_id}", "✅", show_always=True, rate_limit=False)
+                add_script_log(f"TG sent to {chat_id}")
             except Exception as e:
-                clean_log(f"❌ TG send failed to {chat_id}: {e}", "❌", show_always=True, rate_limit=False)
+                add_script_log(f"TG send failed to {chat_id}: {e}")
                 add_script_log(f"Failed to send to Telegram chat {chat_id}: {e}")
 
     # Run in background thread to avoid blocking
@@ -28098,13 +28098,13 @@ def telegram_error_monitor():
                     # Send to Telegram
                     send_to_telegram(alert_message)
                     last_alert_time = current_time
-                    clean_log(f"📱 Sent error alert to Telegram", "📱", show_always=True, rate_limit=False)
+                    add_script_log("Sent error alert to Telegram")
 
             # If status changed from Disconnected to Connected, send recovery notice
             elif current_status == "Connected" and last_status == "Disconnected":
                 recovery_message = f"✅ SYSTEM RECOVERED\n\nConnection restored\nTime: {datetime.now().strftime('%H:%M:%S')}"
                 send_to_telegram(recovery_message)
-                clean_log(f"📱 Sent recovery notice to Telegram", "📱", show_always=True, rate_limit=False)
+                add_script_log("Sent recovery notice to Telegram")
                 last_alert_time = 0  # Reset alert timer
 
             last_status = current_status
@@ -28142,7 +28142,7 @@ def main():
 
         # Start Telegram error monitoring
         threading.Thread(target=telegram_error_monitor, daemon=True).start()
-        clean_log(f"Telegram error monitor started (1-min alert interval)", "📱", show_always=True)
+        add_script_log("Telegram error monitor started (1-min alert interval)")
 
     # Start the async response worker
     start_response_worker()
