@@ -220,3 +220,11 @@ tests/*_test_*.log
 *.code-workspace
 data/relay_optout.json
 data/telegram_config.json
+
+# Claude Code documentation
+claude.md
+CLAUDE.md
+
+# Tailscale configuration (contains network info)
+tailscale.state
+*.ts.net
