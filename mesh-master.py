@@ -27631,11 +27631,7 @@ def connect_interface():
                     "Disconnected",
                     "MeshInterface did not report ready; falling back to SerialInterface",
                 )
-                clean_log(
-                    last_error_message,
-                    "⚠️",
-                    show_always=True,
-                )
+                # Suppress this message - it's just informational fallback behavior
             except Exception as exc:
                 connection_status = "Disconnected"
                 last_error_message = f"MeshInterface connect failed: {exc}"
@@ -27664,7 +27660,9 @@ def connect_interface():
                 except Exception as e:
                     last_exc = e
                     wait = min(5, 1 + attempt)
-                    print(f"⚠️ Attempt {attempt}/{max_attempts} failed to open {SERIAL_PORT}: {e} — retrying in {wait}s")
+                    # Only show simple message on first attempt
+                    if attempt == 1:
+                        clean_log("Connecting to radio...", "🔄", show_always=True, rate_limit=False)
                     add_script_log(f"Retry {attempt} failed opening serial {SERIAL_PORT}: {e}")
                     time.sleep(wait)
             else:
