@@ -17299,6 +17299,54 @@ def api_version():
     # Fallback to cached version
     return jsonify({'version': _version_cache['version']})
 
+# Tutorial progress tracking
+_tutorial_data_file = "data/tutorial_progress.json"
+
+def _load_tutorial_progress():
+    """Load tutorial completion data from disk."""
+    try:
+        if os.path.exists(_tutorial_data_file):
+            with open(_tutorial_data_file, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        clean_log(f"⚠️ Failed to load tutorial progress: {e}", "⚠️")
+    return {'completed': []}
+
+def _save_tutorial_progress(data):
+    """Save tutorial completion data to disk."""
+    try:
+        os.makedirs(os.path.dirname(_tutorial_data_file), exist_ok=True)
+        with open(_tutorial_data_file, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        clean_log(f"⚠️ Failed to save tutorial progress: {e}", "⚠️")
+
+@app.route("/api/tutorial/status", methods=["GET"])
+def api_tutorial_status():
+    """Get tutorial completion status (public endpoint)."""
+    data = _load_tutorial_progress()
+    return jsonify(data)
+
+@app.route("/api/tutorial/complete", methods=["POST"])
+def api_tutorial_complete():
+    """Mark a tutorial as completed."""
+    request_data = request.get_json() or {}
+    tour = request_data.get('tour')
+
+    if not tour:
+        return jsonify({'ok': False, 'error': 'Tour name required'}), 400
+
+    data = _load_tutorial_progress()
+    if 'completed' not in data:
+        data['completed'] = []
+
+    if tour not in data['completed']:
+        data['completed'].append(tour)
+        _save_tutorial_progress(data)
+        clean_log(f"✅ Tutorial '{tour}' marked as completed", "✅")
+
+    return jsonify({'ok': True, 'completed': data['completed']})
+
 @app.route("/messages", methods=["GET"])
 def get_messages_api():
   dprint("GET /messages => returning current messages")
@@ -26346,6 +26394,537 @@ def dashboard():
 
       loadTelegramConfig();
     });
+  </script>
+
+  <!-- Tutorial System -->
+  <div id="tutorialOverlay" class="tutorial-overlay">
+    <div class="tutorial-spotlight"></div>
+    <div class="tutorial-card">
+      <div class="tutorial-card-header">
+        <div class="tutorial-progress">
+          <span id="tutorialStep">1</span> / <span id="tutorialTotal">10</span>
+        </div>
+        <button type="button" id="tutorialClose" class="tutorial-close" aria-label="Close tutorial">✕</button>
+      </div>
+      <div class="tutorial-card-body">
+        <h3 id="tutorialTitle">Welcome to Mesh Master!</h3>
+        <p id="tutorialContent">Let's take a quick tour of the system.</p>
+      </div>
+      <div class="tutorial-card-footer">
+        <button type="button" id="tutorialPrev" class="tutorial-btn tutorial-btn-secondary">← Previous</button>
+        <button type="button" id="tutorialSkip" class="tutorial-btn tutorial-btn-ghost">Skip Tour</button>
+        <button type="button" id="tutorialNext" class="tutorial-btn tutorial-btn-primary">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <button id="tutorialHelpIcon" class="tutorial-help-icon" style="display: none;" aria-label="Start tutorial">?</button>
+
+  <style>
+    .tutorial-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: none;
+      pointer-events: none;
+    }
+    .tutorial-overlay.active {
+      display: block;
+      pointer-events: auto;
+    }
+    .tutorial-spotlight {
+      position: absolute;
+      inset: 0;
+      background: rgba(4, 6, 8, 0.92);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .tutorial-spotlight::before {
+      content: '';
+      position: absolute;
+      border: 3px solid #3c92ff;
+      border-radius: 12px;
+      box-shadow:
+        0 0 0 4px rgba(60, 146, 255, 0.3),
+        0 0 60px 10px rgba(60, 146, 255, 0.4),
+        inset 0 0 40px rgba(60, 146, 255, 0.2);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% {
+        box-shadow:
+          0 0 0 4px rgba(60, 146, 255, 0.3),
+          0 0 60px 10px rgba(60, 146, 255, 0.4),
+          inset 0 0 40px rgba(60, 146, 255, 0.2);
+      }
+      50% {
+        box-shadow:
+          0 0 0 6px rgba(60, 146, 255, 0.4),
+          0 0 80px 15px rgba(60, 146, 255, 0.5),
+          inset 0 0 50px rgba(60, 146, 255, 0.3);
+      }
+    }
+    .tutorial-card {
+      position: absolute;
+      width: min(480px, 90vw);
+      background: linear-gradient(135deg, #0b1018 0%, #0f1620 100%);
+      border: 1px solid rgba(60, 146, 255, 0.4);
+      border-radius: 16px;
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.7),
+        0 0 0 1px rgba(60, 146, 255, 0.1) inset,
+        0 0 80px rgba(60, 146, 255, 0.3);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(12px);
+      animation: card-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes card-enter {
+      from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+    .tutorial-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(60, 146, 255, 0.2);
+    }
+    .tutorial-progress {
+      font-size: 13px;
+      font-weight: 600;
+      color: #3c92ff;
+      letter-spacing: 0.05em;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    }
+    .tutorial-close {
+      background: transparent;
+      border: 1px solid rgba(60, 146, 255, 0.3);
+      color: var(--text-secondary);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 18px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tutorial-close:hover {
+      background: rgba(60, 146, 255, 0.15);
+      border-color: #3c92ff;
+      color: var(--text-primary);
+      transform: rotate(90deg);
+    }
+    .tutorial-card-body {
+      padding: 24px 20px;
+    }
+    .tutorial-card-body h3 {
+      margin: 0 0 12px 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 0.02em;
+    }
+    .tutorial-card-body p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+    .tutorial-card-body ul {
+      margin: 12px 0 0 0;
+      padding-left: 20px;
+      list-style: none;
+    }
+    .tutorial-card-body li {
+      position: relative;
+      margin-bottom: 8px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+    .tutorial-card-body li::before {
+      content: '→';
+      position: absolute;
+      left: -20px;
+      color: #3c92ff;
+      font-weight: bold;
+    }
+    .tutorial-card-footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-top: 1px solid rgba(60, 146, 255, 0.2);
+    }
+    .tutorial-btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    }
+    .tutorial-btn-primary {
+      background: linear-gradient(135deg, #3c92ff 0%, #569cd6 100%);
+      color: #fff;
+      flex: 1;
+      box-shadow: 0 4px 12px rgba(60, 146, 255, 0.3);
+    }
+    .tutorial-btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(60, 146, 255, 0.4);
+    }
+    .tutorial-btn-secondary {
+      background: rgba(60, 146, 255, 0.15);
+      border: 1px solid rgba(60, 146, 255, 0.3);
+      color: var(--text-primary);
+    }
+    .tutorial-btn-secondary:hover:not(:disabled) {
+      background: rgba(60, 146, 255, 0.25);
+      border-color: #3c92ff;
+    }
+    .tutorial-btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 10px 16px;
+    }
+    .tutorial-btn-ghost:hover {
+      color: var(--text-primary);
+      background: rgba(60, 146, 255, 0.1);
+    }
+    .tutorial-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .tutorial-help-icon {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, #3c92ff 0%, #569cd6 100%);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 6px 24px rgba(60, 146, 255, 0.4);
+      transition: all 0.3s ease;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+    .tutorial-help-icon:hover {
+      transform: translateY(-4px) scale(1.05);
+      box-shadow: 0 8px 32px rgba(60, 146, 255, 0.5);
+    }
+    .tutorial-completion {
+      text-align: center;
+      padding: 20px 0;
+    }
+    .tutorial-completion-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      animation: celebrate 0.6s ease-in-out;
+    }
+    @keyframes celebrate {
+      0%, 100% { transform: scale(1); }
+      25% { transform: scale(1.2) rotate(-10deg); }
+      75% { transform: scale(1.2) rotate(10deg); }
+    }
+  </style>
+
+  <script>
+    // Tutorial System Engine
+    const TutorialEngine = (() => {
+      let overlay, spotlight, card, stepEl, totalEl, titleEl, contentEl;
+      let prevBtn, nextBtn, skipBtn, closeBtn, helpIcon;
+      let currentTour = null;
+      let currentStep = 0;
+      const tours = {};
+
+      function init() {
+        overlay = document.getElementById('tutorialOverlay');
+        spotlight = overlay.querySelector('.tutorial-spotlight');
+        card = overlay.querySelector('.tutorial-card');
+        stepEl = document.getElementById('tutorialStep');
+        totalEl = document.getElementById('tutorialTotal');
+        titleEl = document.getElementById('tutorialTitle');
+        contentEl = document.getElementById('tutorialContent');
+        prevBtn = document.getElementById('tutorialPrev');
+        nextBtn = document.getElementById('tutorialNext');
+        skipBtn = document.getElementById('tutorialSkip');
+        closeBtn = document.getElementById('tutorialClose');
+        helpIcon = document.getElementById('tutorialHelpIcon');
+
+        prevBtn.addEventListener('click', () => previousStep());
+        nextBtn.addEventListener('click', () => nextStep());
+        skipBtn.addEventListener('click', () => endTour());
+        closeBtn.addEventListener('click', () => endTour());
+        helpIcon.addEventListener('click', () => {
+          startTour('dashboard');
+          helpIcon.style.display = 'none';
+        });
+
+        defineTours();
+        checkFirstVisit();
+      }
+
+      function defineTours() {
+        tours.dashboard = [
+          {
+            title: 'Welcome to Mesh Master! 🎉',
+            content: '<p>Let me show you around! This tour will teach you everything you need to know about running your mesh network.</p><p><strong>You'll learn:</strong></p><ul><li>How to see what's happening on your network</li><li>How to send messages to people</li><li>How to control the AI assistant</li><li>How to customize commands</li><li>How to connect Telegram</li></ul><p>It only takes a few minutes. Let's go!</p>',
+            position: 'center'
+          },
+          {
+            title: 'Activity Panel 📊',
+            content: '<p>This shows you what's happening right now on your mesh:</p><ul><li><strong>Messages:</strong> How many messages have been sent</li><li><strong>Nodes:</strong> How many devices are connected</li><li><strong>Users:</strong> How many people are active</li><li><strong>AI Activity:</strong> How often the AI is helping people</li></ul><p>Think of it like a dashboard in your car - it shows you all the important info at a glance!</p>',
+            target: '[data-panel-id="snapshot"]',
+            position: 'right'
+          },
+          {
+            title: 'Side Menu 📋',
+            content: '<p>This menu on the left helps you navigate:</p><ul><li>Click any section name to jump there</li><li>Click "show" or "hide" to expand or collapse sections</li><li>Your choices are remembered next time you visit</li></ul><p>Use this to quickly find what you need!</p>',
+            target: '#panelMenu',
+            position: 'right'
+          },
+          {
+            title: 'Settings ⚙️',
+            content: '<p>This is where you change how Mesh Master works:</p><ul><li><strong>AI Model:</strong> Pick which AI brain to use (bigger = smarter but slower)</li><li><strong>Search Models:</strong> Download new AI brains</li><li><strong>Edit Settings:</strong> Change any value by clicking on it</li></ul><p>Don't worry - you can't break anything! All changes can be undone.</p>',
+            target: '[data-panel-id="config-overview"]',
+            position: 'bottom'
+          },
+          {
+            title: 'AI Controls 🤖',
+            content: '<p>Control how the AI assistant behaves:</p><ul><li><strong>Turn AI On/Off:</strong> Enable or disable automatic responses</li><li><strong>Where it responds:</strong> Choose if AI answers privately (DMs) or publicly</li><li><strong>Personality:</strong> Make it helpful, creative, or technical</li><li><strong>Trigger words:</strong> Set keywords that activate the AI</li></ul><p>The AI can answer questions, tell jokes, and help users - but only when you want it to!</p>',
+            target: '[data-panel-id="operations"]',
+            position: 'bottom'
+          },
+          {
+            title: 'Radio Settings 📡',
+            content: '<p>Control your radio hardware:</p><ul><li><strong>Hop Limit:</strong> How many times a message can bounce between devices (higher = farther reach but more network traffic)</li><li><strong>Channels:</strong> Which radio frequency you're using</li></ul><p>Think of hop limit like a "maximum bounces" setting - messages stop after that many hops.</p>',
+            target: '[data-panel-id="radio-settings"]',
+            position: 'bottom'
+          },
+          {
+            title: 'Telegram Bridge 💬',
+            content: '<p>Connect your mesh to Telegram messenger:</p><ul><li>Get mesh messages in Telegram</li><li>Send messages from Telegram to the mesh</li><li>Get notified when people DM you</li><li>Control your mesh from your phone</li></ul><p><strong>To set up:</strong></p><ul><li>Create a Telegram bot (search "BotFather" on Telegram)</li><li>Paste your bot token here</li><li>Add your Telegram chat ID</li><li>Toggle "Enable" to turn it on</li></ul>',
+            target: '[data-panel-id="telegram"]',
+            position: 'bottom'
+          },
+          {
+            title: 'Offline Wiki 🧠',
+            content: '<p>Your personal offline encyclopedia!</p><ul><li>Web pages are saved here automatically when people ask questions</li><li>The AI uses these to answer questions even without internet</li><li>Users can request articles with commands like <code>/wiki meshtastic</code></li></ul><p>This helps your mesh be useful even when the internet is down!</p>',
+            target: '[data-panel-id="offline-knowledge"]',
+            position: 'bottom'
+          },
+          {
+            title: 'Detailed Logs 📝',
+            content: '<p>Want to see everything happening behind the scenes?</p><ul><li>Click <strong>"verbose logs"</strong> at the top</li><li>Watch messages flow in real-time</li><li>See when AI responds</li><li>Debug problems</li><li>Monitor system health</li></ul><p>This is super useful if something isn't working right!</p>',
+            target: '.header-meta-link[href="/logs/verbose"]',
+            position: 'bottom'
+          },
+          {
+            title: 'Command Builder 🛠️',
+            content: '<p>Create your own custom commands!</p><ul><li>Click <strong>"command builder"</strong> to start</li><li>Make commands like <code>/joke</code> or <code>/weather</code></li><li>Write the response you want</li><li>Create menus with multiple options</li><li>Test them before making them live</li></ul><p>This lets you add any feature you can imagine to your mesh!</p>',
+            target: '.header-meta-link[href="/command-builder"]',
+            position: 'bottom'
+          },
+          {
+            title: 'Sending Messages 💬',
+            content: '<p><strong>From the Activity Center</strong> (right side) or CLI, you can send messages:</p><p><strong>To one person:</strong></p><ul><li>Type: <code>@theirname your message here</code></li><li>Example: <code>@alice Hey, how are you?</code></li></ul><p><strong>To everyone:</strong></p><ul><li>Just type your message (no @ symbol)</li><li>Example: <code>Good morning everyone!</code></li></ul><p><strong>Using commands:</strong></p><ul><li>Try: <code>/help</code>, <code>/nodes</code>, <code>/status</code></li><li>Any command that works on the mesh works here too!</li></ul>',
+            position: 'center'
+          },
+          {
+            title: 'Changing Settings ⚙️',
+            content: '<p><strong>Most settings work like this:</strong></p><ul><li><strong>Switches:</strong> Click to turn things on/off</li><li><strong>Dropdowns:</strong> Click to see options and pick one</li><li><strong>Text boxes:</strong> Click to type new values</li><li><strong>Save buttons:</strong> Some things save automatically, others need you to click "Save"</li></ul><p><strong>Pro tip:</strong> Hover over the <strong>?</strong> icon next to settings to see what they do!</p>',
+            position: 'center'
+          },
+          {
+            title: 'You're Ready! 🎊',
+            content: '<div class="tutorial-completion"><div class="tutorial-completion-icon">🎉</div><p><strong>Congratulations!</strong> You now know how to use Mesh Master!</p><p><strong>Quick recap:</strong></p><ul><li>Monitor your network from the Activity panel</li><li>Send messages using @ for specific people</li><li>Control the AI from AI Settings</li><li>Build custom commands</li><li>Connect Telegram for mobile access</li><li>Check logs if you need to troubleshoot</li></ul><p><strong>Need this again?</strong> Click the <strong>?</strong> button in the bottom-right corner anytime!</p></div>',
+            position: 'center'
+          }
+        ];
+      }
+
+      async function checkFirstVisit() {
+        try {
+          const response = await fetch('/api/tutorial/status');
+          if (!response.ok) throw new Error('Tutorial API not available');
+
+          const data = await response.json();
+          if (!data.completed || !data.completed.includes('dashboard')) {
+            setTimeout(() => startTour('dashboard'), 1500);
+          } else {
+            helpIcon.style.display = 'flex';
+          }
+        } catch (error) {
+          console.log('Tutorial API unavailable, showing help icon');
+          helpIcon.style.display = 'flex';
+        }
+      }
+
+      function startTour(tourName) {
+        if (!tours[tourName]) {
+          console.error('Tour not found:', tourName);
+          return;
+        }
+
+        currentTour = tours[tourName];
+        currentStep = 0;
+        overlay.classList.add('active');
+        renderStep();
+      }
+
+      function renderStep() {
+        const step = currentTour[currentStep];
+        const totalSteps = currentTour.length;
+
+        stepEl.textContent = currentStep + 1;
+        totalEl.textContent = totalSteps;
+        titleEl.innerHTML = step.title;
+        contentEl.innerHTML = step.content;
+
+        prevBtn.disabled = currentStep === 0;
+        nextBtn.textContent = currentStep === totalSteps - 1 ? 'Finish ✓' : 'Next →';
+
+        positionElements(step);
+      }
+
+      function positionElements(step) {
+        if (step.target) {
+          const target = document.querySelector(step.target);
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            setTimeout(() => {
+              const rect = target.getBoundingClientRect();
+              const padding = 16;
+
+              spotlight.style.clipPath = `polygon(
+                0% 0%, 0% 100%, ${rect.left - padding}px 100%,
+                ${rect.left - padding}px ${rect.top - padding}px,
+                ${rect.right + padding}px ${rect.top - padding}px,
+                ${rect.right + padding}px ${rect.bottom + padding}px,
+                ${rect.left - padding}px ${rect.bottom + padding}px,
+                ${rect.left - padding}px 100%, 100% 100%, 100% 0%
+              )`;
+
+              positionCard(rect, step.position || 'bottom');
+            }, 450);
+          }
+        } else {
+          spotlight.style.clipPath = 'none';
+          card.style.top = '50%';
+          card.style.left = '50%';
+          card.style.transform = 'translate(-50%, -50%)';
+          card.style.bottom = 'auto';
+          card.style.right = 'auto';
+        }
+      }
+
+      function positionCard(targetRect, position) {
+        const cardWidth = 480;
+        const cardPadding = 24;
+
+        card.style.transform = 'none';
+
+        switch (position) {
+          case 'right':
+            card.style.left = `${Math.min(targetRect.right + cardPadding, window.innerWidth - cardWidth - cardPadding)}px`;
+            card.style.top = `${Math.max(cardPadding, Math.min(targetRect.top, window.innerHeight - 400))}px`;
+            card.style.bottom = 'auto';
+            card.style.right = 'auto';
+            break;
+          case 'left':
+            card.style.right = `${Math.max(cardPadding, window.innerWidth - targetRect.left + cardPadding)}px`;
+            card.style.top = `${Math.max(cardPadding, targetRect.top)}px`;
+            card.style.left = 'auto';
+            card.style.bottom = 'auto';
+            break;
+          case 'top':
+            card.style.left = `${Math.max(cardPadding, Math.min(targetRect.left + targetRect.width / 2 - cardWidth / 2, window.innerWidth - cardWidth - cardPadding))}px`;
+            card.style.bottom = `${window.innerHeight - targetRect.top + cardPadding}px`;
+            card.style.top = 'auto';
+            card.style.right = 'auto';
+            break;
+          case 'bottom':
+          default:
+            card.style.left = `${Math.max(cardPadding, Math.min(targetRect.left + targetRect.width / 2 - cardWidth / 2, window.innerWidth - cardWidth - cardPadding))}px`;
+            card.style.top = `${Math.min(targetRect.bottom + cardPadding, window.innerHeight - 400)}px`;
+            card.style.bottom = 'auto';
+            card.style.right = 'auto';
+            break;
+        }
+      }
+
+      function nextStep() {
+        if (currentStep < currentTour.length - 1) {
+          currentStep++;
+          renderStep();
+        } else {
+          completeTour();
+        }
+      }
+
+      function previousStep() {
+        if (currentStep > 0) {
+          currentStep--;
+          renderStep();
+        }
+      }
+
+      async function completeTour() {
+        try {
+          await fetch('/api/tutorial/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tour: 'dashboard' })
+          });
+        } catch (error) {
+          console.log('Could not save tutorial completion');
+        }
+
+        setTimeout(() => endTour(), 2000);
+      }
+
+      function endTour() {
+        overlay.classList.remove('active');
+        currentTour = null;
+        currentStep = 0;
+        spotlight.style.clipPath = 'none';
+        helpIcon.style.display = 'flex';
+      }
+
+      return { init, startTour };
+    })();
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => TutorialEngine.init());
+    } else {
+      TutorialEngine.init();
+    }
   </script>
 </body>
 </html>
