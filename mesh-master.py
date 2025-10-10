@@ -51,7 +51,7 @@ import string
 from collections import deque, Counter, defaultdict, OrderedDict
 from pathlib import Path
 import traceback
-from flask import Flask, request, jsonify, redirect, url_for, stream_with_context, Response
+from flask import Flask, request, jsonify, redirect, url_for, stream_with_context, Response, session, render_template_string
 import sys
 import socket  # for socket error checking
 import re
@@ -9502,6 +9502,14 @@ def _antispam_after_response(
         _antispam_handle_penalty(sender_key, sender_node, interface_ref, info)
 
 app = Flask(__name__)
+
+# Configure session security
+app.secret_key = os.urandom(32)  # Generate random secret key on startup
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True when HTTPS is enabled
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+
 messages = []
 messages_lock = threading.Lock()
 interface = None
@@ -17172,6 +17180,83 @@ def on_receive(packet=None, interface=None, **kwargs):
     except Exception as exc:
       clean_log(f"Onboarding notification flush error: {exc}", "⚠️")
 
+# ============================================================================
+# AUTHENTICATION & AUTHORIZATION
+# ============================================================================
+
+def hash_password(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
+    """
+    Hash a password with SHA256 + salt.
+    Returns (hash, salt) tuple.
+    """
+    if salt is None:
+        salt = os.urandom(32)
+    pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return pwd_hash, salt
+
+def verify_password(password: str, pwd_hash: bytes, salt: bytes) -> bool:
+    """Verify a password against a hash."""
+    new_hash, _ = hash_password(password, salt)
+    return new_hash == pwd_hash
+
+def is_authenticated() -> bool:
+    """Check if current session is authenticated."""
+    return session.get('authenticated', False)
+
+def require_auth(f):
+    """Decorator to require authentication for a route."""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_authenticated():
+            return jsonify({'error': 'Authentication required', 'authenticated': False}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    """Authenticate user with admin password."""
+    try:
+        data = request.get_json() or {}
+        password = data.get('password', '').strip()
+
+        if not password:
+            return jsonify({'error': 'Password required', 'authenticated': False}), 400
+
+        # Check against admin password (currently plaintext in config)
+        # This will be upgraded to hashed passwords soon
+        if password.casefold() == ADMIN_PASSWORD_NORM:
+            session['authenticated'] = True
+            session.permanent = True
+            clean_log(f"🔐 Dashboard login successful from {request.remote_addr}", show_always=True)
+            return jsonify({'authenticated': True, 'message': 'Login successful'})
+
+        # Check against dashboard passphrase
+        passphrase = get_admin_passphrase()
+        if passphrase and password.casefold() == passphrase.strip().casefold():
+            session['authenticated'] = True
+            session.permanent = True
+            clean_log(f"🔐 Dashboard login successful (passphrase) from {request.remote_addr}", show_always=True)
+            return jsonify({'authenticated': True, 'message': 'Login successful'})
+
+        clean_log(f"⚠️ Failed dashboard login attempt from {request.remote_addr}", show_always=True)
+        return jsonify({'error': 'Invalid password', 'authenticated': False}), 401
+
+    except Exception as e:
+        clean_log(f"❌ Login error: {e}", show_always=True)
+        return jsonify({'error': 'Login failed', 'authenticated': False}), 500
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    """Log out current session."""
+    session.clear()
+    return jsonify({'authenticated': False, 'message': 'Logged out successfully'})
+
+@app.route("/api/auth/status", methods=["GET"])
+def api_auth_status():
+    """Check authentication status."""
+    return jsonify({'authenticated': is_authenticated()})
+
 @app.route("/messages", methods=["GET"])
 def get_messages_api():
   dprint("GET /messages => returning current messages")
@@ -17209,6 +17294,7 @@ def get_dashboard_metrics():
 
 
 @app.route("/dashboard/features", methods=["POST"])
+@require_auth
 def update_dashboard_features():
     try:
         payload = request.get_json(force=True, silent=False) or {}
@@ -17298,6 +17384,7 @@ def update_dashboard_features():
 
 
 @app.route("/dashboard/telegram/save", methods=["POST"])
+@require_auth
 def save_telegram_config():
     """Save Telegram bot configuration."""
     try:
@@ -17371,6 +17458,7 @@ def get_telegram_config():
 
 
 @app.route("/dashboard/admins/remove", methods=["POST"])
+@require_auth
 def remove_dashboard_admin():
     try:
         payload = request.get_json(force=True, silent=False) or {}
@@ -17427,6 +17515,7 @@ def dashboard_onboarding_get():
 
 
 @app.route("/dashboard/onboarding/settings", methods=["POST"])
+@require_auth
 def dashboard_onboarding_update():
     """Update onboarding settings."""
     try:
@@ -17452,6 +17541,7 @@ def dashboard_onboarding_update():
 
 
 @app.route("/dashboard/system/reboot", methods=["POST"])
+@require_auth
 def dashboard_system_reboot():
     """Admin-only endpoint to reboot the entire server."""
     try:
@@ -17465,6 +17555,7 @@ def dashboard_system_reboot():
 
 
 @app.route("/dashboard/weather/validate", methods=["POST"])
+@require_auth
 def dashboard_weather_validate():
     """Validate a weather location (zip code or city) using geocoding API."""
     try:
@@ -17530,6 +17621,7 @@ def dashboard_weather_validate():
 
 
 @app.route("/dashboard/weather/save", methods=["POST"])
+@require_auth
 def dashboard_weather_save():
     """Save validated weather location to config."""
     try:
@@ -17627,6 +17719,7 @@ def dashboard_update_check():
 
 
 @app.route("/dashboard/update/apply", methods=["POST"])
+@require_auth
 def dashboard_update_apply():
     """Apply a specific version update from GitHub."""
     try:
@@ -17731,6 +17824,7 @@ def dashboard_wiki_list():
 
 
 @app.route("/dashboard/wiki/delete", methods=["POST"])
+@require_auth
 def dashboard_wiki_delete():
   if not OFFLINE_WIKI_ENABLED or (OFFLINE_WIKI_STORE is None and not OFFLINE_WIKI_MULTI_LANGUAGE):
     return jsonify({"ok": False, "error": "offline wiki disabled"}), 400
@@ -17759,6 +17853,7 @@ def dashboard_wiki_delete():
 
 
 @app.route("/dashboard/wiki/prune", methods=["POST"])
+@require_auth
 def dashboard_wiki_prune():
   if not OFFLINE_WIKI_ENABLED or (OFFLINE_WIKI_STORE is None and not OFFLINE_WIKI_MULTI_LANGUAGE):
     return jsonify({"ok": False, "error": "offline wiki disabled"}), 400
@@ -17929,6 +18024,7 @@ def dashboard_offline_list():
 
 
 @app.route("/dashboard/offline/delete", methods=["POST"])
+@require_auth
 def dashboard_offline_delete():
   try:
     payload = request.get_json(force=True, silent=True) or {}
@@ -17953,6 +18049,7 @@ def dashboard_offline_delete():
 
 
 @app.route("/dashboard/offline/prune", methods=["POST"])
+@require_auth
 def dashboard_offline_prune():
   try:
     payload = request.get_json(force=True, silent=True) or {}
@@ -19658,8 +19755,169 @@ def command_builder():
     return html_page
 
 
+@app.route("/login", methods=["GET"])
+def login_page():
+    # If already authenticated, redirect to dashboard
+    if is_authenticated():
+        return redirect("/dashboard")
+
+    login_html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesh Master Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            font-size: 28px;
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #999;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">🔐</div>
+        <h1>Mesh Master</h1>
+        <p class="subtitle">Dashboard Login</p>
+
+        <div class="error" id="error"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="password">Admin Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter admin password" required autofocus>
+            </div>
+            <button type="submit" class="btn">Login</button>
+        </form>
+
+        <div class="footer">Mesh Master v2.0 • Secure Dashboard Access</div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('error');
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.authenticated) {
+                    window.location.href = '/dashboard';
+                } else {
+                    errorDiv.textContent = data.error || 'Invalid password';
+                    errorDiv.style.display = 'block';
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').focus();
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Login failed. Please try again.';
+                errorDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>"""
+    return login_html
+
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
+    # Check authentication - redirect to login if not authenticated
+    if not is_authenticated():
+        return redirect("/login")
     # Prepare activity stream (logs) bootstrap HTML and emoji helpers
     visible_logs = [
         line for line in script_logs
@@ -25930,6 +26188,7 @@ def dashboard():
 
 
 @app.route('/dashboard/config/update', methods=['POST'])
+@require_auth
 def update_dashboard_config():
     data = request.get_json(force=True)
     key = data.get('key')
@@ -26167,6 +26426,8 @@ def _normalize_registry_entry(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @app.route('/dashboard/cli/send', methods=['POST'])
+@require_auth
+@require_auth
 def dashboard_cli_send():
     """Handle CLI commands from dashboard - acts like an admin mesh user."""
     try:
@@ -26390,6 +26651,7 @@ def search_ollama_registry():
 
 
 @app.route('/dashboard/ai/models/pull', methods=['POST'])
+@require_auth
 def pull_ollama_model():
     payload = request.get_json(force=True, silent=True) or {}
     model_name = str(payload.get('name') or '').strip()
@@ -26460,6 +26722,7 @@ def ollama_model_info():
 
 
 @app.route('/dashboard/ai/models/delete', methods=['POST'])
+@require_auth
 def delete_ollama_model():
     payload = request.get_json(force=True, silent=True) or {}
     model_name = str(payload.get('name') or '').strip()
@@ -26731,6 +26994,7 @@ def get_radio_state():
 
 
 @app.route('/dashboard/radio/hops', methods=['POST'])
+@require_auth
 def set_radio_hops():
     data = request.get_json(force=True) or {}
     try:
@@ -26757,6 +27021,7 @@ def set_radio_hops():
 
 
 @app.route('/dashboard/radio/names', methods=['POST'])
+@require_auth
 def set_radio_names():
     data = request.get_json(force=True) or {}
     long_name = str(data.get('long_name', '')).strip()
@@ -26795,6 +27060,7 @@ def set_radio_names():
 
 
 @app.route('/dashboard/radio/role', methods=['POST'])
+@require_auth
 def set_radio_role():
     data = request.get_json(force=True) or {}
     try:
@@ -26887,6 +27153,7 @@ def get_builtin_command_source(command_name):
 
 
 @app.route('/dashboard/commands/builtin/<command_name>/source', methods=['PUT'])
+@require_auth
 def update_builtin_command_source(command_name):
     """Update the source code of a built-in command."""
     try:
@@ -27021,6 +27288,7 @@ def get_builtin_commands():
 
 
 @app.route('/dashboard/radio/modem', methods=['POST'])
+@require_auth
 def set_radio_modem_preset():
     data = request.get_json(force=True) or {}
     try:
@@ -27059,6 +27327,7 @@ def set_radio_modem_preset():
 
 
 @app.route('/dashboard/radio/frequency', methods=['POST'])
+@require_auth
 def set_radio_frequency_slot():
     data = request.get_json(force=True) or {}
     try:
@@ -27102,6 +27371,7 @@ def _psk_from_text(text: Optional[str]) -> Optional[bytes]:
 
 
 @app.route('/dashboard/radio/channel/add', methods=['POST'])
+@require_auth
 def add_radio_channel():
     data = request.get_json(force=True) or {}
     name = str(data.get('name') or '').strip() or 'New Channel'
@@ -27150,6 +27420,7 @@ def add_radio_channel():
 
 
 @app.route('/dashboard/radio/channel/update', methods=['POST'])
+@require_auth
 def update_radio_channel():
     data = request.get_json(force=True) or {}
     try:
@@ -27193,6 +27464,7 @@ def update_radio_channel():
 
 
 @app.route('/dashboard/radio/channel/remove', methods=['POST'])
+@require_auth
 def remove_radio_channel():
     data = request.get_json(force=True) or {}
     try:
@@ -27237,6 +27509,7 @@ def get_custom_commands():
 
 
 @app.route('/dashboard/commands', methods=['POST'])
+@require_auth
 def create_custom_command():
     """Create a new custom command."""
     try:
@@ -27306,6 +27579,7 @@ def create_custom_command():
 
 
 @app.route('/dashboard/commands/<command_id>', methods=['PUT'])
+@require_auth
 def update_custom_command(command_id):
     """Update an existing custom command."""
     try:
@@ -27376,6 +27650,7 @@ def update_custom_command(command_id):
 
 
 @app.route('/dashboard/commands/<command_id>', methods=['DELETE'])
+@require_auth
 def delete_custom_command(command_id):
     """Delete a custom command."""
     try:
@@ -27416,6 +27691,7 @@ def get_autostart():
 
 
 @app.route('/autostart/toggle', methods=['POST'])
+@require_auth
 def toggle_autostart():
     data = request.get_json(force=True)
     desired = bool(data.get('start_on_boot', True))
@@ -27458,6 +27734,7 @@ def toggle_autostart():
 
     return jsonify({'start_on_boot': desired})
 @app.route("/ui_send", methods=["POST"])
+@require_auth
 def ui_send():
     message = request.form.get("message", "").strip()
     mode = "direct" if request.form.get("destination_node", "") != "" else "broadcast"
@@ -27489,6 +27766,7 @@ def ui_send():
     return redirect(url_for("dashboard"))
 
 @app.route("/send", methods=["POST"])
+@require_auth
 def send_message():
     dprint("POST /send => manual JSON send")
     data = request.json
