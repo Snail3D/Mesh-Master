@@ -27725,13 +27725,13 @@ if TELEGRAM_AVAILABLE:
                 parts = text.split(None, 1)
                 target_name = parts[0] if parts else None
                 message_text = parts[1] if len(parts) > 1 else ""
-                add_script_log(f"Telegram non-cmd: target='{target_name}', msg_len={len(message_text)}")
+                add_script_log(f"Telegram non-cmd: parts={len(parts)}, msg_len={len(message_text)}")
 
                 # Try to resolve as shortname (for DM)
                 target_node_id = None
                 if target_name:
                     target_node_id = get_node_id_from_shortname(target_name)
-                    add_script_log(f"Node lookup: '{target_name}' -> {target_node_id}")
+                    add_script_log(f"Node lookup result: {target_node_id}")
 
                     # Don't send to self (AI node) - treat as AI query instead
                     if target_node_id and (target_node_id == "AI" or target_node_id == FORCE_NODE_NUM):
@@ -27751,7 +27751,7 @@ if TELEGRAM_AVAILABLE:
                     if channels:
                         # Search for matching channel (case-insensitive)
                         target_lower = target_name.lower()
-                        add_script_log(f"Channel lookup: '{target_lower}', type={type(channels)}")
+                        add_script_log(f"Channel lookup: type={type(channels)}")
 
                         # Handle both list and dict formats
                         if isinstance(channels, list):
@@ -27780,7 +27780,7 @@ if TELEGRAM_AVAILABLE:
                                     break
 
                         if target_channel_idx is None:
-                            add_script_log(f"No channel match for '{target_lower}'")
+                            add_script_log(f"No channel match found")
 
                 add_script_log(f"Check DM: node={target_node_id}, msg_len={len(message_text)}, both={bool(target_node_id and message_text)}")
                 if target_node_id and message_text:
