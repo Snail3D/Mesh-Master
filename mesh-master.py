@@ -23368,14 +23368,14 @@ def dashboard():
                 <label style="display:flex; gap:6px; align-items:center;">
                   <span style="min-width:60px; color:var(--text-secondary)" title="MQTT Uplink: Forward messages to MQTT broker">Uplink</span>
                   <label class="switch" title="MQTT Uplink enabled">
-                    <input type="checkbox" id="chUplink${index}" name="chUplink${index}" data-ch-field="uplink" ${uplink ? 'checked' : ''}>
+                    <input type="checkbox" id="chUplink${idx}" name="chUplink${idx}" data-ch-field="uplink" ${uplink ? 'checked' : ''}>
                     <span class="slider"></span>
                   </label>
                 </label>
                 <label style="display:flex; gap:6px; align-items:center;">
                   <span style="min-width:60px; color:var(--text-secondary)" title="MQTT Downlink: Receive messages from MQTT broker">Downlink</span>
                   <label class="switch" title="MQTT Downlink enabled">
-                    <input type="checkbox" id="chDownlink${index}" name="chDownlink${index}" data-ch-field="downlink" ${downlink ? 'checked' : ''}>
+                    <input type="checkbox" id="chDownlink${idx}" name="chDownlink${idx}" data-ch-field="downlink" ${downlink ? 'checked' : ''}>
                     <span class="slider"></span>
                   </label>
                 </label>
@@ -26735,7 +26735,7 @@ def dashboard():
           },
           {
             title: 'Activity Panel 📊',
-            content: '<p>This shows you what's happening right now on your mesh:</p><ul><li><strong>Messages:</strong> How many messages have been sent</li><li><strong>Nodes:</strong> How many devices are connected</li><li><strong>Users:</strong> How many people are active</li><li><strong>AI Activity:</strong> How often the AI is helping people</li></ul><p>Think of it like a dashboard in your car - it shows you all the important info at a glance!</p>',
+            content: '<p>This shows you what\\'s happening right now on your mesh:</p><ul><li><strong>Messages:</strong> How many messages have been sent</li><li><strong>Nodes:</strong> How many devices are connected</li><li><strong>Users:</strong> How many people are active</li><li><strong>AI Activity:</strong> How often the AI is helping people</li></ul><p>Think of it like a dashboard in your car - it shows you all the important info at a glance!</p>',
             target: '[data-panel-id="snapshot"]',
             position: 'right'
           },
@@ -26777,7 +26777,7 @@ def dashboard():
           },
           {
             title: 'Detailed Logs 📝',
-            content: '<p>Want to see everything happening behind the scenes?</p><ul><li>Click <strong>"verbose logs"</strong> at the top</li><li>Watch messages flow in real-time</li><li>See when AI responds</li><li>Debug problems</li><li>Monitor system health</li></ul><p>This is super useful if something isn't working right!</p>',
+            content: '<p>Want to see everything happening behind the scenes?</p><ul><li>Click <strong>"verbose logs"</strong> at the top</li><li>Watch messages flow in real-time</li><li>See when AI responds</li><li>Debug problems</li><li>Monitor system health</li></ul><p>This is super useful if something isn\\'t working right!</p>',
             target: '.header-meta-link[href="/logs/verbose"]',
             position: 'bottom'
           },
