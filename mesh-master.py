@@ -19772,131 +19772,181 @@ def login_page():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mesh Master Login</title>
+    <title>Login · MESH-MASTER</title>
     <style>
+        :root {
+            --bg: #040608;
+            --bg-pane: #05090f;
+            --bg-panel: #0b1018;
+            --border: #0f1620;
+            --border-light: #162030;
+            --text: #d7deed;
+            --text-secondary: #8792a7;
+            --text-muted: #5a6474;
+            --accent: #3c92ff;
+            --accent-strong: #569cd6;
+            --error-bg: #2d1515;
+            --error-border: #5a2020;
+            --error-text: #ff6b6b;
+            --hint-bg: #0f1f2d;
+            --hint-border: #1a3a52;
+            --hint-text: #64b5f6;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            background: radial-gradient(circle at 15% 20%, rgba(60, 146, 255, 0.12), transparent 55%),
+                        radial-gradient(circle at 80% 10%, rgba(165, 105, 255, 0.1), transparent 60%),
+                        var(--bg);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            color: var(--text);
         }
         .login-container {
-            background: white;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
             border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             padding: 40px;
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
         }
         .logo {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            font-size: 48px;
+            filter: drop-shadow(0 0 12px rgba(60, 146, 255, 0.3));
         }
         h1 {
-            font-size: 28px;
-            color: #333;
+            font-size: 26px;
+            color: var(--text);
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
         }
         .subtitle {
             text-align: center;
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 30px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 32px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
         label {
             display: block;
-            margin-bottom: 8px;
-            color: #333;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
             font-weight: 500;
-            font-size: 14px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
         input[type="password"] {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+            padding: 14px 16px;
+            background: var(--bg-pane);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 15px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            transition: all 0.2s ease;
         }
         input[type="password"]:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(60, 146, 255, 0.1);
+        }
+        input[type="password"]::placeholder {
+            color: var(--text-muted);
         }
         .btn {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--accent);
+            color: #ffffff;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
+            border-radius: 6px;
+            font-size: 14px;
             font-weight: 600;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.2s ease;
         }
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+            background: var(--accent-strong);
+            box-shadow: 0 4px 12px rgba(60, 146, 255, 0.3);
         }
         .btn:active {
-            transform: translateY(0);
+            transform: translateY(1px);
         }
         .error {
-            background: #fee;
-            border: 1px solid #fcc;
-            color: #c33;
-            padding: 12px;
-            border-radius: 8px;
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            color: var(--error-text);
+            padding: 12px 16px;
+            border-radius: 6px;
             margin-bottom: 20px;
-            font-size: 14px;
+            font-size: 13px;
             display: none;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
         }
         .footer {
             text-align: center;
-            margin-top: 20px;
-            color: #999;
-            font-size: 12px;
+            margin-top: 24px;
+            color: var(--text-muted);
+            font-size: 11px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
         }
         .hint-container {
             text-align: center;
-            margin-top: 15px;
+            margin-top: 16px;
         }
         .hint-btn {
             background: none;
             border: none;
-            color: #667eea;
+            color: var(--accent);
             cursor: pointer;
-            font-size: 13px;
-            text-decoration: underline;
-            padding: 5px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            padding: 6px 12px;
+            transition: all 0.2s ease;
+            letter-spacing: 0.05em;
         }
         .hint-btn:hover {
-            color: #764ba2;
+            color: var(--accent-strong);
+            text-decoration: underline;
         }
         .hint-display {
-            background: #f0f7ff;
-            border: 1px solid #b3d9ff;
-            color: #0066cc;
-            padding: 12px;
-            border-radius: 8px;
-            margin-top: 15px;
-            font-size: 14px;
+            background: var(--hint-bg);
+            border: 1px solid var(--hint-border);
+            color: var(--hint-text);
+            padding: 14px 16px;
+            border-radius: 6px;
+            margin-top: 16px;
+            font-size: 13px;
             display: none;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            line-height: 1.6;
         }
         .hint-display strong {
             display: block;
-            margin-bottom: 5px;
-            font-size: 12px;
+            margin-bottom: 8px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
         }
     </style>
 </head>
