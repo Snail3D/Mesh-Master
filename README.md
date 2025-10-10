@@ -1,6 +1,6 @@
-# MESH MASTER v2.5 — Off-Grid AI Operations Suite
+# MESH MASTER v2.0 — Off-Grid AI Operations Suite
 
-**MESH MASTER 2.5** is the next evolution of the Mesh-AI project: a resilient AI copilot for Meshtastic LoRa meshes that remembers conversations, coordinates teams, and keeps the network moving even when the wider internet is gone. Version 2.5 introduces context-aware AI help, offline relay queuing, enhanced privacy controls, URL content filtering, and fuzzy search—all while maintaining the Mesh Mail hub, network bridge relay system, llama-powered games for morale and training, rich offline knowledge, and a comprehensive web command center.
+**MESH MASTER 2.0** is the next evolution of the Mesh-AI project: a resilient AI copilot for Meshtastic LoRa meshes that remembers conversations, coordinates teams, and keeps the network moving even when the wider internet is gone. Version 2.0 introduces context-aware AI help, offline relay queuing, enhanced privacy controls, URL content filtering, and fuzzy search—all while maintaining the Mesh Mail hub, network bridge relay system, llama-powered games for morale and training, rich offline knowledge, and a comprehensive web command center.
 
 > **Disclaimer**  
 > This project is an independent community effort and is **not associated** with the official Meshtastic project. Always maintain backup communication paths for real emergencies.
@@ -9,7 +9,7 @@
 
 ---
 
-## 2.5 Headline Upgrades
+## 2.0 Headline Upgrades
 - **Network Bridge Relay with ACK Tracking** — Forward messages to any node by shortname: `snmo hello there` or `/snmo hello there`. Real-time ACK confirmation shows which node acknowledged. Multi-chunk support for long messages. Acts as a bridge across multiple mesh networks—if this node sees networks A and B, users on network A can relay to users on network B seamlessly. **NEW:** Offline message queue stores failed relays and automatically delivers when recipient comes online (up to 3 attempts, 24-hour expiry).
 - **Relay Privacy Controls** — `/optout` disables receiving relays (others can't relay to you), `/optin` re-enables. Privacy preferences persist across reboots and updates in `data/relay_optout.json`.
 - **Cross-Network Node Discovery** — `/nodes` lists all nodes seen in the last 24 hours across all channels/networks (sorted newest first). `/node <shortname>` shows detailed signal info (SNR, signal strength, last heard, hops, battery level, power status) with modem-aware thresholds. `/networks` lists all connected channels.
@@ -31,7 +31,7 @@
 ## Feature Overview
 
 ### Network Bridge Relay System
-MESH MASTER 2.5 can act as a relay bridge between multiple mesh networks, enabling communication across network boundaries.
+MESH MASTER 2.0 can act as a relay bridge between multiple mesh networks, enabling communication across network boundaries.
 
 **How It Works:**
 - Send messages to any node by shortname: `snmo hello there` or `/snmo hello there`
@@ -60,7 +60,7 @@ Alice gets: "✅ ACK by Charlie"
 ```
 
 ### Context-Aware AI Help System
-MESH MASTER 2.5 includes an intelligent help system that provides AI responses with full awareness of your system configuration, available commands, and network state.
+MESH MASTER 2.0 includes an intelligent help system that provides AI responses with full awareness of your system configuration, available commands, and network state.
 
 **Features:**
 - **`/system <question>`** — Ask questions with ~50k token context including all commands, architecture details, your current settings, and network status
@@ -118,38 +118,541 @@ MESH MASTER 2.5 includes an intelligent help system that provides AI responses w
 
 ---
 
-## Quick Start (Python)
+## Installation Guide
 
-1. **Clone & enter the repository**
+Choose your platform:
+- [Raspberry Pi](#raspberry-pi-installation) (Recommended for field deployment)
+- [macOS](#macos-installation)
+- [Windows](#windows-installation)
+- [Docker](#container-workflow) (Any platform)
+
+### Raspberry Pi Installation
+
+**Recommended Hardware:**
+- Raspberry Pi 4 or 5 (2GB+ RAM)
+- RAK4631 LoRa module or compatible Meshtastic device
+- MicroSD card (16GB+ recommended)
+- Stable power supply
+
+#### Step 1: Install Raspberry Pi OS
+
+1. **Flash Raspberry Pi OS Lite (64-bit)** to your SD card using [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+   - Choose: Raspberry Pi OS Lite (64-bit) - no desktop needed
+   - Configure WiFi and enable SSH in advanced settings
+
+2. **Boot your Pi and SSH in:**
    ```bash
-   git clone https://github.com/Snail3D/Mesh-Master.git
-   cd Mesh-Master
+   ssh pi@raspberrypi.local
+   # Default password: raspberry (change it immediately!)
    ```
-2. **Create a virtual environment and install dependencies**
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install --upgrade pip
-   pip install -r requirements.txt
+
+#### Step 2: System Preparation
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install required packages
+sudo apt install -y python3 python3-pip python3-venv git
+
+# Install Ollama for local AI
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a lightweight model (llama3.2:1b recommended for Pi)
+ollama pull llama3.2:1b
+
+# Add your user to dialout group (for serial access)
+sudo usermod -a -G dialout $USER
+
+# Reboot to apply group changes
+sudo reboot
+```
+
+#### Step 3: Install Mesh Master
+
+```bash
+# Clone repository
+cd ~
+git clone https://github.com/Snail3D/Mesh-Master.git
+cd Mesh-Master
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+#### Step 4: Connect Your Meshtastic Device
+
+**USB Serial Connection:**
+```bash
+# Find your device
+ls -la /dev/serial/by-id/
+
+# You should see something like:
+# usb-RAKwireless_WisCore_RAK4631_Board_XXXX-if00
+
+# Copy the full path for config.json
+```
+
+**Network (WiFi) Connection:**
+- Connect your Meshtastic device to WiFi first using the official app
+- Note its IP address for config.json
+
+#### Step 5: Configure Mesh Master
+
+```bash
+# Edit config.json
+nano config.json
+
+# Update these key settings:
+# For USB: "serial_port": "/dev/serial/by-id/usb-RAKwireless_..."
+# For WiFi: "wifi_host": "192.168.1.XXX", "use_wifi": true
+# AI model: "ollama_model": "llama3.2:1b"
+```
+
+Minimal config.json example:
+```json
+{
+  "serial_port": "/dev/serial/by-id/usb-RAKwireless_WisCore_RAK4631_Board_XXXX-if00",
+  "serial_baud": 38400,
+  "use_wifi": false,
+  "ai_provider": "ollama",
+  "ollama_model": "llama3.2:1b",
+  "ollama_url": "http://localhost:11434/api/generate"
+}
+```
+
+#### Step 6: Test Run
+
+```bash
+# Activate virtual environment (if not already)
+source .venv/bin/activate
+
+# Run Mesh Master
+python mesh-master.py
+
+# You should see:
+# 🟢 Connection successful! Running until error or Ctrl+C.
+```
+
+Open dashboard: `http://raspberrypi.local:5000/dashboard`
+
+#### Step 7: Set Up as System Service (Optional but Recommended)
+
+```bash
+# Copy service file
+sudo cp mesh-ai.service /etc/systemd/system/
+
+# Edit service file with your username
+sudo nano /etc/systemd/system/mesh-ai.service
+
+# Enable and start service
+sudo systemctl enable mesh-ai
+sudo systemctl start mesh-ai
+
+# Check status
+sudo systemctl status mesh-ai
+
+# View logs
+sudo journalctl -u mesh-ai -f
+```
+
+---
+
+### macOS Installation
+
+**Requirements:**
+- macOS 11 (Big Sur) or later
+- Python 3.9 or later
+- Homebrew (package manager)
+- Meshtastic device (USB or WiFi)
+
+#### Step 1: Install Homebrew (if not installed)
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+#### Step 2: Install Dependencies
+
+```bash
+# Install Python 3 and Git
+brew install python git
+
+# Install Ollama for local AI
+brew install ollama
+
+# Start Ollama service
+brew services start ollama
+
+# Pull a model
+ollama pull llama3.2:1b
+# Or for better performance on Mac: ollama pull llama3.2:3b
+```
+
+#### Step 3: Install Mesh Master
+
+```bash
+# Clone repository
+cd ~/Documents
+git clone https://github.com/Snail3D/Mesh-Master.git
+cd Mesh-Master
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+#### Step 4: Connect Your Meshtastic Device
+
+**USB Connection:**
+```bash
+# Find your device
+ls /dev/cu.*
+
+# Look for something like:
+# /dev/cu.usbserial-XXXX or /dev/cu.usbmodem-XXXX
+
+# Use this path in config.json
+```
+
+**WiFi Connection:**
+- Configure device WiFi using Meshtastic app first
+- Use device IP in config.json
+
+#### Step 5: Configure
+
+```bash
+# Copy example config
+cp config.json config.json.backup
+
+# Edit config.json
+nano config.json  # or use your favorite editor
+
+# macOS example:
+{
+  "serial_port": "/dev/cu.usbserial-XXXX",
+  "serial_baud": 38400,
+  "ollama_model": "llama3.2:3b",
+  "ollama_url": "http://localhost:11434/api/generate"
+}
+```
+
+#### Step 6: Run Mesh Master
+
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run
+python mesh-master.py
+
+# Access dashboard at: http://localhost:5000/dashboard
+```
+
+#### Step 7: Run at Startup (Optional)
+
+Create Launch Agent:
+```bash
+# Create plist file
+nano ~/Library/LaunchAgents/com.meshmaster.plist
+```
+
+Add this content (update paths):
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meshmaster</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOUR_USERNAME/Documents/Mesh-Master/.venv/bin/python</string>
+        <string>/Users/YOUR_USERNAME/Documents/Mesh-Master/mesh-master.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/YOUR_USERNAME/Documents/Mesh-Master</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+```
+
+Load the agent:
+```bash
+launchctl load ~/Library/LaunchAgents/com.meshmaster.plist
+```
+
+---
+
+### Windows Installation
+
+**Requirements:**
+- Windows 10/11
+- Python 3.9 or later
+- Meshtastic device (USB or WiFi)
+
+#### Step 1: Install Python
+
+1. Download Python from [python.org](https://www.python.org/downloads/)
+2. **IMPORTANT:** Check "Add Python to PATH" during installation
+3. Click "Install Now"
+
+Verify installation:
+```powershell
+python --version
+# Should show: Python 3.x.x
+```
+
+#### Step 2: Install Git
+
+1. Download Git from [git-scm.com](https://git-scm.com/download/win)
+2. Install with default settings
+
+#### Step 3: Install Ollama (AI Engine)
+
+1. Download Ollama from [ollama.com/download/windows](https://ollama.com/download/windows)
+2. Run installer
+3. Open Command Prompt and run:
+   ```cmd
+   ollama pull llama3.2:1b
    ```
-3. **Configure your node**
-   - Edit `config.json` and update connection details (`serial_port` or `wifi_host`), `ai_provider` settings, and channel preferences.  
-   - Adjust `commands_config.json`, `motd.json`, and any feature flags as desired.
-4. **Launch Mesh Master**
-   ```bash
-   NO_BROWSER=1 python mesh-master.py
+
+#### Step 4: Install Mesh Master
+
+Open **Command Prompt** or **PowerShell**:
+
+```powershell
+# Navigate to your preferred folder
+cd C:\Users\YourName\Documents
+
+# Clone repository
+git clone https://github.com/Snail3D/Mesh-Master.git
+cd Mesh-Master
+
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+.\.venv\Scripts\activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+#### Step 5: Connect Your Meshtastic Device
+
+**USB Connection:**
+1. Connect your Meshtastic device via USB
+2. Open Device Manager (Win+X → Device Manager)
+3. Look under "Ports (COM & LPT)"
+4. Find your device (e.g., "USB Serial Port (COM3)")
+5. Note the COM port number
+
+**WiFi Connection:**
+- Configure WiFi on device first using Meshtastic app
+- Note the IP address
+
+#### Step 6: Configure
+
+Edit `config.json` in Notepad or your favorite editor:
+
+Windows serial example:
+```json
+{
+  "serial_port": "COM3",
+  "serial_baud": 38400,
+  "use_wifi": false,
+  "ollama_model": "llama3.2:1b",
+  "ollama_url": "http://localhost:11434/api/generate"
+}
+```
+
+Windows WiFi example:
+```json
+{
+  "use_wifi": true,
+  "wifi_host": "192.168.1.XXX",
+  "wifi_port": 4403,
+  "ollama_model": "llama3.2:1b"
+}
+```
+
+#### Step 7: Run Mesh Master
+
+```powershell
+# Activate virtual environment (if not already active)
+.\.venv\Scripts\activate
+
+# Run Mesh Master
+python mesh-master.py
+
+# Access dashboard at: http://localhost:5000/dashboard
+```
+
+#### Step 8: Run at Startup (Optional)
+
+**Option 1: Task Scheduler**
+1. Open Task Scheduler (search in Start menu)
+2. Click "Create Basic Task"
+3. Name: "Mesh Master"
+4. Trigger: "When I log on"
+5. Action: "Start a program"
+6. Program: `C:\Users\YourName\Documents\Mesh-Master\.venv\Scripts\python.exe`
+7. Arguments: `mesh-master.py`
+8. Start in: `C:\Users\YourName\Documents\Mesh-Master`
+9. Finish and enable
+
+**Option 2: Startup Folder (Simple)**
+1. Create a batch file `start-mesh-master.bat`:
+   ```batch
+   @echo off
+   cd /d C:\Users\YourName\Documents\Mesh-Master
+   call .venv\Scripts\activate
+   python mesh-master.py
    ```
-5. **Open the dashboard**
-   - Visit `http://localhost:5000/dashboard` for live logs and controls.
+2. Press Win+R, type `shell:startup`
+3. Create shortcut to the batch file in this folder
+
+---
+
+## Post-Installation Steps (All Platforms)
+
+### 1. Access the Dashboard
+
+Open your browser and go to:
+- **Local:** `http://localhost:5000/dashboard`
+- **From another device:** `http://YOUR_IP:5000/dashboard`
+
+### 2. Verify Connection
+
+In the dashboard, check the Activity Feed for:
+```
+🟢 Connection successful!
+```
+
+### 3. Test Basic Commands
+
+Send a direct message to your node via Meshtastic app:
+```
+/menu
+```
+
+You should receive the main menu response.
+
+### 4. Configure AI Model (Optional)
+
+If using a different model:
+```bash
+# List available models
+ollama list
+
+# Pull a different model
+ollama pull wizard-math:7b
+```
+
+Update `ollama_model` in config.json and restart.
+
+### 5. Explore Features
+
+Try these commands in a DM to your node:
+- `/onboard` - Interactive tutorial
+- `/help` - Command reference
+- `/ai What is the weather?` - Test AI
+- `/games` - See available games
+- `/nodes` - List mesh nodes
+
+---
+
+## Troubleshooting
+
+### Connection Issues
+
+**"Could not connect to serial port"**
+- Check USB cable is connected
+- Verify correct serial port in config.json
+- On Linux/Mac: Check user has dialout/uucp group access
+- On Windows: Check Device Manager for correct COM port
+
+**"Connection timeout"**
+- For WiFi: Verify device IP address is correct
+- Check firewall isn't blocking port 4403 (WiFi) or 5000 (dashboard)
+- Try rebooting the Meshtastic device
+
+### Ollama/AI Issues
+
+**"Connection refused to Ollama"**
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/version
+
+# Start Ollama
+# Linux/Mac: ollama serve
+# Windows: Should start automatically, check Task Manager
+```
+
+**AI responses are slow**
+- Use smaller models on Raspberry Pi: `llama3.2:1b`
+- Reduce `ollama_context_chars` in config.json
+- Increase `ollama_timeout` to 180 seconds
+
+### Dashboard Not Loading
+
+1. Check Mesh Master is running: Look for "Starting MESH-MASTER server..."
+2. Try: `http://127.0.0.1:5000/dashboard`
+3. Check firewall allows port 5000
+4. View raw logs: `http://localhost:5000/logs/raw`
+
+### Permission Denied (Linux/Mac)
+
+```bash
+# Add user to dialout group
+sudo usermod -a -G dialout $USER
+
+# On Mac, try:
+sudo dseditgroup -o edit -a $USER -t user _uucp
+
+# Reboot for changes to take effect
+```
+
+### Module Import Errors
+
+```bash
+# Ensure virtual environment is activated
+source .venv/bin/activate  # Linux/Mac
+.\.venv\Scripts\activate   # Windows
+
+# Reinstall dependencies
+pip install --upgrade pip
+pip install -r requirements.txt --force-reinstall
+```
+
+### Need More Help?
+
+- Check the logs: `mesh-master.log` in the project directory
+- Review [CLAUDE.md](CLAUDE.md) for architecture details
+- Open an issue on [GitHub](https://github.com/Snail3D/Mesh-Master/issues)
 
 ---
 
 ## Container Workflow
 
-Build the 2.5 image locally so you run the exact code in this repository:
+Build the 2.0 image locally so you run the exact code in this repository:
 
 ```bash
-docker build -t mesh-master:2.5 .
+docker build -t mesh-master:2.0 .
 ```
 
 Minimal compose example:
@@ -157,7 +660,7 @@ Minimal compose example:
 ```yaml
 services:
   mesh-master:
-    image: mesh-master:2.5
+    image: mesh-master:2.0
     container_name: mesh-master
     privileged: true
     ports:
