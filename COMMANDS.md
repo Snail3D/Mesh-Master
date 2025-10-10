@@ -237,14 +237,25 @@ Creates mailbox if it doesn't exist (prompts for PIN setup).
 **Aliases:** `/checkmail`
 **Function:** Check mailbox(es) or search for keywords
 **Scope:** DM only
-**Usage:**
+**Examples:**
+
+**Check all subscribed mailboxes:**
 ```
-/c                          # Check all subscribed mailboxes
-/c ops                      # Check specific mailbox
-/c ops briefing             # Search for "briefing" in ops mailbox
-/checkmail                  # Same as /c
+/c
 ```
-Returns up to 5 most recent matching messages with keyword search.
+Response: `You have 3 messages in 'ops' mailbox. (1 unread)`
+
+**Check specific mailbox:**
+```
+/c supplies
+```
+Response: `You have 5 messages in 'supplies' mailbox. (3 unread)`
+
+**Search for keyword in mailbox:**
+```
+/c ops briefing
+```
+Response: Shows up to 5 messages containing "briefing" from the ops mailbox.
 
 ---
 
