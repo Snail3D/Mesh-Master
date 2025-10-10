@@ -19343,13 +19343,17 @@ def command_builder():
             <button type="button" class="flow-branch-remove" onclick="removeFlowBranch(${flow.id})">×</button>
           </div>
 
-          <label class="flow-branch-label">If user responds with:</label>
+          <label class="flow-branch-label" for="flowTrigger${flow.id}">If user responds with:</label>
           <input type="text" class="flow-branch-input" placeholder="yes, y, 1"
+            id="flowTrigger${flow.id}"
+            name="flowTrigger${flow.id}"
             value="${escapeHtml(flow.trigger)}"
             oninput="updateFlowBranch(${flow.id}, 'trigger', this.value)">
 
-          <label class="flow-branch-label">Then:</label>
+          <label class="flow-branch-label" for="flowAction${flow.id}">Then:</label>
           <select class="flow-branch-select"
+            id="flowAction${flow.id}"
+            name="flowAction${flow.id}"
             onchange="updateFlowBranch(${flow.id}, 'action', this.value)">
             <option value="respond" ${flow.action === 'respond' ? 'selected' : ''}>Send response</option>
             <option value="command" ${flow.action === 'command' ? 'selected' : ''}>Execute command</option>
@@ -19357,8 +19361,10 @@ def command_builder():
           </select>
 
           ${flow.action === 'respond' ? `
-            <label class="flow-branch-label">Response text (max 200 chars):</label>
+            <label class="flow-branch-label" for="flowResponse${flow.id}">Response text (max 200 chars):</label>
             <input type="text" class="flow-branch-input" placeholder="Great! What would you like to know?"
+              id="flowResponse${flow.id}"
+              name="flowResponse${flow.id}"
               value="${escapeHtml(flow.response)}"
               oninput="updateFlowBranch(${flow.id}, 'response', this.value)"
               maxlength="200">
@@ -22299,9 +22305,11 @@ def dashboard():
         <!-- Command Line Interface -->
         <div style="margin-bottom: 12px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px;">
           <div style="display: flex; gap: 8px;">
+            <label for="cliInput" style="position: absolute; left: -9999px;">Dashboard CLI input</label>
             <input
               type="text"
               id="cliInput"
+              name="cliInput"
               placeholder="Type message or command..."
               style="flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); color: var(--text-primary); font-family: monospace; font-size: 14px;"
             />
@@ -23360,14 +23368,14 @@ def dashboard():
                 <label style="display:flex; gap:6px; align-items:center;">
                   <span style="min-width:60px; color:var(--text-secondary)" title="MQTT Uplink: Forward messages to MQTT broker">Uplink</span>
                   <label class="switch" title="MQTT Uplink enabled">
-                    <input type="checkbox" data-ch-field="uplink" ${uplink ? 'checked' : ''}>
+                    <input type="checkbox" id="chUplink${index}" name="chUplink${index}" data-ch-field="uplink" ${uplink ? 'checked' : ''}>
                     <span class="slider"></span>
                   </label>
                 </label>
                 <label style="display:flex; gap:6px; align-items:center;">
                   <span style="min-width:60px; color:var(--text-secondary)" title="MQTT Downlink: Receive messages from MQTT broker">Downlink</span>
                   <label class="switch" title="MQTT Downlink enabled">
-                    <input type="checkbox" data-ch-field="downlink" ${downlink ? 'checked' : ''}>
+                    <input type="checkbox" id="chDownlink${index}" name="chDownlink${index}" data-ch-field="downlink" ${downlink ? 'checked' : ''}>
                     <span class="slider"></span>
                   </label>
                 </label>
