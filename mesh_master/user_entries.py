@@ -105,7 +105,19 @@ class UserEntryStore:
         with self._lock:
             if not self._loaded:
                 self._load_index()
+            # First try exact key match
             entry = self._entries.get(normalized)
+            # If not found, try matching by group/slug (title without timestamp)
+            if not entry:
+                slug = _slugify(key)
+                # Find most recent entry with matching group/slug
+                matching_entries = [
+                    e for e in self._entries.values()
+                    if e.group == slug and (author_id is None or e.author_id == author_id)
+                ]
+                if matching_entries:
+                    # Sort by created_at descending, return most recent
+                    entry = sorted(matching_entries, key=lambda e: e.created_at, reverse=True)[0]
             if not entry:
                 return None
             # Filter by author_id if specified
