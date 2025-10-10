@@ -16743,14 +16743,14 @@ def on_receive(packet=None, interface=None, **kwargs):
 
     # De-dup: if we have seen the same text/from/to/channel very recently, drop it
     rx_key = _rx_make_key(packet, text, ch_idx)
-    add_script_log(f"Before dup: text='{(text or '')[:30]}', ch={ch_idx}")
+    add_script_log(f"Before dup: len={len(text or '')}, ch={ch_idx}")
     if _rx_seen_before(rx_key):
       info_print(f"[Info] Duplicate RX suppressed for from={sender_node} ch={ch_idx} (len={len(text or '')})")
       add_script_log(f"DUPLICATE - dropping")
       return
     sender_display = _node_display_label(sender_node)
     normalized_text = (text or "").strip()
-    add_script_log(f"Passed dup: '{normalized_text[:30]}'")
+    add_script_log(f"Passed dup check: len={len(normalized_text)}")
 
     # Check if this is a relay message and track the sender for auto-reply
     if normalized_text.startswith("📨 Relay from "):
@@ -16891,7 +16891,7 @@ def on_receive(packet=None, interface=None, **kwargs):
                             channel_name = f"Channel {ch_idx}"
                     telegram_message = f"{channel_name}|{sender_shortname}: {normalized_text}"
 
-                    add_script_log(f"Forwarding: {telegram_message}")
+                    add_script_log(f"Forwarding to Telegram: {channel_name} from {sender_shortname}")
                     send_to_telegram(telegram_message)
                 else:
                     # DM - just notify that a DM was received (no details for privacy)
@@ -27659,7 +27659,7 @@ def send_to_telegram(message: str):
         return
 
     # Send to all authorized chats using synchronous HTTP to avoid event loop issues
-    add_script_log(f"TG sending to {len(authorized_ids)} chats: {message[:50]}")
+    add_script_log(f"TG sending to {len(authorized_ids)} chats (len={len(message)})")
     import threading
     import requests
 
@@ -27698,8 +27698,7 @@ if TELEGRAM_AVAILABLE:
         chat_id = update.message.chat_id
         text = update.message.text.strip()
 
-        add_script_log(f"Telegram message received from {chat_id}: {text}")
-        add_script_log(f"Telegram: {text}")
+        add_script_log(f"Telegram message received from {chat_id} (len={len(text)})")
 
         # Parse command similar to dashboard CLI
         try:
@@ -27716,7 +27715,7 @@ if TELEGRAM_AVAILABLE:
                 add_script_log(f"Telegram command response: {response}")
                 if response:
                     response_text = response.text if hasattr(response, 'text') else str(response)
-                    add_script_log(f"Telegram sending response: {response_text[:100]}")
+                    add_script_log(f"Telegram sending response (len={len(response_text)})")
                     await update.message.reply_text(response_text)
                 else:
                     await update.message.reply_text("✅ Command executed")
@@ -27726,7 +27725,7 @@ if TELEGRAM_AVAILABLE:
                 parts = text.split(None, 1)
                 target_name = parts[0] if parts else None
                 message_text = parts[1] if len(parts) > 1 else ""
-                add_script_log(f"Telegram non-cmd: target='{target_name}', msg='{message_text[:20]}'")
+                add_script_log(f"Telegram non-cmd: target='{target_name}', msg_len={len(message_text)}")
 
                 # Try to resolve as shortname (for DM)
                 target_node_id = None
@@ -27783,7 +27782,7 @@ if TELEGRAM_AVAILABLE:
                         if target_channel_idx is None:
                             add_script_log(f"No channel match for '{target_lower}'")
 
-                add_script_log(f"Check DM: node={target_node_id}, msg='{message_text}', both={bool(target_node_id and message_text)}")
+                add_script_log(f"Check DM: node={target_node_id}, msg_len={len(message_text)}, both={bool(target_node_id and message_text)}")
                 if target_node_id and message_text:
                     # It's a DM to a specific node - queue to relay system for ACK tracking
                     add_script_log(f"Sending DM to {target_name}")
@@ -27813,7 +27812,7 @@ if TELEGRAM_AVAILABLE:
                         await update.message.reply_text("❌ Interface not available")
                 elif target_channel_idx is not None and message_text:
                     # It's a channel message
-                    add_script_log(f"Telegram channel message: {target_name} -> channel {target_channel_idx}, message: {message_text}")
+                    add_script_log(f"Telegram channel message: {target_name} -> channel {target_channel_idx}, len={len(message_text)}")
                     if interface:
                         # Send with ACK tracking in background (don't await - let it notify later)
                         import asyncio
@@ -27855,7 +27854,7 @@ if TELEGRAM_AVAILABLE:
                         await update.message.reply_text("❌ Interface not available")
                 else:
                     # Not a DM or channel, treat as AI query - queue directly to AsyncAI
-                    add_script_log(f"AI query: '{text}'")
+                    add_script_log(f"AI query (len={len(text)})")
                     ai_enabled = is_ai_enabled()
                     add_script_log(f"AI enabled check: {ai_enabled}")
 
