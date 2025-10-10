@@ -10157,8 +10157,17 @@ def _encrypt_context_data(data: str, radio_id: str) -> str:
 def _decrypt_context_data(encrypted_data: str, radio_id: str) -> str:
     """
     Decrypt context data using a key derived from the radio ID.
-    Returns decrypted plaintext, or error marker if decryption fails.
+    Returns decrypted plaintext. If data is not encrypted (plaintext), returns as-is for migration.
     """
+    if not encrypted_data:
+        return encrypted_data
+
+    # Check if data looks like Fernet ciphertext (starts with 'gAAAAA')
+    # If not, assume it's plaintext from before encryption was added
+    if not encrypted_data.startswith('gAAAAA'):
+        # Plaintext data - return as-is for migration
+        return encrypted_data
+
     try:
         key = _derive_context_encryption_key(radio_id)
         fernet = Fernet(key)
@@ -10173,6 +10182,7 @@ def _ensure_saved_contexts_loaded() -> None:
     """
     Load saved contexts from disk, decrypting sensitive fields per radio ID.
     Each user's contexts are decrypted with a key derived from their radio ID.
+    Also performs one-time migration to encrypt any unencrypted data.
     """
     global SAVED_CONTEXTS
     with SAVED_CONTEXT_LOCK:
@@ -10180,6 +10190,8 @@ def _ensure_saved_contexts_loaded() -> None:
             return
     raw = safe_load_json(str(SAVED_CONTEXT_FILE), {"users": {}})
     contexts: Dict[str, List[Dict[str, Any]]] = {}
+    needs_migration = False
+
     if isinstance(raw, dict):
         users = raw.get("users") or {}
         if isinstance(users, dict):
@@ -10191,16 +10203,33 @@ def _ensure_saved_contexts_loaded() -> None:
                         if isinstance(entry, dict):
                             decrypted_entry = dict(entry)
                             # Decrypt sensitive fields: context, summary, search_blob
+                            # (or just pass through if plaintext during migration)
                             if "context" in decrypted_entry and decrypted_entry["context"]:
-                                decrypted_entry["context"] = _decrypt_context_data(decrypted_entry["context"], radio_id_str)
+                                original = decrypted_entry["context"]
+                                decrypted_entry["context"] = _decrypt_context_data(original, radio_id_str)
+                                # Check if it was plaintext (migration needed)
+                                if not original.startswith('gAAAAA'):
+                                    needs_migration = True
                             if "summary" in decrypted_entry and decrypted_entry["summary"]:
-                                decrypted_entry["summary"] = _decrypt_context_data(decrypted_entry["summary"], radio_id_str)
+                                original = decrypted_entry["summary"]
+                                decrypted_entry["summary"] = _decrypt_context_data(original, radio_id_str)
+                                if not original.startswith('gAAAAA'):
+                                    needs_migration = True
                             if "search_blob" in decrypted_entry and decrypted_entry["search_blob"]:
-                                decrypted_entry["search_blob"] = _decrypt_context_data(decrypted_entry["search_blob"], radio_id_str)
+                                original = decrypted_entry["search_blob"]
+                                decrypted_entry["search_blob"] = _decrypt_context_data(original, radio_id_str)
+                                if not original.startswith('gAAAAA'):
+                                    needs_migration = True
                             bucket.append(decrypted_entry)
                 contexts[radio_id_str] = bucket
     with SAVED_CONTEXT_LOCK:
         SAVED_CONTEXTS = contexts
+
+    # If we detected plaintext data, immediately persist to encrypt it
+    if needs_migration:
+        clean_log("🔐 Migrating saved contexts to encrypted format...", "🔐")
+        _persist_saved_contexts()
+        clean_log("✅ Saved contexts encrypted successfully", "✅")
 
 
 def _persist_saved_contexts() -> None:
