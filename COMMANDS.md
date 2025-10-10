@@ -235,15 +235,16 @@ Creates mailbox if it doesn't exist (prompts for PIN setup).
 
 ### `/c`
 **Aliases:** `/checkmail`
-**Function:** Check mailbox(es) or ask AI question about content
+**Function:** Check mailbox(es) or search for keywords
 **Scope:** DM only
 **Usage:**
 ```
 /c                          # Check all subscribed mailboxes
 /c ops                      # Check specific mailbox
-/c ops What's the mission?  # AI search within mailbox
+/c ops briefing             # Search for "briefing" in ops mailbox
 /checkmail                  # Same as /c
 ```
+Returns up to 5 most recent matching messages with keyword search.
 
 ---
 

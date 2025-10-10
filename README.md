@@ -255,11 +255,11 @@ Mesh Mail is an async messaging system (like email) built for mesh networks.
 - Quiet hours support (configurable)
 - Reminder notifications (hourly, configurable frequency)
 
-**AI-Powered Summaries:**
-- `/c mailbox question` — Ask questions about mailbox content
-- Uses `llama3.2:1b` model for fast, concise answers
-- Searches recent messages (configurable limit)
-- Context-aware responses based on message history
+**Search Functionality:**
+- `/c mailbox search_term` — Search mailbox for specific keywords
+- Keyword matching across message content and sender names
+- Shows up to 5 most recent matches
+- Searches recent messages (configurable `mail_search_max_messages`)
 
 #### Commands
 
@@ -273,7 +273,7 @@ Mesh Mail is an async messaging system (like email) built for mesh networks.
 ```bash
 /c                          # Check all your subscribed mailboxes
 /c mailbox                  # Check specific mailbox
-/c mailbox question         # Ask AI question about mailbox content
+/c mailbox keyword          # Search mailbox for keyword
 /checkmail                  # Alias for /c
 ```
 
@@ -394,20 +394,23 @@ Mesh Mail is an async messaging system (like email) built for mesh networks.
 /c planning What routes have been suggested?
 ```
 
-#### AI Search Example
+#### Search Example
 
 ```
-User: /c ops mission
+User: /c ops
 Bot: You have 5 messages in 'ops' mailbox. (3 unread)
 
-User: /c ops when is the briefing?
-Bot: The briefing is scheduled for 0600 tomorrow morning.
+User: /c ops briefing
+Bot: 🔍 Matches in 'ops' (newest first)
+     1) 2025-10-09 14:30 Alice: Mission briefing at 0600 tomorrow
+     2) 2025-10-08 09:15 Bob: Updated briefing materials attached
 
-User: /c ops what's the weather?
-Bot: Rain is expected, according to the updated forecast.
+User: /c ops weather
+Bot: 🔍 Matches in 'ops' (newest first)
+     1) 2025-10-09 15:00 Alice: Updated weather forecast: rain expected
 ```
 
-The AI searches recent messages (configurable `mail_search_max_messages`) and provides context-aware answers based on mailbox content.
+The search performs keyword matching across message content and sender names (configurable `mail_search_max_messages`).
 
 ---
 
