@@ -27794,7 +27794,7 @@ def load_telegram_config():
 
 
 def send_to_telegram(message: str):
-    """Send a message to all authorized Telegram chats."""
+    """Send a message to all authorized Telegram chats using synchronous HTTP."""
     if not TELEGRAM_AVAILABLE or not telegram_app:
         return
 
@@ -27802,32 +27802,31 @@ def send_to_telegram(message: str):
     if not authorized_ids:
         return
 
-    # Send to all authorized chats
+    # Send to all authorized chats using synchronous HTTP to avoid event loop issues
     clean_log(f"🐛 TG sending to {len(authorized_ids)} chats: {message[:50]}", "🐛", show_always=True, rate_limit=False)
     import threading
+    import requests
 
     def send_sync():
-        import asyncio
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
+        if not bot_token:
+            clean_log(f"❌ No bot token available", "❌", show_always=True, rate_limit=False)
+            return
 
-        async def send_async():
-            for chat_id in authorized_ids:
-                try:
-                    await telegram_app.bot.send_message(chat_id=chat_id, text=message)
-                    clean_log(f"✅ TG sent to {chat_id}", "✅", show_always=True, rate_limit=False)
-                except Exception as e:
-                    clean_log(f"❌ TG send failed to {chat_id}: {e}", "❌", show_always=True, rate_limit=False)
-                    add_script_log(f"Failed to send to Telegram chat {chat_id}: {e}")
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
-        try:
-            loop.run_until_complete(send_async())
-        except Exception as e:
-            clean_log(f"❌ TG send outer failed: {e}", "❌", show_always=True, rate_limit=False)
-            add_script_log(f"Failed to send to Telegram: {e}")
-        finally:
-            loop.close()
+        for chat_id in authorized_ids:
+            try:
+                response = requests.post(
+                    url,
+                    json={"chat_id": chat_id, "text": message},
+                    timeout=10
+                )
+                response.raise_for_status()
+                clean_log(f"✅ TG sent to {chat_id}", "✅", show_always=True, rate_limit=False)
+            except Exception as e:
+                clean_log(f"❌ TG send failed to {chat_id}: {e}", "❌", show_always=True, rate_limit=False)
+                add_script_log(f"Failed to send to Telegram chat {chat_id}: {e}")
 
     # Run in background thread to avoid blocking
     thread = threading.Thread(target=send_sync, daemon=True)
