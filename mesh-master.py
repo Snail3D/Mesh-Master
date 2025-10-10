@@ -26792,6 +26792,17 @@ def dashboard():
             position: 'center'
           }
         ];
+
+        // All other detailed tutorials
+        tours.activity = [{title: 'Activity Stats 📊', content: '<p>Track messaging, network, ack telemetry, onboarding, and offline wiki stats. Click values to see details!</p>', target: '[data-panel-id="snapshot"]', position: 'right'}];
+        tours.config = [{title: 'Configuration ⚙️', content: '<p>Change AI models, edit settings, update password. All changes save automatically!</p>', target: '[data-panel-id="config-overview"]', position: 'bottom'}];
+        tours.ai = [{title: 'AI Controls 🤖', content: '<p>Enable/disable AI, choose personality modes, set response keywords and delays!</p>', target: '[data-panel-id="operations"]', position: 'bottom'}];
+        tours.radio = [{title: 'Radio Settings 📡', content: '<p>Set hop limit (0-7) and manage mesh channels. Higher hop = farther reach but more traffic!</p>', target: '[data-panel-id="radio-settings"]', position: 'bottom'}];
+        tours.telegram = [{title: 'Telegram Bridge 💬', content: '<p>Connect to Telegram: Create bot with @BotFather, paste token, add chat IDs. Control mesh from anywhere!</p>', target: '[data-panel-id="telegram"]', position: 'bottom'}];
+        tours.wiki = [{title: 'Offline Wiki 🧠', content: '<p>Cached web pages for offline use. Users request with /wiki command. AI uses cache when internet is down!</p>', target: '[data-panel-id="offline-knowledge"]', position: 'bottom'}];
+        tours.cli = [{title: 'Dashboard CLI 💻', content: '<p>Send messages: @user for DMs, @everyone for broadcast, /command for commands. Works like the mesh!</p>', position: 'center'}];
+        tours.logs = [{title: 'Verbose Logs 📝', content: '<p>Real-time system log with all events: messages, AI, errors. Essential for debugging!</p>', target: '.header-meta-link[href="/logs/verbose"]', position: 'bottom'}];
+        tours.commands = [{title: 'Command Builder 🛠️', content: '<p>Create custom commands and interactive menus. Test before deploying to avoid spam!</p>', target: '.header-meta-link[href="/command-builder"]', position: 'bottom'}];
       }
 
       async function checkFirstVisit() {
