@@ -17263,6 +17263,42 @@ def api_password_hint():
     """Get password hint (public endpoint)."""
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
+# Version caching
+_version_cache = {'version': 'v2.0', 'last_fetch': 0}
+_version_cache_ttl = 3600  # Cache for 1 hour
+
+@app.route("/api/version", methods=["GET"])
+def api_version():
+    """Get current version from GitHub (cached)."""
+    import time
+    import subprocess
+
+    current_time = time.time()
+
+    # Return cached version if still valid
+    if current_time - _version_cache['last_fetch'] < _version_cache_ttl:
+        return jsonify({'version': _version_cache['version']})
+
+    # Try to fetch latest tag from GitHub
+    try:
+        result = subprocess.run(
+            ['git', 'describe', '--tags', '--abbrev=0'],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd='/home/snailpi/Programs/mesh-ai'
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            version = result.stdout.strip()
+            _version_cache['version'] = version
+            _version_cache['last_fetch'] = current_time
+            return jsonify({'version': version})
+    except Exception as e:
+        clean_log(f"⚠️ Failed to fetch version from git: {e}", "⚠️")
+
+    # Fallback to cached version
+    return jsonify({'version': _version_cache['version']})
+
 @app.route("/messages", methods=["GET"])
 def get_messages_api():
   dprint("GET /messages => returning current messages")
@@ -19971,10 +20007,24 @@ def login_page():
             <button type="button" class="hint-btn" id="showHintBtn">💡 Show Password Hint</button>
         </div>
 
-        <div class="footer">Mesh Master v2.0 • Secure Dashboard Access</div>
+        <div class="footer">Mesh Master <span id="version">v2.0</span> • Secure Dashboard Access</div>
     </div>
 
     <script>
+        // Fetch and display current version
+        async function loadVersion() {
+            try {
+                const response = await fetch('/api/version');
+                const data = await response.json();
+                if (data.version) {
+                    document.getElementById('version').textContent = data.version;
+                }
+            } catch (error) {
+                console.error('Failed to load version:', error);
+            }
+        }
+        loadVersion();
+
         // Handle login form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
