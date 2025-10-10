@@ -2205,6 +2205,8 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         {
             "label": "System",
             "keys": [
+                "admin_password",
+                "admin_password_hint",
                 "debug",
                 "clean_logs",
                 "start_on_boot",
@@ -2388,6 +2390,8 @@ CONFIG_HIDDEN_KEYS = {
 }
 
 CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
+    "admin_password": "Dashboard password",
+    "admin_password_hint": "Password hint",
     "debug": "Debug logging",
     "clean_logs": "Clean log output",
     "language_selection": "Default language",
@@ -2491,6 +2495,8 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
 }
 
 CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
+    "admin_password": "Password required to access the dashboard. Change this from the default 'password' for security.",
+    "admin_password_hint": "Helpful hint shown on the login page to remind you of the password.",
     "debug": "Enable verbose troubleshooting logs. Turns off noise filtering so raw protobuf chatter is visible.",
     "clean_logs": "Filters noisy protobuf messages and adds emoji markers for easier scanning in the activity stream.",
     "language_selection": "Sets the default language for canned replies, menus, and status messages.",
@@ -2657,6 +2663,7 @@ def _build_config_explainer(key: str, display_value: str, tooltip_value: str) ->
 
 _SENSITIVE_CONFIG_KEYWORDS = ("token", "pass", "secret", "pin", "key")
 _SENSITIVE_CONFIG_KEYS = {
+    "admin_password",
     "home_assistant_token",
     "home_assistant_secure_pin",
 }
@@ -27060,6 +27067,18 @@ def update_dashboard_config():
             return jsonify({'ok': False, 'error': f"Failed to write config.json: {exc}"}), 500
 
     # Apply certain settings immediately to runtime globals
+    if key == 'admin_password':
+        try:
+            globals()['ADMIN_PASSWORD'] = str(new_value or "password")
+            globals()['ADMIN_PASSWORD_NORM'] = str(new_value or "password").strip().casefold()
+            clean_log(f"Dashboard password updated", "🔐", show_always=True, rate_limit=False)
+        except Exception:
+            pass
+    if key == 'admin_password_hint':
+        try:
+            globals()['ADMIN_PASSWORD_HINT'] = str(new_value or "Default password")
+        except Exception:
+            pass
     if key == 'cooldown_enabled':
         try:
             globals()['COOLDOWN_ENABLED'] = bool(new_value)
