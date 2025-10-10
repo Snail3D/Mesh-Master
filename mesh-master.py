@@ -86,10 +86,13 @@ import itertools
 import atexit
 try:
     from telegram import Update
-    from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+    from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
     TELEGRAM_AVAILABLE = True
-except ImportError:
+except Exception as e:
     TELEGRAM_AVAILABLE = False
+    # Log the actual error for debugging
+    import sys
+    print(f"Telegram import failed: {e}", file=sys.stderr)
 from mesh_master import (
     GameManager,
     MailManager,
@@ -2358,6 +2361,17 @@ CONFIG_HIDDEN_KEYS = {
     "mail_notify_quiet_hours_enabled",
     "mail_quiet_start_hour",
     "mail_quiet_end_hour",
+    "telegram_bot_enabled",
+    "telegram_bot_token",
+    "telegram_chat_ids",
+    "email_alerts_enabled",
+    "email_smtp_host",
+    "email_smtp_port",
+    "email_smtp_user",
+    "email_smtp_password",
+    "email_alert_recipients",
+    "email_alert_on_spam",
+    "email_alert_on_errors",
 }
 
 CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
@@ -9244,6 +9258,11 @@ def _known_commands() -> Set[str]:
 def resolve_command_token(raw: str):
     """Resolve a raw slash token to a canonical command and optional notice."""
     stripped = _strip_command_token(raw)
+
+    # Special handling for /node_ prefix (Telegram clickable node links)
+    if stripped.startswith("/node_"):
+        return "/node", None, None, None, ""
+
     # Dynamic alias mapping from commands_config
     dyn = _get_dynamic_command_aliases()
     if stripped in dyn:
@@ -9932,7 +9951,51 @@ def process_responses_worker():
 
                     # Send the response via mesh unless it was already streamed out
                     chunk_delay = pending.chunk_delay if pending else None
-                    if interface_ref and response_text and not already_sent:
+                    clean_log(f"🐛 Response send check: interface={interface_ref is not None}, text={len(response_text) if response_text else 0}, sent={already_sent}, sender={sender_node}", "🐛", show_always=True, rate_limit=False)
+
+                    # Check if this is a Telegram query (send regardless of already_sent status)
+                    is_telegram_query = isinstance(sender_node, str) and sender_node.startswith("telegram_")
+                    clean_log(f"🐛 Checking if Telegram: type={type(sender_node)}, value={sender_node}, is_tg={is_telegram_query}", "🐛", show_always=True, rate_limit=False)
+
+                    if is_telegram_query and response_text:
+                        # Telegram query - send via Telegram HTTP API
+                        try:
+                            chat_id = int(sender_node.replace("telegram_", ""))
+                            clean_log(f"📱 Sending AI response to Telegram chat {chat_id}", "📱", show_always=True, rate_limit=False)
+
+                            # Get bot token from the telegram_app (already running bot)
+                            bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
+                            clean_log(f"🐛 Bot token: {bot_token[:10]}... (len={len(bot_token)})", "🐛", show_always=True, rate_limit=False)
+                            max_telegram_len = 4096
+
+                            def send_to_telegram_sync():
+                                import requests
+                                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+                                try:
+                                    if len(response_text) <= max_telegram_len:
+                                        r = requests.post(url, json={"chat_id": chat_id, "text": response_text}, timeout=10)
+                                        clean_log(f"🐛 HTTP response: {r.status_code}, {r.text[:100]}", "🐛", show_always=True, rate_limit=False)
+                                    else:
+                                        # Send in chunks
+                                        for i in range(0, len(response_text), max_telegram_len):
+                                            chunk = response_text[i:i+max_telegram_len]
+                                            r = requests.post(url, json={"chat_id": chat_id, "text": chunk}, timeout=10)
+                                            clean_log(f"🐛 HTTP chunk response: {r.status_code}", "🐛", show_always=True, rate_limit=False)
+                                            if chunk_delay:
+                                                time.sleep(chunk_delay)
+                                    clean_log(f"✅ Telegram AI response sent to {chat_id}", "✅", show_always=True, rate_limit=False)
+                                except Exception as e:
+                                    clean_log(f"❌ Telegram HTTP send failed: {e}", "❌", show_always=True, rate_limit=False)
+
+                            # Run in thread to avoid blocking
+                            import threading
+                            thread = threading.Thread(target=send_to_telegram_sync, daemon=True)
+                            thread.start()
+                        except Exception as e:
+                            clean_log(f"❌ Telegram send failed: {e}", "❌", show_always=True, rate_limit=False)
+                    elif interface_ref and response_text and not already_sent:
+                        # Regular mesh query - send via mesh (not Telegram)
                         if is_direct:
                             result = send_direct_chunks(interface_ref, response_text, sender_node, chunk_delay=chunk_delay)
                             try:
@@ -11770,6 +11833,54 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
             stored_node_id = node_id
     display_id = _node_display_label(force_node if force_node is not None else node_id)
 
+    # Redact sensitive responses (PINs, passwords, etc.) for privacy
+    sender_key = _safe_sender_key(node_id)
+    is_pending_response = False
+    if sender_key:
+        is_pending_response = (
+            sender_key in PENDING_ADMIN_REQUESTS or
+            sender_key in PENDING_WIPE_REQUESTS or
+            sender_key in PENDING_WIPE_SELECTIONS or
+            sender_key in PENDING_MAILBOX_SELECTIONS or
+            sender_key in PENDING_MODEL_SELECTIONS or
+            sender_key in PENDING_BLOCK_CONFIRM or
+            sender_key in PENDING_REBOOT_CONFIRM or
+            sender_key in PENDING_NOTE_INPUTS or
+            sender_key in PENDING_FIND_SELECTIONS or
+            sender_key in PENDING_RECALL_SELECTIONS or
+            sender_key in PENDING_VIBE_SELECTIONS or
+            sender_key in PENDING_SPAM_ALERTS or
+            sender_key in PENDING_POSITION_CONFIRM or
+            sender_key in PENDING_SAVE_WIZARDS or
+            (hasattr(MAIL_MANAGER, 'has_pending_creation') and MAIL_MANAGER.has_pending_creation(sender_key))
+        )
+
+    # Redact text if responding to a sensitive prompt
+    logged_text = "xxxxx" if is_pending_response else text
+
+    # Privacy: obfuscate based on message type
+    if not is_pending_response and isinstance(text, str):
+        if text.startswith('/'):
+            # Obfuscate mail/log/report commands for privacy
+            command_parts = text.split()
+            if command_parts:
+                cmd = command_parts[0].lstrip('/').lower()
+                if cmd in ['m', 'mail']:
+                    logged_text = "✉️ mail sent"
+                elif cmd in ['c', 'check', 'checkmail']:
+                    logged_text = "📬 mail checked"
+                elif cmd == 'log':
+                    logged_text = "📝 log created"
+                elif cmd == 'logs':
+                    logged_text = "📋 logs viewed"
+                elif cmd == 'report':
+                    logged_text = "📄 report filed"
+                elif cmd == 'find':
+                    logged_text = "🔎 search performed"
+        elif direct:
+            # DM messages: show "dm received" without content for privacy
+            logged_text = "📨 dm received"
+
     # Flag messages that originate from the AI so they can be included in history
     is_ai_msg = bool(is_ai)
     try:
@@ -11785,7 +11896,7 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
         "timestamp": timestamp,
         "node": display_id,
         "node_id": stored_node_id,
-        "message": text,
+        "message": logged_text,
         "emergency": is_emergency,
         "reply_to": reply_to,
         "direct": direct,
@@ -13241,7 +13352,17 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
 
     # Extract just the shortnames
     recent_nodes = [node[0] for node in nodes_with_time]
-    node_list = ", ".join(recent_nodes)
+
+    # Check if request is from Telegram (sender_id starts with "telegram_")
+    is_telegram = isinstance(sender_id, str) and sender_id.startswith("telegram_")
+
+    # Format differently for Telegram vs mesh
+    if is_telegram:
+        # Format as clickable commands for Telegram (one per line, using underscore to make it clickable)
+        node_list = "\n".join([f"/node_{node}" for node in recent_nodes])
+    else:
+        # Format as comma-separated list for mesh (compact for small screens)
+        node_list = ", ".join(recent_nodes)
 
     # Format response
     count = len(recent_nodes)
@@ -13250,12 +13371,18 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
     return _cmd_reply(cmd, response)
 
   elif cmd == "/node":
-    # Show detailed info about a specific node: /node snmo
-    remainder = full_text[len(cmd):].strip()
-    if not remainder:
-      return _cmd_reply(cmd, "Usage: /node <shortname>\n\nExample: /node snmo")
-
-    target_shortname = remainder
+    # Show detailed info about a specific node: /node snmo or /node_snmo (Telegram format)
+    # Check original full_text to see if it's the Telegram underscore format
+    first_word = full_text.split()[0] if full_text else ""
+    if first_word.lower().startswith("/node_"):
+      # Telegram format: /node_SnMo or /node_snmo
+      target_shortname = first_word[6:]  # Remove "/node_" prefix, preserve case
+    else:
+      # Standard format: /node SnMo
+      remainder = full_text[len("/node"):].strip()
+      if not remainder:
+        return _cmd_reply(cmd, "Usage: /node <shortname>\n\nExample: /node snmo")
+      target_shortname = remainder
     target_node_id = get_node_id_from_shortname(target_shortname)
 
     if not target_node_id:
@@ -15550,8 +15677,8 @@ def _cleanup_expired_flow_sessions():
   except Exception as exc:
     dprint(f"⚠️ Failed to cleanup flow sessions: {exc}")
 
-ADMIN_CONTROL_COMMANDS = {"/admin", "/ai", "/channels+dm", "/channels", "/dm", "/autoping", "/status", "/whatsoff", "/aliases"}
-ADMIN_CONTROL_RESERVED = {"/ai", "/channels+dm", "/channels", "/dm", "/admin", "/autoping", "/status", "/whatsoff", "/aliases"}
+ADMIN_CONTROL_COMMANDS = {"/admin", "/ai", "/channels+dm", "/channels", "/dm", "/autoping", "/status", "/whatsoff", "/aliases", "/allcommands"}
+ADMIN_CONTROL_RESERVED = {"/ai", "/channels+dm", "/channels", "/dm", "/admin", "/autoping", "/status", "/whatsoff", "/aliases", "/allcommands"}
 
 
 # -----------------------------------
@@ -15744,12 +15871,23 @@ def _admin_control_command(text: str, sender_id: Any, sender_key: str, channel_i
     primary = raw_primary.lower()
     args = [token.lower() for token in tokens[1:]]
 
-    if primary in {"/status", "/whatsoff"}:
+    if primary in {"/status", "/whatsoff", "/allcommands"}:
         if preview:
             return True
         if primary == "/status":
             message = _render_admin_status(sender_id)
             return PendingReply(message, "admin status")
+        if primary == "/allcommands":
+            # Get all commands
+            all_commands = _known_commands()
+            # Get disabled commands
+            snapshot = get_feature_flags_snapshot()
+            disabled = set(snapshot.get("disabled_commands", []))
+            # Filter out disabled commands
+            enabled_commands = sorted([cmd for cmd in all_commands if cmd not in disabled])
+            # Format as comma-separated list
+            commands_list = ", ".join(enabled_commands)
+            return PendingReply(f"📋 All enabled commands ({len(enabled_commands)}):\n\n{commands_list}", "/allcommands")
         summary = _render_admin_disabled_summary()
         return PendingReply(summary, "admin whatsoff")
 
@@ -15924,10 +16062,11 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       elif choice in {"exit", "quit", "stop"}:
         return PendingReply("👋 Onboarding paused. Reply /onboard anytime to continue where you left off!", "/onboard")
 
-    # Auto-prompt new users for onboarding
+    # Auto-prompt new users for onboarding (skip for admin commands)
     if is_direct and sender_key:
       settings = get_onboarding_settings()
-      if settings.get("auto_onboard_new_users", True):
+      is_admin_command = lower.startswith('/') and (lower.split()[0] in ADMIN_CONTROL_COMMANDS or sender_key in AUTHORIZED_ADMINS)
+      if settings.get("auto_onboard_new_users", True) and not is_admin_command:
         if not is_user_onboarded(sender_key) and current_step is None:
           # First message from this user - offer onboarding
           start_user_onboarding(sender_key)
@@ -16573,7 +16712,10 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       canonical_lower = canonical_cmd.lower()
       if sender_key and canonical_lower not in {"/bible", "/stop"}:
         _clear_bible_nav(sender_key)
-      if canonical_cmd != raw_cmd or alias_append:
+      # Special case: /node_ commands should pass the original raw_cmd to preserve the shortname
+      if canonical_cmd == "/node" and raw_cmd.lower().startswith("/node_"):
+        text = raw_cmd
+      elif canonical_cmd != raw_cmd or alias_append:
         remainder = text[len(raw_cmd):]
         if alias_append:
           remainder = f"{alias_append}{remainder}"
@@ -16704,6 +16846,9 @@ def on_receive(packet=None, interface=None, **kwargs):
       is_text = True
   except Exception:
     is_text = False
+
+  clean_log(f"🐛 portnum={portnum}, is_text={is_text}", "🐛", show_always=True, rate_limit=False)
+
   if not is_text:
     info_print(f"[Info] Ignoring non-text packet: portnum={portnum}")
     return
@@ -16725,11 +16870,14 @@ def on_receive(packet=None, interface=None, **kwargs):
 
     # De-dup: if we have seen the same text/from/to/channel very recently, drop it
     rx_key = _rx_make_key(packet, text, ch_idx)
+    clean_log(f"🐛 Before dup: text='{(text or '')[:30]}', ch={ch_idx}", "🐛", show_always=True, rate_limit=False)
     if _rx_seen_before(rx_key):
       info_print(f"[Info] Duplicate RX suppressed for from={sender_node} ch={ch_idx} (len={len(text or '')})")
+      clean_log(f"🐛 DUPLICATE - dropping", "🐛", show_always=True, rate_limit=False)
       return
     sender_display = _node_display_label(sender_node)
     normalized_text = (text or "").strip()
+    clean_log(f"🐛 Passed dup: '{normalized_text[:30]}'", "🐛", show_always=True, rate_limit=False)
 
     # Check if this is a relay message and track the sender for auto-reply
     if normalized_text.startswith("📨 Relay from "):
@@ -16767,6 +16915,118 @@ def on_receive(packet=None, interface=None, **kwargs):
         direct=(to_node_int != BROADCAST_ADDR),
         channel_idx=(None if to_node_int != BROADCAST_ADDR else ch_idx),
     )
+
+    # Forward to Telegram with context
+    try:
+        clean_log(f"🐛 TG fwd: to={to_node_int}, bc={BROADCAST_ADDR}, direct={to_node_int != BROADCAST_ADDR}", "🐛", show_always=True, rate_limit=False)
+        # Skip forwarding if user is responding to a pending prompt (privacy - don't expose PINs, passwords, etc.)
+        is_pending_response = False
+        if sender_key:
+            is_pending_response = (
+                sender_key in PENDING_ADMIN_REQUESTS or
+                sender_key in PENDING_WIPE_REQUESTS or
+                sender_key in PENDING_WIPE_SELECTIONS or
+                sender_key in PENDING_MAILBOX_SELECTIONS or
+                sender_key in PENDING_MODEL_SELECTIONS or
+                sender_key in PENDING_BLOCK_CONFIRM or
+                sender_key in PENDING_REBOOT_CONFIRM or
+                sender_key in PENDING_NOTE_INPUTS or
+                sender_key in PENDING_FIND_SELECTIONS or
+                sender_key in PENDING_RECALL_SELECTIONS or
+                sender_key in PENDING_VIBE_SELECTIONS or
+                sender_key in PENDING_SPAM_ALERTS or
+                sender_key in PENDING_POSITION_CONFIRM or
+                sender_key in PENDING_SAVE_WIZARDS or
+                (hasattr(MAIL_MANAGER, 'has_pending_creation') and MAIL_MANAGER.has_pending_creation(sender_key))
+            )
+
+        if not is_pending_response:
+            # For commands, show the command executed (without username)
+            if normalized_text.startswith('/'):
+                # Extract command name
+                command = normalized_text.split()[0].lstrip('/').lower()
+
+                # Special handling for mail/log/report commands - more discreet
+                if command in ['m', 'mail']:
+                    telegram_message = "✉️ mail sent"
+                elif command in ['c', 'check', 'checkmail']:
+                    telegram_message = "📬 mail checked"
+                elif command in ['log']:
+                    telegram_message = "📝 log created"
+                elif command in ['logs']:
+                    telegram_message = "📋 logs viewed"
+                elif command in ['report']:
+                    telegram_message = "📄 report filed"
+                elif command in ['find']:
+                    telegram_message = "🔎 search performed"
+                else:
+                    telegram_message = f"✓ {command} executed"
+
+                send_to_telegram(telegram_message)
+            else:
+                # Non-command messages
+                if to_node_int == BROADCAST_ADDR:
+                    # Channel message - show in format: GROUPNAME|SHORTNAME: message
+                    sender_shortname = get_node_shortname(sender_node)
+                    channel_name = "Unknown"
+                    clean_log(f"🐛 Channel lookup: ch_idx={ch_idx}, has_interface={interface is not None}", "🐛", show_always=True, rate_limit=False)
+                    if interface:
+                        # Try multiple ways to get channel info
+                        channels = None
+                        if hasattr(interface, 'channels') and interface.channels:
+                            channels = interface.channels
+                        elif hasattr(interface, 'localNode'):
+                            channels = getattr(interface.localNode, 'channels', None)
+
+                        clean_log(f"🐛 Channels found: {channels is not None}, type={type(channels) if channels else None}", "🐛", show_always=True, rate_limit=False)
+
+                        if channels:
+                            # Channels can be either a dict or a list
+                            if isinstance(channels, dict):
+                                ch_info = channels.get(ch_idx, {})
+                            elif isinstance(channels, list) and 0 <= ch_idx < len(channels):
+                                ch_info = channels[ch_idx] if channels[ch_idx] else {}
+                            else:
+                                ch_info = {}
+
+                            clean_log(f"🐛 ch_info for idx {ch_idx}: {str(ch_info)[:200]}", "🐛", show_always=True, rate_limit=False)
+
+                            # Get channel name - try different possible structures
+                            channel_name = None
+                            if isinstance(ch_info, dict):
+                                # Try: settings.name
+                                settings = ch_info.get('settings', {})
+                                channel_name = settings.get('name') if settings else None
+                                # Try: name directly
+                                if not channel_name:
+                                    channel_name = ch_info.get('name')
+                                # Try: role (as backup)
+                                if not channel_name:
+                                    role = ch_info.get('role')
+                                    if role:
+                                        channel_name = f"Role-{role}"
+                            elif hasattr(ch_info, 'settings') and hasattr(ch_info.settings, 'name'):
+                                # It's an object with settings.name attribute
+                                channel_name = ch_info.settings.name
+
+                            # Fallback
+                            if not channel_name:
+                                channel_name = f"Channel {ch_idx}"
+
+                            clean_log(f"🐛 Resolved channel name: '{channel_name}'", "🐛", show_always=True, rate_limit=False)
+                        else:
+                            channel_name = f"Channel {ch_idx}"
+                    telegram_message = f"{channel_name}|{sender_shortname}: {normalized_text}"
+
+                    clean_log(f"🐛 Forwarding: {telegram_message}", "🐛", show_always=True, rate_limit=False)
+                    send_to_telegram(telegram_message)
+                else:
+                    # DM - just notify that a DM was received (no details for privacy)
+                    clean_log(f"🐛 Sending DM notification to Telegram", "🐛", show_always=True, rate_limit=False)
+                    send_to_telegram("📨 dm received")
+                    clean_log(f"🐛 DM notification sent", "🐛", show_always=True, rate_limit=False)
+    except Exception as e:
+        add_script_log(f"Failed to forward to Telegram: {e}")
 
     if sender_key and normalized_text and not normalized_text.startswith('/'):
         _cooldown_register(sender_key, sender_node, interface)
@@ -17098,16 +17358,32 @@ def save_telegram_config():
 
     if telegram_bot_stop_event:
         telegram_bot_stop_event.set()
+        telegram_bot_stop_event = None
 
     if enabled and token and chat_ids and TELEGRAM_AVAILABLE:
         telegram_bot_stop_event = threading.Event()
         telegram_bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
         telegram_bot_thread.start()
-        clean_log("Telegram bot started", "📱", show_always=True, rate_limit=False)
+        clean_log(f"Telegram bot started for {len(chat_ids)} authorized chat(s)", "📱", show_always=True, rate_limit=False)
     else:
-        clean_log("Telegram bot stopped", "📱", show_always=True, rate_limit=False)
+        reasons = []
+        if not enabled:
+            reasons.append("disabled")
+        if not token:
+            reasons.append("no token")
+        if not chat_ids:
+            reasons.append("no chat IDs")
+        if not TELEGRAM_AVAILABLE:
+            reasons.append("library not available")
+        clean_log(f"Telegram bot stopped ({', '.join(reasons) if reasons else 'unknown'})", "📱", show_always=True, rate_limit=False)
 
     return jsonify({"ok": True, "config": telegram_data})
+
+
+@app.route("/dashboard/telegram/config", methods=["GET"])
+def get_telegram_config():
+    """Get current Telegram bot configuration."""
+    return jsonify({"ok": True, "config": telegram_config, "library_available": TELEGRAM_AVAILABLE})
 
 
 @app.route("/dashboard/admins/remove", methods=["POST"])
@@ -25716,6 +25992,35 @@ def dashboard():
           telegramEnabledStatus.textContent = telegramEnabledToggle.checked ? 'Enabled' : 'Disabled';
         });
       }
+
+      // Load existing Telegram config on page load
+      async function loadTelegramConfig() {
+        try {
+          const response = await fetch('/dashboard/telegram/config');
+          const result = await response.json();
+
+          if (result.ok && result.config) {
+            const config = result.config;
+
+            if (telegramEnabledToggle) {
+              telegramEnabledToggle.checked = config.enabled || false;
+            }
+            if (telegramEnabledStatus) {
+              telegramEnabledStatus.textContent = config.enabled ? 'Enabled' : 'Disabled';
+            }
+            if (telegramToken) {
+              telegramToken.value = config.token || '';
+            }
+            if (telegramChatIds && config.authorized_chat_ids) {
+              telegramChatIds.value = config.authorized_chat_ids.join(', ');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load Telegram config:', error);
+        }
+      }
+
+      loadTelegramConfig();
     });
   </script>
 </body>
@@ -27488,6 +27793,47 @@ def load_telegram_config():
         telegram_config = {}
 
 
+def send_to_telegram(message: str):
+    """Send a message to all authorized Telegram chats."""
+    if not TELEGRAM_AVAILABLE or not telegram_app:
+        return
+
+    authorized_ids = telegram_config.get("authorized_chat_ids", [])
+    if not authorized_ids:
+        return
+
+    # Send to all authorized chats
+    clean_log(f"🐛 TG sending to {len(authorized_ids)} chats: {message[:50]}", "🐛", show_always=True, rate_limit=False)
+    import threading
+
+    def send_sync():
+        import asyncio
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        async def send_async():
+            for chat_id in authorized_ids:
+                try:
+                    await telegram_app.bot.send_message(chat_id=chat_id, text=message)
+                    clean_log(f"✅ TG sent to {chat_id}", "✅", show_always=True, rate_limit=False)
+                except Exception as e:
+                    clean_log(f"❌ TG send failed to {chat_id}: {e}", "❌", show_always=True, rate_limit=False)
+                    add_script_log(f"Failed to send to Telegram chat {chat_id}: {e}")
+
+        try:
+            loop.run_until_complete(send_async())
+        except Exception as e:
+            clean_log(f"❌ TG send outer failed: {e}", "❌", show_always=True, rate_limit=False)
+            add_script_log(f"Failed to send to Telegram: {e}")
+        finally:
+            loop.close()
+
+    # Run in background thread to avoid blocking
+    thread = threading.Thread(target=send_sync, daemon=True)
+    thread.start()
+
+
 if TELEGRAM_AVAILABLE:
     async def telegram_handle_message(update, context):
         """Handle incoming Telegram messages and route them to mesh."""
@@ -27497,73 +27843,193 @@ if TELEGRAM_AVAILABLE:
         chat_id = update.message.chat_id
         text = update.message.text.strip()
 
-        # Check authorization
-        authorized_ids = telegram_config.get("authorized_chat_ids", [])
-        if chat_id not in authorized_ids:
-            await update.message.reply_text("⛔ Unauthorized. Contact the admin to add your Chat ID.")
-            return
+        add_script_log(f"Telegram message received from {chat_id}: {text}")
+        clean_log(f"📱 Telegram: {text}", "📱", show_always=True, rate_limit=False)
 
         # Parse command similar to dashboard CLI
         try:
             if text.startswith('/'):
-                # Execute as admin command
-                # Use first authorized admin as sender
-                admin_key = list(AUTHORIZED_ADMINS)[0] if AUTHORIZED_ADMINS else "!ffffffff"
+                # Execute as Telegram user (use telegram_{chat_id} as sender for context)
+                telegram_sender = f"telegram_{chat_id}"
+                add_script_log(f"Telegram executing command as telegram_sender={telegram_sender}")
                 response = parse_incoming_text(
                     text=text,
-                    sender_id=admin_key,
+                    sender_id=telegram_sender,
                     is_direct=True,
-                    channel_idx=None,
-                    skip_archive=False,
-                    request_id=str(uuid.uuid4())
+                    channel_idx=None
                 )
+                add_script_log(f"Telegram command response: {response}")
                 if response:
-                    await update.message.reply_text(response.text if hasattr(response, 'text') else str(response))
+                    response_text = response.text if hasattr(response, 'text') else str(response)
+                    add_script_log(f"Telegram sending response: {response_text[:100]}")
+                    await update.message.reply_text(response_text)
                 else:
                     await update.message.reply_text("✅ Command executed")
 
             else:
-                # Check if first word is a channel name or shortname
+                # Non-command text: check if it's a DM (shortname + message), channel message (groupname + message), or AI query
                 parts = text.split(None, 1)
-                if not parts:
-                    await update.message.reply_text("❌ Empty message")
-                    return
+                target_name = parts[0] if parts else None
+                message_text = parts[1] if len(parts) > 1 else ""
+                clean_log(f"📱 Telegram non-cmd: target='{target_name}', msg='{message_text[:20]}'", "📱", show_always=True, rate_limit=False)
 
-                first_word = parts[0]
-                remainder = parts[1] if len(parts) > 1 else ""
+                # Try to resolve as shortname (for DM)
+                target_node_id = None
+                if target_name:
+                    target_node_id = get_node_id_from_shortname(target_name)
+                    clean_log(f"📱 Node lookup: '{target_name}' -> {target_node_id}", "📱", show_always=True, rate_limit=False)
 
-                # Check for channel name
-                channel_names = {}
-                if interface and hasattr(interface, 'channels'):
-                    for ch_idx, ch_info in interface.channels.items():
-                        if 'name' in ch_info:
-                            channel_names[ch_idx] = ch_info['name']
+                    # Don't send to self (AI node) - treat as AI query instead
+                    if target_node_id and (target_node_id == "AI" or target_node_id == FORCE_NODE_NUM):
+                        clean_log(f"📱 Target is AI node, treating as AI query", "📱", show_always=True, rate_limit=False)
+                        target_node_id = None
 
-                target_channel = None
-                for ch_idx, ch_name in channel_names.items():
-                    if ch_name.lower() == first_word.lower():
-                        target_channel = ch_idx
-                        break
+                # Try to resolve as channel name
+                target_channel_idx = None
+                if not target_node_id and target_name and interface:
+                    # Get channels (could be list or dict)
+                    channels = None
+                    if hasattr(interface, 'channels') and interface.channels:
+                        channels = interface.channels
+                    elif hasattr(interface, 'localNode'):
+                        channels = getattr(interface.localNode, 'channels', None)
 
-                if target_channel is not None:
-                    # Send to channel
-                    if interface and remainder:
-                        interface.sendText(remainder, channelIndex=target_channel)
-                        await update.message.reply_text(f"📡 Sent to channel {channel_names[target_channel]}")
+                    if channels:
+                        # Search for matching channel (case-insensitive)
+                        target_lower = target_name.lower()
+                        clean_log(f"📱 Channel lookup: '{target_lower}', type={type(channels)}", "📱", show_always=True, rate_limit=False)
+
+                        # Handle both list and dict formats
+                        if isinstance(channels, list):
+                            for idx, ch_info in enumerate(channels):
+                                if ch_info:
+                                    # Try to get name from different possible structures
+                                    ch_name = None
+                                    if isinstance(ch_info, dict):
+                                        settings = ch_info.get('settings', {})
+                                        ch_name = settings.get('name') if settings else None
+                                        if not ch_name:
+                                            ch_name = ch_info.get('name')
+                                    elif hasattr(ch_info, 'settings') and hasattr(ch_info.settings, 'name'):
+                                        ch_name = ch_info.settings.name
+
+                                    if ch_name and ch_name.lower() == target_lower:
+                                        target_channel_idx = idx
+                                        clean_log(f"📱 Channel MATCH: {idx} ({ch_name})", "📱", show_always=True, rate_limit=False)
+                                        break
+                        elif isinstance(channels, dict):
+                            for idx, ch_info in channels.items():
+                                ch_name = ch_info.get('name', '').lower() if isinstance(ch_info, dict) else ''
+                                if ch_name == target_lower:
+                                    target_channel_idx = idx
+                                    clean_log(f"📱 Channel MATCH: {idx} ({ch_name})", "📱", show_always=True, rate_limit=False)
+                                    break
+
+                        if target_channel_idx is None:
+                            clean_log(f"📱 No channel match for '{target_lower}'", "📱", show_always=True, rate_limit=False)
+
+                clean_log(f"📱 Check DM: node={target_node_id}, msg='{message_text}', both={bool(target_node_id and message_text)}", "📱", show_always=True, rate_limit=False)
+                if target_node_id and message_text:
+                    # It's a DM to a specific node - queue to relay system for ACK tracking
+                    clean_log(f"📱 Sending DM to {target_name}", "📱", show_always=True, rate_limit=False)
+                    if interface:
+                        # Send DM directly and send ACK notification to Telegram
+                        import threading
+
+                        def send_dm():
+                            try:
+                                interface.sendText(message_text, destinationId=target_node_id)
+                                # Send simple confirmation to Telegram
+                                import requests
+                                bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
+                                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                                requests.post(url, json={"chat_id": chat_id, "text": f"📨 Sent to {target_name}"}, timeout=10)
+                            except Exception as e:
+                                # Send error to Telegram
+                                import requests
+                                bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
+                                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                                requests.post(url, json={"chat_id": chat_id, "text": f"❌ Send failed: {e}"}, timeout=10)
+
+                        # Send in background thread
+                        thread = threading.Thread(target=send_dm, daemon=True)
+                        thread.start()
                     else:
-                        await update.message.reply_text("❌ No message to send")
-                    return
+                        await update.message.reply_text("❌ Interface not available")
+                elif target_channel_idx is not None and message_text:
+                    # It's a channel message
+                    add_script_log(f"Telegram channel message: {target_name} -> channel {target_channel_idx}, message: {message_text}")
+                    if interface:
+                        # Send with ACK tracking in background (don't await - let it notify later)
+                        import asyncio
+                        import threading
+                        loop = asyncio.get_event_loop()
 
-                # Check if shortname or node ID
-                target_node = get_node_id_from_shortname(first_word)
-                if not target_node and first_word.startswith('!'):
-                    target_node = first_word
+                        def send_channel_and_track():
+                            # Send message
+                            chunks = split_message(message_text)
+                            packet_ids = []
 
-                if target_node and interface and remainder:
-                    interface.sendText(remainder, destinationId=target_node)
-                    await update.message.reply_text(f"💬 Sent DM to {first_word}")
+                            for chunk in chunks:
+                                try:
+                                    packet = interface.sendText(chunk, channelIndex=target_channel_idx, wantAck=True)
+                                    # Extract packet ID from MeshPacket object
+                                    packet_id = packet.id if hasattr(packet, 'id') else packet
+                                    if packet_id:
+                                        packet_ids.append(packet_id)
+                                except Exception as e:
+                                    clean_log(f"❌ Send failed: {e}", "❌", show_always=True, rate_limit=False)
+
+                            # For channel messages, just confirm sent (no individual ACKs expected)
+                            if packet_ids:
+                                time.sleep(2)  # Brief delay
+                                result_msg = f"✅ Sent to {target_name}"
+
+                                # Send via HTTP (sync)
+                                try:
+                                    import requests
+                                    bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
+                                    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                                    requests.post(url, json={"chat_id": chat_id, "text": result_msg}, timeout=10)
+                                except Exception as e:
+                                    clean_log(f"❌ Channel ack notify failed: {e}", "❌", show_always=True, rate_limit=False)
+
+                        loop.run_in_executor(None, send_channel_and_track)
+                        add_script_log("Telegram channel message queued")
+                    else:
+                        await update.message.reply_text("❌ Interface not available")
                 else:
-                    await update.message.reply_text("❌ Unknown target. Use: /command, ChannelName message, or shortname message")
+                    # Not a DM or channel, treat as AI query - queue directly to AsyncAI
+                    clean_log(f"📱 AI query: '{text}'", "📱", show_always=True, rate_limit=False)
+                    ai_enabled = is_ai_enabled()
+                    clean_log(f"📱 AI enabled check: {ai_enabled}", "📱", show_always=True, rate_limit=False)
+
+                    if ai_enabled:
+                        await update.message.reply_text(f"🤖 Processing...")
+
+                        # Queue AI task using same system as mesh messages
+                        # Use Telegram chat_id as sender_node for context
+                        telegram_sender = f"telegram_{chat_id}"
+
+                        # Log the incoming message for conversation history
+                        log_message(
+                            telegram_sender,
+                            text,
+                            direct=True,
+                            channel_idx=None,
+                            is_ai=False
+                        )
+
+                        task = (text, telegram_sender, True, None, None, interface)
+                        try:
+                            response_queue.put(task, block=False)
+                            clean_log(f"📱 AI query queued (queue: {response_queue.qsize()})", "📱", show_always=True, rate_limit=False)
+                        except Exception as e:
+                            clean_log(f"❌ Queue put failed: {e}", "❌", show_always=True, rate_limit=False)
+                            await update.message.reply_text(f"❌ Queue full: {e}")
+                    else:
+                        clean_log(f"📱 AI disabled, sending error", "📱", show_always=True, rate_limit=False)
+                        await update.message.reply_text("❌ AI is disabled")
 
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {e}")
@@ -27589,6 +28055,8 @@ if TELEGRAM_AVAILABLE:
             return
 
         try:
+            import asyncio
+
             # Create application
             telegram_app = Application.builder().token(token).build()
 
@@ -27596,9 +28064,21 @@ if TELEGRAM_AVAILABLE:
             telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_handle_message))
             telegram_app.add_handler(MessageHandler(filters.COMMAND, telegram_handle_message))
 
-            # Run bot
-            add_script_log(f"Starting Telegram bot for {len(authorized_ids)} authorized chat(s)")
-            telegram_app.run_polling(stop_signals=None, close_loop=False)
+            add_script_log(f"Telegram bot handlers registered")
+
+            # Run bot with a new event loop in this thread
+            add_script_log(f"Starting Telegram bot polling for {len(authorized_ids)} authorized chat(s)")
+
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            add_script_log("Telegram bot starting polling loop...")
+
+            # Use run_polling without closing the loop since we manage it
+            telegram_app.run_polling(stop_signals=None)
+
+            add_script_log("Telegram bot polling ended")
 
         except Exception as e:
             add_script_log(f"Telegram bot error: {e}")

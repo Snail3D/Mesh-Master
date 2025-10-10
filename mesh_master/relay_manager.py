@@ -198,12 +198,32 @@ def _relay_worker(interface, split_message_func, send_direct_chunks_func,
                     # All chunks ACKed
                     ack_shortname = get_node_shortname_func(final_ack_node)
                     success_msg = f"✅ ACK by {ack_shortname}"
-                    send_direct_chunks_func(interface, success_msg, sender_id)
+
+                    # Check if sender is Telegram user - send ACK via Telegram instead of mesh
+                    if isinstance(sender_id, str) and sender_id.startswith("telegram_"):
+                        try:
+                            from mesh_master.telegram_notify import send_telegram_notification
+                            send_telegram_notification(sender_id, success_msg)
+                        except Exception as e:
+                            clean_log_func(f"Telegram ACK notify failed: {e}", "❌")
+                    else:
+                        send_direct_chunks_func(interface, success_msg, sender_id)
+
                     clean_log_func(f"Relay ACK: {ack_shortname} ({len(packet_ids)} chunks)", "✅")
                 else:
                     # Timeout or partial ACKs
                     failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\""
-                    send_direct_chunks_func(interface, failure_msg, sender_id)
+
+                    # Check if sender is Telegram user
+                    if isinstance(sender_id, str) and sender_id.startswith("telegram_"):
+                        try:
+                            from mesh_master.telegram_notify import send_telegram_notification
+                            send_telegram_notification(sender_id, failure_msg)
+                        except Exception as e:
+                            clean_log_func(f"Telegram ACK notify failed: {e}", "❌")
+                    else:
+                        send_direct_chunks_func(interface, failure_msg, sender_id)
+
                     clean_log_func(f"Relay timeout: {target_shortname} (no ACK after {RELAY_ACK_TIMEOUT}s)", "⏱️")
 
             except Exception as e:
