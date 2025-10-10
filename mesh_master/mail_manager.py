@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -9,6 +10,8 @@ import time
 from collections import deque
 from datetime import datetime, timezone, timedelta
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+from cryptography.fernet import Fernet
 
 from mesh_master_mail import MailStore, MAIL_RETENTION_SECONDS
 from .replies import PendingReply
@@ -300,6 +303,33 @@ class MailManager:
     def _hash_pin(self, pin: str) -> str:
         return hashlib.sha256(pin.encode("utf-8")).hexdigest()
 
+    def _generate_encryption_key(self) -> str:
+        """Generate a new Fernet encryption key for a mailbox."""
+        return Fernet.generate_key().decode("utf-8")
+
+    def _encrypt_with_key(self, body: str, encryption_key: str) -> str:
+        """Encrypt a message body with the mailbox's encryption key."""
+        if not body or not encryption_key:
+            return body
+        try:
+            fernet = Fernet(encryption_key.encode("utf-8"))
+            encrypted_bytes = fernet.encrypt(body.encode("utf-8"))
+            return encrypted_bytes.decode("utf-8")
+        except Exception as e:
+            self.clean_log(f"⚠️ Encryption failed: {e}", "⚠️")
+            return body
+
+    def _decrypt_with_key(self, encrypted_body: str, encryption_key: str) -> str:
+        """Decrypt a message body with the mailbox's encryption key."""
+        if not encrypted_body or not encryption_key:
+            return encrypted_body
+        try:
+            fernet = Fernet(encryption_key.encode("utf-8"))
+            decrypted_bytes = fernet.decrypt(encrypted_body.encode("utf-8"))
+            return decrypted_bytes.decode("utf-8")
+        except Exception as e:
+            return "[🔒 Encrypted - access required]"
+
     def _get_security_entry(self, mailbox: str) -> Dict[str, Any]:
         key = self._security_key(mailbox)
         with self.security_lock:
@@ -436,12 +466,17 @@ class MailManager:
             entry['owner'] = owner or entry.get('owner')
             if pin:
                 entry['pin_hash'] = self._hash_pin(pin)
+                # Generate encryption key if not exists
+                if 'encryption_key' not in entry:
+                    entry['encryption_key'] = self._generate_encryption_key()
                 for key, sub in subscribers.items():
                     if not key or (owner and key == owner):
                         continue
                     sub['trusted'] = False
             else:
                 entry['pin_hash'] = None
+                # Remove encryption key when PIN is removed
+                entry.pop('encryption_key', None)
                 for sub in subscribers.values():
                     sub['trusted'] = True
             entry.setdefault('failures', {})
@@ -962,10 +997,22 @@ class MailManager:
         if not mailbox:
             return PendingReply("Mailbox name cannot be empty.", "/m command")
 
+        # Check if mailbox has encryption enabled and encrypt if needed
+        security_entry = self._get_security_entry(mailbox)
+        encryption_key = security_entry.get("encryption_key")
+
         entry = None
         if body:
+            # Encrypt body if mailbox has encryption enabled
+            stored_body = body
+            if encryption_key:
+                try:
+                    stored_body = self._encrypt_with_key(body, encryption_key)
+                except Exception as e:
+                    self.clean_log(f"⚠️ Encryption failed: {e}", "⚠️")
+
             entry = {
-                "body": body,
+                "body": stored_body,
                 "sender_id": str(sender_id),
                 "sender_short": sender_short,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -1174,6 +1221,22 @@ class MailManager:
                 replies = MISSING_MAILBOX_RESPONSES if not existed else EMPTY_MAILBOX_RESPONSES
                 fun_reply = random.choice(replies).format(mailbox=mailbox)
                 return PendingReply(fun_reply, "/c search", chunk_delay=4.0)
+
+            # Decrypt messages if user is authorized
+            security_entry = self._get_security_entry(mailbox)
+            encryption_key = security_entry.get("encryption_key")
+            if encryption_key:
+                with self.security_lock:
+                    subscribers, _ = self._ensure_mailbox_state(security_entry)
+                    sub = subscribers.get(sender_key, {})
+                    is_trusted = bool(sub.get('trusted'))
+
+                if is_trusted:
+                    for msg in messages:
+                        encrypted_body = msg.get('body', '')
+                        if encrypted_body:
+                            msg['body'] = self._decrypt_with_key(encrypted_body, encryption_key)
+
             summary = self._summarize_mail_search(mailbox, query or "", messages)
             self.clean_log(f"Mailbox search '{mailbox}' query '{(query or '').strip()}'", "🔎")
             return PendingReply(
@@ -1185,6 +1248,24 @@ class MailManager:
             )
 
         messages = self.store.get_last(mailbox, self.display_max_messages)
+
+        # Decrypt messages if user is authorized
+        security_entry = self._get_security_entry(mailbox)
+        encryption_key = security_entry.get("encryption_key")
+        if encryption_key:
+            # Check if user is authorized (trusted)
+            with self.security_lock:
+                subscribers, _ = self._ensure_mailbox_state(security_entry)
+                sub = subscribers.get(sender_key, {})
+                is_trusted = bool(sub.get('trusted'))
+
+            if is_trusted:
+                # Decrypt all messages for authorized user
+                for msg in messages:
+                    encrypted_body = msg.get('body', '')
+                    if encrypted_body:
+                        msg['body'] = self._decrypt_with_key(encrypted_body, encryption_key)
+
         # CRITICAL DEBUG: Check sender_id with pure Python access
         if messages:
             first_msg = messages[0]
