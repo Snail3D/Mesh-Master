@@ -268,6 +268,7 @@ class StatsManager:
 
     WINDOW_SECONDS = 24 * 60 * 60
     RECENT_RESPONSE_SAMPLE = 5
+    PERSISTENCE_FILE = "stats_persistence.json"
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -292,6 +293,15 @@ class StatsManager:
         self.ack_events: deque[tuple[float, int, bool, str]] = deque()
         # Command usage tracking (timestamp, command_name)
         self.command_usage: deque[tuple[float, str]] = deque()
+        # Email tracking (separate from mail)
+        self.email_events: deque[tuple[float, str]] = deque()
+        # Per-channel message tracking (channel_idx -> deque of timestamps)
+        self.channel_messages: Dict[int, deque[tuple[float,]]] = {}
+        # Relay message tracking (timestamp, target_node_id)
+        self.relay_events: deque[tuple[float, str]] = deque()
+
+        # Load persisted data on startup
+        self._load_from_disk()
 
     def _prune(self, dq: deque, now: float) -> None:
         window = self.WINDOW_SECONDS * 2
@@ -371,16 +381,37 @@ class StatsManager:
             self.new_onboards.append((now, sender_key))
             self._prune(self.new_onboards, now)
 
-    def record_message(self, *, direct: bool, is_ai: bool) -> None:
+    def record_message(self, *, direct: bool, is_ai: bool, channel_idx: Optional[int] = None) -> None:
         direct_flag = bool(direct)
+        now = time.time()
         with self.lock:
             self.message_totals['total'] += 1
             if direct_flag:
                 self.message_totals['direct'] += 1
             else:
                 self.message_totals['channel'] += 1
+                # Track per-channel messages
+                if channel_idx is not None:
+                    if channel_idx not in self.channel_messages:
+                        self.channel_messages[channel_idx] = deque()
+                    self.channel_messages[channel_idx].append((now,))
+                    self._prune(self.channel_messages[channel_idx], now)
             if is_ai:
                 self.message_totals['ai'] += 1
+
+    def record_email(self, mailbox: str) -> None:
+        """Record email activity (separate from mail system)."""
+        now = time.time()
+        with self.lock:
+            self.email_events.append((now, mailbox))
+            self._prune(self.email_events, now)
+
+    def record_relay(self, target_node_id: str) -> None:
+        """Record relay message sent."""
+        now = time.time()
+        with self.lock:
+            self.relay_events.append((now, target_node_id))
+            self._prune(self.relay_events, now)
 
     def record_command(self, command: str) -> None:
         """Record command usage for analytics."""
@@ -410,6 +441,7 @@ class StatsManager:
                 self.wiki_deleted,
                 self.wiki_served,
                 self.command_usage,
+                self.relay_events,
             ):
                 self._prune(dq, now)
 
@@ -482,6 +514,8 @@ class StatsManager:
                 'wiki_saved_24h': _count24(self.wiki_saved),
                 'wiki_deleted_24h': _count24(self.wiki_deleted),
                 'wiki_served_24h': _count24(self.wiki_served),
+                'email_sent_24h': _count24(self.email_events),
+                'relay_sent_24h': _count24(self.relay_events),
                 'commands_24h': _count24(self.command_usage),
                 'top_commands_24h': command_breakdown.most_common(10),
                 'previous': {
@@ -495,9 +529,217 @@ class StatsManager:
                     'wiki_saved_24h': sum(1 for ts, _ in self.wiki_saved if start_previous <= ts < start_current),
                     'wiki_deleted_24h': sum(1 for ts, _ in self.wiki_deleted if start_previous <= ts < start_current),
                     'wiki_served_24h': sum(1 for ts, _ in self.wiki_served if start_previous <= ts < start_current),
+                    'email_sent_24h': sum(1 for ts, _ in self.email_events if start_previous <= ts < start_current),
+                    'relay_sent_24h': sum(1 for ts, _ in self.relay_events if start_previous <= ts < start_current),
                 },
             }
+
+            # Add per-channel statistics
+            channel_stats = {}
+            for channel_idx, channel_dq in self.channel_messages.items():
+                curr_count = sum(1 for ts, in channel_dq if ts >= start_current)
+                prev_count = sum(1 for ts, in channel_dq if start_previous <= ts < start_current)
+                channel_stats[channel_idx] = {
+                    'current': curr_count,
+                    'previous': prev_count,
+                    'delta': curr_count - prev_count,
+                }
+            snapshot['channel_messages'] = channel_stats
+
         return snapshot
+
+    def get_30day_history(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Generate 30-day daily aggregates for charting."""
+        now = time.time()
+        history: Dict[str, List[Dict[str, Any]]] = {}
+
+        with self.lock:
+            # Generate daily buckets for last 30 days
+            days = []
+            for day_offset in range(29, -1, -1):  # 30 days, most recent last
+                day_end = now - (day_offset * 86400)  # 86400 seconds per day
+                day_start = day_end - 86400
+                days.append({
+                    'date': datetime.fromtimestamp(day_end, tz=timezone.utc).strftime('%Y-%m-%d'),
+                    'start': day_start,
+                    'end': day_end,
+                })
+
+            # Helper to count events in time range
+            def count_in_range(dq: deque, start: float, end: float) -> int:
+                return sum(1 for ts, _ in dq if start <= ts < end)
+
+            # Aggregate each metric by day
+            history['messages_total'] = [
+                {'date': d['date'], 'value': 0}  # Messages use cumulative totals, not events
+                for d in days
+            ]
+            history['messages_direct'] = [
+                {'date': d['date'], 'value': 0}
+                for d in days
+            ]
+            history['ai_requests'] = [
+                {'date': d['date'], 'value': count_in_range(self.ai_requests, d['start'], d['end'])}
+                for d in days
+            ]
+            history['ai_responses'] = [
+                {'date': d['date'], 'value': count_in_range(self.ai_responses, d['start'], d['end'])}
+                for d in days
+            ]
+            history['games'] = [
+                {'date': d['date'], 'value': count_in_range(self.game_events, d['start'], d['end'])}
+                for d in days
+            ]
+            history['onboards'] = [
+                {'date': d['date'], 'value': count_in_range(self.new_onboards, d['start'], d['end'])}
+                for d in days
+            ]
+            history['wiki_saved'] = [
+                {'date': d['date'], 'value': count_in_range(self.wiki_saved, d['start'], d['end'])}
+                for d in days
+            ]
+            history['wiki_served'] = [
+                {'date': d['date'], 'value': count_in_range(self.wiki_served, d['start'], d['end'])}
+                for d in days
+            ]
+            history['emails'] = [
+                {'date': d['date'], 'value': count_in_range(self.email_events, d['start'], d['end'])}
+                for d in days
+            ]
+            history['relays'] = [
+                {'date': d['date'], 'value': count_in_range(self.relay_events, d['start'], d['end'])}
+                for d in days
+            ]
+            history['active_users'] = [
+                {'date': d['date'], 'value': len({sender for ts, sender in self.user_events if d['start'] <= ts < d['end']})}
+                for d in days
+            ]
+
+            # Calculate new nodes per day (nodes that appeared for first time in that day)
+            # This approximates from user_events as a proxy for node activity
+            history['new_nodes'] = [
+                {'date': d['date'], 'value': 0}  # Placeholder - would need proper node tracking
+                for d in days
+            ]
+
+            # ACK telemetry - calculate success rate per day
+            history['ack_dm_first'] = []
+            history['ack_dm_resend'] = []
+            for d in days:
+                day_acks = [rec for rec in self.ack_events if d['start'] <= rec[0] < d['end']]
+                dm_first = [rec for rec in day_acks if rec[3] == 'dm' and rec[1] == 1]
+                dm_resend = [rec for rec in day_acks if rec[3] == 'dm' and rec[1] > 1]
+
+                first_rate = (sum(1 for r in dm_first if r[2]) / len(dm_first) * 100) if dm_first else 0
+                resend_rate = (sum(1 for r in dm_resend if r[2]) / len(dm_resend) * 100) if dm_resend else 0
+
+                history['ack_dm_first'].append({'date': d['date'], 'value': round(first_rate, 1)})
+                history['ack_dm_resend'].append({'date': d['date'], 'value': round(resend_rate, 1)})
+
+            # Per-channel message history
+            for channel_idx, channel_dq in self.channel_messages.items():
+                history_key = f'channel_{channel_idx}'
+                history[history_key] = [
+                    {'date': d['date'], 'value': sum(1 for ts, in channel_dq if d['start'] <= ts < d['end'])}
+                    for d in days
+                ]
+
+        return history
+
+    def _save_to_disk(self) -> None:
+        """Persist current stats to disk for recovery after reboot."""
+        try:
+            now = time.time()
+            cutoff = now - (self.WINDOW_SECONDS * 2)  # Keep 48h of data
+
+            with self.lock:
+                data = {
+                    'message_totals': dict(self.message_totals),
+                    'ai_requests': [[ts, val] for ts, val in self.ai_requests if ts >= cutoff],
+                    'ai_responses': [[ts, val] for ts, val in self.ai_responses if ts >= cutoff],
+                    'mail_sends': [[ts, val] for ts, val in self.mail_sends if ts >= cutoff],
+                    'mailbox_creations': [[ts, val] for ts, val in self.mailbox_creations if ts >= cutoff],
+                    'game_events': [[ts, val] for ts, val in self.game_events if ts >= cutoff],
+                    'user_events': [[ts, val] for ts, val in self.user_events if ts >= cutoff],
+                    'new_onboards': [[ts, val] for ts, val in self.new_onboards if ts >= cutoff],
+                    'wiki_saved': [[ts, val] for ts, val in self.wiki_saved if ts >= cutoff],
+                    'wiki_deleted': [[ts, val] for ts, val in self.wiki_deleted if ts >= cutoff],
+                    'wiki_served': [[ts, val] for ts, val in self.wiki_served if ts >= cutoff],
+                    'ack_events': [[ts, a, s, r] for ts, a, s, r in self.ack_events if ts >= cutoff],
+                    'command_usage': [[ts, val] for ts, val in self.command_usage if ts >= cutoff],
+                    'email_events': [[ts, val] for ts, val in self.email_events if ts >= cutoff],
+                    'relay_events': [[ts, val] for ts, val in self.relay_events if ts >= cutoff],
+                    'channel_messages': {
+                        str(ch_idx): [[ts] for ts, in ch_dq if ts >= cutoff]
+                        for ch_idx, ch_dq in self.channel_messages.items()
+                    },
+                    'saved_at': now,
+                }
+
+            with open(self.PERSISTENCE_FILE, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"⚠️ Failed to save stats to disk: {e}")
+
+    def _load_from_disk(self) -> None:
+        """Load persisted stats from disk on startup."""
+        try:
+            if not os.path.exists(self.PERSISTENCE_FILE):
+                return
+
+            with open(self.PERSISTENCE_FILE, 'r') as f:
+                data = json.load(f)
+
+            # Check if data is stale (older than 48h)
+            saved_at = data.get('saved_at', 0)
+            if time.time() - saved_at > (self.WINDOW_SECONDS * 2):
+                print("ℹ️ Stats persistence file is stale, starting fresh")
+                return
+
+            with self.lock:
+                if 'message_totals' in data:
+                    self.message_totals.update(data['message_totals'])
+
+                # Restore all deques
+                for key, dq_attr in [
+                    ('ai_requests', 'ai_requests'),
+                    ('ai_responses', 'ai_responses'),
+                    ('mail_sends', 'mail_sends'),
+                    ('mailbox_creations', 'mailbox_creations'),
+                    ('game_events', 'game_events'),
+                    ('user_events', 'user_events'),
+                    ('new_onboards', 'new_onboards'),
+                    ('wiki_saved', 'wiki_saved'),
+                    ('wiki_deleted', 'wiki_deleted'),
+                    ('wiki_served', 'wiki_served'),
+                    ('command_usage', 'command_usage'),
+                    ('email_events', 'email_events'),
+                    ('relay_events', 'relay_events'),
+                ]:
+                    if key in data:
+                        dq = getattr(self, dq_attr)
+                        dq.extend(tuple(item) for item in data[key])
+
+                # Special handling for ack_events (4-tuple)
+                if 'ack_events' in data:
+                    self.ack_events.extend(tuple(item) for item in data['ack_events'])
+
+                # Restore per-channel message tracking
+                if 'channel_messages' in data:
+                    for ch_idx_str, ch_data in data['channel_messages'].items():
+                        try:
+                            ch_idx = int(ch_idx_str)
+                            self.channel_messages[ch_idx] = deque(tuple(item) for item in ch_data)
+                        except (ValueError, TypeError):
+                            pass
+
+            print(f"✓ Loaded {len(data.get('message_totals', {}))} message totals from persistence")
+        except Exception as e:
+            print(f"⚠️ Failed to load stats from disk: {e}")
+
+    def save_async(self) -> None:
+        """Trigger async save in background thread."""
+        threading.Thread(target=self._save_to_disk, daemon=True).start()
 
 
 STATS = StatsManager()
@@ -1009,6 +1251,20 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
             'mailbox': entry.get('mailbox'),
         })
 
+    email_metrics = {
+        'sent_24h': _value_delta(
+            stats_snapshot.get('email_sent_24h', 0),
+            stats_previous.get('email_sent_24h', 0),
+        ),
+    }
+
+    relay_metrics = {
+        'sent_24h': _value_delta(
+            stats_snapshot.get('relay_sent_24h', 0),
+            stats_previous.get('relay_sent_24h', 0),
+        ),
+    }
+
     metrics = {
         'timestamp': now.isoformat(),
         'uptime_human': uptime_label,
@@ -1023,6 +1279,8 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
         'games': games_metric,
         'wiki': wiki_metric,
         'mail': mail_metrics,
+        'email': email_metrics,
+        'relay': relay_metrics,
         'ai_requests': ai_requests_metric,
         'ai_processed': ai_processed_metric,
         'queue': queue_metric,
@@ -1063,6 +1321,33 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
         }
     except Exception:
         metrics['ack'] = {'dm': {}}
+
+    # Add per-channel message statistics with channel names
+    try:
+        channel_stats = stats_snapshot.get('channel_messages', {}) or {}
+        channels_with_names = {}
+        for ch_idx, ch_data in channel_stats.items():
+            # Convert to int for channel name lookup
+            try:
+                ch_idx_int = int(ch_idx)
+            except (TypeError, ValueError):
+                ch_idx_int = ch_idx
+            channel_name = _channel_display_name(ch_idx_int)
+            channels_with_names[ch_idx] = {
+                'name': channel_name,
+                'messages_24h': _value_delta(ch_data.get('current', 0), ch_data.get('previous', 0)),
+            }
+        metrics['channels'] = channels_with_names
+    except Exception as e:
+        print(f"⚠️ Failed to gather channel stats: {e}")
+        metrics['channels'] = {}
+
+    # Add 30-day history for charts
+    try:
+        metrics['history_30day'] = STATS.get_30day_history()
+    except Exception as e:
+        print(f"⚠️ Failed to generate 30-day history: {e}")
+        metrics['history_30day'] = {}
 
     LAST_METRICS_SNAPSHOT = metrics
     return metrics
@@ -1413,6 +1698,9 @@ def _viewer_should_show(line: str) -> bool:
     "DISCLAIMER: This is beta software",
     "Messaging Dashboard Access: http://",
     "Offline wiki index has no entries",
+    "Telegram bot started for",
+    "Telegram error monitor started",
+    "Restart count:",
   )
   if any(s in line for s in spam):
     return False
@@ -2346,6 +2634,18 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         },
     ),
     (
+        "remote_dashboard",
+        {
+            "label": "Remote Dashboard (Tailscale)",
+            "keys": [
+                "tailscale_enabled",
+                "tailscale_auth_key",
+                "tailscale_hostname",
+                "tailscale_ssh_enabled",
+            ],
+        },
+    ),
+    (
         "home_assistant",
         {
             "label": "Home Assistant",
@@ -2492,6 +2792,11 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
     "onboard_quiet_start": "Quiet hours start",
     "onboard_quiet_end": "Quiet hours end",
     "onboard_custom_welcome": "Custom welcome message",
+    # Remote Dashboard (Tailscale)
+    "tailscale_enabled": "Tailscale enabled",
+    "tailscale_auth_key": "Tailscale auth key",
+    "tailscale_hostname": "Tailscale hostname",
+    "tailscale_ssh_enabled": "Tailscale SSH enabled",
 }
 
 CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
@@ -2595,6 +2900,11 @@ CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "onboard_quiet_start": "Local hour (0–23) when onboarding reminders pause for the night.",
     "onboard_quiet_end": "Local hour (0–23) when onboarding reminders resume after overnight quiet hours.",
     "onboard_custom_welcome": "Optional custom message shown at the start of onboarding. Leave blank for default.",
+    # Remote Dashboard (Tailscale)
+    "tailscale_enabled": "Enable Tailscale VPN for secure remote dashboard access from anywhere. Install Tailscale first: curl -fsSL https://tailscale.com/install.sh | sh",
+    "tailscale_auth_key": "Optional: Tailscale auth key for automatic authentication. Get one from https://login.tailscale.com/admin/settings/keys - useful for deploying multiple Pi's.",
+    "tailscale_hostname": "Your Tailscale hostname for accessing the dashboard remotely (e.g., raspberrypi.tail12345.ts.net). Found via 'tailscale status'.",
+    "tailscale_ssh_enabled": "Enable Tailscale SSH for passwordless remote terminal access. Run 'sudo tailscale up --ssh' to enable.",
 }
 
 
@@ -2666,6 +2976,7 @@ _SENSITIVE_CONFIG_KEYS = {
     "admin_password",
     "home_assistant_token",
     "home_assistant_secure_pin",
+    "tailscale_auth_key",
 }
 
 
@@ -3309,7 +3620,7 @@ except FileNotFoundError:
 
 ADMIN_PASSWORD = str(config.get("admin_password", "password") or "password")
 ADMIN_PASSWORD_NORM = ADMIN_PASSWORD.strip().casefold()
-ADMIN_PASSWORD_HINT = str(config.get("admin_password_hint", "Default password") or "Default password")
+ADMIN_PASSWORD_HINT = str(config.get("admin_password_hint", "password") or "password")
 
 
 def _register_admin_display(sender_key: str, sender_id: Any = None, *, label: Optional[str] = None) -> None:
@@ -11012,6 +11323,12 @@ def _relay_worker():
                     if send_result['packet_id']:
                         packet_ids.append(send_result['packet_id'])
                         clean_log(f"Relay chunk {chunk_idx + 1}/{len(chunks)} sent (ID={send_result['packet_id']})", "📨", show_always=False)
+                        # Record relay stat on first successful chunk
+                        if chunk_idx == 0:
+                            try:
+                                STATS.record_relay(target_node_id)
+                            except Exception:
+                                pass
                     elif send_result['error']:
                         send_errors.append(f"Chunk {chunk_idx + 1}: {send_result['error']}")
 
@@ -11910,7 +12227,7 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
             # keep only the last MAX_MESSAGE_LOG entries
             del messages[:-MAX_MESSAGE_LOG]
     try:
-        STATS.record_message(direct=bool(direct), is_ai=is_ai_msg)
+        STATS.record_message(direct=bool(direct), is_ai=is_ai_msg, channel_idx=channel_idx)
     except Exception:
         pass
     try:
@@ -21251,21 +21568,21 @@ def dashboard():
     }
     .snapshot-grid {
       display: grid;
-      gap: 12px;
+      gap: 8px;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     }
     .snapshot-section {
       background: rgba(17, 19, 25, 0.65);
       border: 1px solid rgba(60, 65, 80, 0.45);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: 8px;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
     .snapshot-section h3 {
       margin: 0;
-      font-size: 12px;
+      font-size: 11.5px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--text-secondary);
@@ -21275,7 +21592,7 @@ def dashboard():
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .snapshot-list div {
       display: flex;
@@ -21286,7 +21603,7 @@ def dashboard():
     }
     .snapshot-list dt {
       margin: 0;
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--text-secondary);
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -21295,10 +21612,65 @@ def dashboard():
       margin: 0;
       display: flex;
       align-items: baseline;
-      gap: 6px;
-      font-size: 15px;
+      gap: 5px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--text-primary);
+      position: relative;
+    }
+    .snapshot-list dd:has(.stat-chart-popup) {
+      cursor: help;
+    }
+    .stat-chart-popup {
+      display: none;
+      position: fixed;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      z-index: 10000;
+      min-width: 320px;
+      max-width: 400px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .snapshot-list dd:hover .stat-chart-popup {
+      display: block;
+      opacity: 1;
+    }
+    .stat-chart-title {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .stat-chart-canvas {
+      width: 100%;
+      height: 80px;
+      display: block;
+    }
+    /* Mobile: disable chart hovers on touch devices */
+    @media (hover: none) and (pointer: coarse) {
+      .snapshot-list dd:has(.stat-chart-popup) {
+        cursor: default;
+      }
+      .stat-chart-popup {
+        display: none !important;
+      }
+    }
+    /* Mobile: reduce chart popup size on small screens */
+    @media (max-width: 480px) {
+      .stat-chart-popup {
+        min-width: 280px;
+        padding: 10px;
+      }
+      .stat-chart-canvas {
+        height: 60px;
+      }
     }
     .stat-row {
       display: flex;
@@ -21853,7 +22225,6 @@ def dashboard():
         <span id="metricsTimestamp" class="panel-subtitle">Waiting for metrics…</span>
         <div style="display: flex; gap: 12px;">
           <a class="header-meta-link" href="/logs/verbose" target="_blank" rel="noreferrer">verbose logs</a>
-          <a class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer">command builder</a>
         </div>
       </div>
     </header>
@@ -21877,6 +22248,14 @@ def dashboard():
                 <div><dt>Total</dt><dd id="stat-msg-total">—</dd></div>
                 <div><dt>Direct</dt><dd id="stat-msg-direct">—</dd></div>
                 <div><dt>AI Authored</dt><dd id="stat-msg-ai">—</dd></div>
+                <div><dt>Emails sent</dt><dd id="stat-email-sent">—</dd></div>
+                <div><dt>Relays sent</dt><dd id="stat-relay-sent">—</dd></div>
+              </dl>
+            </section>
+            <section class="snapshot-section" id="channelsSection">
+              <h3>Channels 📻</h3>
+              <dl class="snapshot-list" id="stat-channels-list">
+                <div style="color: var(--text-secondary); font-size: 11.5px; padding: 4px 0;">No channel data yet</div>
               </dl>
             </section>
             <section class="snapshot-section">
@@ -21885,6 +22264,12 @@ def dashboard():
                 <div><dt>Active nodes</dt><dd id="stat-nodes-current">—</dd></div>
                 <div><dt>New nodes</dt><dd id="stat-nodes-new">—</dd></div>
                 <div><dt>Active users</dt><dd id="stat-active-users">—</dd></div>
+              </dl>
+            </section>
+            <section class="snapshot-section">
+              <h3>Games 🎮</h3>
+              <dl class="snapshot-list">
+                <div><dt>Played 24h</dt><dd id="stat-games">—</dd></div>
               </dl>
               <div class="games-breakdown" id="stat-games-breakdown"></div>
             </section>
@@ -21900,12 +22285,11 @@ def dashboard():
               <h3>Onboarding 🧭</h3>
               <dl class="snapshot-list">
                 <div><dt>New 24h</dt><dd id="stat-new-onboards">—</dd></div>
-                <div><dt>Games launched</dt><dd id="stat-games">—</dd></div>
               </dl>
               <div class="onboard-roster" id="onboardRoster"></div>
             </section>
             <section class="snapshot-section">
-              <h3>Offline Knowledge 🧠</h3>
+              <h3>Offline Wiki 🧠</h3>
               <dl class="snapshot-list">
                 <div><dt>Saved 24h</dt><dd id="stat-wiki-saved">—</dd></div>
                 <div><dt>Deleted 24h</dt><dd id="stat-wiki-deleted">—</dd></div>
@@ -21967,6 +22351,9 @@ def dashboard():
           <span id="featuresStatus" class="panel-subtitle">Core bot behavior and system management</span>
         </div>
         <div id="featureAlerts" class="feature-alerts" hidden></div>
+        <div style="padding: 0 0 12px 0; border-bottom: 1px solid var(--border);">
+          <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
+        </div>
         <div class="toggle-row">
           <label class="switch">
             <input type="checkbox" id="aiToggle">
@@ -23872,7 +24259,56 @@ def dashboard():
       });
     }
 
-    function setValueWithDelta(id, payload, { allowNegative = true } = {}) {
+    function renderMiniChart(canvas, data, title) {
+      if (!canvas || !data || data.length === 0) return;
+
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width = canvas.offsetWidth * (window.devicePixelRatio || 1);
+      const height = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
+      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+
+      const padding = 5;
+      const chartWidth = canvas.offsetWidth - (padding * 2);
+      const chartHeight = canvas.offsetHeight - (padding * 2);
+
+      // Find max value for scaling
+      const values = data.map(d => d.value || 0);
+      const maxValue = Math.max(...values, 1);
+
+      // Draw line chart
+      ctx.strokeStyle = 'rgba(86, 156, 214, 0.8)';
+      ctx.fillStyle = 'rgba(86, 156, 214, 0.15)';
+      ctx.lineWidth = 1.5;
+
+      const pointSpacing = chartWidth / (values.length - 1 || 1);
+
+      ctx.beginPath();
+      values.forEach((val, i) => {
+        const x = padding + (i * pointSpacing);
+        const y = padding + chartHeight - ((val / maxValue) * chartHeight);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Fill area under line
+      ctx.lineTo(padding + chartWidth, padding + chartHeight);
+      ctx.lineTo(padding, padding + chartHeight);
+      ctx.closePath();
+      ctx.fill();
+
+      // Draw dots on data points
+      ctx.fillStyle = 'rgba(86, 156, 214, 1)';
+      values.forEach((val, i) => {
+        const x = padding + (i * pointSpacing);
+        const y = padding + chartHeight - ((val / maxValue) * chartHeight);
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function setValueWithDelta(id, payload, { allowNegative = true, historyKey = null } = {}) {
       const el = $(id);
       if (!el) return;
       if (!payload || payload.value === null || payload.value === undefined || isNaN(payload.value)) {
@@ -23892,7 +24328,59 @@ def dashboard():
       } else {
         deltaHtml = '<span class="delta delta-flat">—</span>';
       }
-      el.innerHTML = `<span class="stat-value-number">${valueText}</span>${deltaHtml}`;
+
+      // Add chart popup if history key provided and has data
+      let chartHtml = '';
+      const historyData = historyKey && window.metricsHistory ? window.metricsHistory[historyKey] : null;
+      const hasData = historyData && Array.isArray(historyData) && historyData.length > 0;
+
+      if (hasData) {
+        const chartId = `chart-${id}`;
+        chartHtml = `<div class="stat-chart-popup" data-chart-for="${id}"><div class="stat-chart-title">Last 30 Days</div><canvas class="stat-chart-canvas" id="${chartId}"></canvas></div>`;
+      }
+
+      el.innerHTML = `<span class="stat-value-number">${valueText}</span>${deltaHtml}${chartHtml}`;
+
+      // Render chart if canvas was added
+      if (chartHtml && hasData) {
+        setTimeout(() => {
+          const canvas = $(`chart-${id}`);
+          if (canvas) {
+            renderMiniChart(canvas, historyData, historyKey);
+          }
+        }, 10);
+
+        // Add hover positioning for the chart popup
+        el.addEventListener('mouseenter', function(e) {
+          const popup = el.querySelector('.stat-chart-popup');
+          if (!popup) return;
+
+          const rect = el.getBoundingClientRect();
+          const popupWidth = Math.min(320, window.innerWidth - 20);
+          const popupHeight = 120;
+          const padding = 10;
+
+          // Position above the element by default
+          let top = rect.top - popupHeight - padding;
+          let left = rect.left + (rect.width / 2) - (popupWidth / 2);
+
+          // Adjust if popup goes off screen
+          if (top < padding) {
+            // Show below if not enough space above
+            top = rect.bottom + padding;
+          }
+          if (left < padding) {
+            left = padding;
+          }
+          if (left + popupWidth > window.innerWidth - padding) {
+            left = window.innerWidth - popupWidth - padding;
+          }
+
+          popup.style.top = `${top}px`;
+          popup.style.left = `${left}px`;
+          popup.style.minWidth = `${popupWidth}px`;
+        });
+      }
     }
 
     const PANEL_LAYOUT_STORAGE_KEY = 'mesh-dashboard-layout-v2';
@@ -26097,22 +26585,66 @@ def dashboard():
         }
       }
 
+      // Store history for charts
+      if (metrics.history_30day) {
+        window.metricsHistory = metrics.history_30day;
+      }
+
       const messageActivity = metrics.message_activity || {};
-      setValueWithDelta('stat-msg-total', messageActivity.total || { value: 0, delta: 0 });
-      setValueWithDelta('stat-msg-direct', messageActivity.direct || { value: 0, delta: 0 });
-      setValueWithDelta('stat-msg-ai', messageActivity.ai || { value: 0, delta: 0 });
+      setValueWithDelta('stat-msg-total', messageActivity.total || { value: 0, delta: 0 }, { historyKey: 'messages_total' });
+      setValueWithDelta('stat-msg-direct', messageActivity.direct || { value: 0, delta: 0 }, { historyKey: 'messages_direct' });
+      setValueWithDelta('stat-msg-ai', messageActivity.ai || { value: 0, delta: 0 }, { historyKey: 'ai_responses' });
+
+      // Email metrics
+      if (metrics.email) {
+        setValueWithDelta('stat-email-sent', metrics.email.sent_24h || { value: 0, delta: 0 }, { historyKey: 'emails' });
+      } else {
+        setValueWithDelta('stat-email-sent', { value: 0, delta: 0 }, { historyKey: 'emails' });
+      }
+
+      // Relay metrics
+      if (metrics.relay) {
+        setValueWithDelta('stat-relay-sent', metrics.relay.sent_24h || { value: 0, delta: 0 }, { historyKey: 'relays' });
+      } else {
+        setValueWithDelta('stat-relay-sent', { value: 0, delta: 0 }, { historyKey: 'relays' });
+      }
+
+      // Per-channel message metrics
+      const channelsList = $("stat-channels-list");
+      const channelsSection = $("channelsSection");
+      if (channelsList && metrics.channels && Object.keys(metrics.channels).length > 0) {
+        channelsList.innerHTML = "";
+        for (const [chIdx, chData] of Object.entries(metrics.channels)) {
+          const channelName = chData.name || `Ch${chIdx}`;
+          const historyKey = `channel_${chIdx}`;
+          const div = document.createElement("div");
+          const dt = document.createElement("dt");
+          dt.textContent = channelName;
+          const dd = document.createElement("dd");
+          dd.id = `stat-channel-${chIdx}`;
+          div.appendChild(dt);
+          div.appendChild(dd);
+          channelsList.appendChild(div);
+          setValueWithDelta(`stat-channel-${chIdx}`, chData.messages_24h || { value: 0, delta: 0 }, { historyKey: historyKey });
+        }
+        if (channelsSection) channelsSection.hidden = false;
+      } else {
+        // No channel data yet
+        channelsList.innerHTML = "<div style=\"color: var(--text-secondary); font-size: 11.5px; padding: 4px 0;\">No channel data yet</div>";
+        if (channelsSection) channelsSection.hidden = false;
+      }
 
       const nodeActivity = metrics.node_activity || {};
       setValueWithDelta('stat-nodes-current', nodeActivity.current || { value: 0, delta: 0 });
-      setValueWithDelta('stat-nodes-new', nodeActivity.new_24h || { value: 0, delta: 0 });
-      setValueWithDelta('stat-active-users', metrics.active_users || { value: 0, delta: 0 });
-      setValueWithDelta('stat-new-onboards', metrics.new_onboards || { value: 0, delta: 0 });
-      setValueWithDelta('stat-games', metrics.games || { value: 0, delta: 0 });
+      setValueWithDelta('stat-nodes-new', nodeActivity.new_24h || { value: 0, delta: 0 }, { historyKey: 'new_nodes' });
+      setValueWithDelta('stat-active-users', metrics.active_users || { value: 0, delta: 0 }, { historyKey: 'active_users' });
+      setValueWithDelta('stat-new-onboards', metrics.new_onboards || { value: 0, delta: 0 }, { historyKey: 'onboards' });
+      setValueWithDelta('stat-games', metrics.games || { value: 0, delta: 0 }, { historyKey: 'games' });
       // Offline wiki daily stats
       if (metrics.wiki) {
-        setValueWithDelta('stat-wiki-saved', metrics.wiki.saved || { value: 0, delta: 0 });
+        setValueWithDelta('stat-wiki-saved', metrics.wiki.saved || { value: 0, delta: 0 }, { historyKey: 'wiki_saved' });
         setValueWithDelta('stat-wiki-deleted', metrics.wiki.deleted || { value: 0, delta: 0 });
-        setValueWithDelta('stat-wiki-served', metrics.wiki.served || { value: 0, delta: 0 });
+        setValueWithDelta('stat-wiki-served', metrics.wiki.served || { value: 0, delta: 0 }, { historyKey: 'wiki_served' });
         const ageEl = $("stat-wiki-age");
         if (ageEl) {
           const v = metrics.wiki.avg_age_days;
@@ -26131,16 +26663,83 @@ def dashboard():
         renderGamesBreakdown({});
       }
 
-      // Ack summary
+      // Ack summary - use special formatting for percentages
       try {
         const ack = (metrics.ack && metrics.ack.dm) ? metrics.ack.dm : {};
-        const firstRate = (typeof ack.first_rate === 'number') ? `${ack.first_rate}%` : '—';
-        const resendRate = (typeof ack.resend_rate === 'number') ? `${ack.resend_rate}%` : '—';
+        const firstRate = (typeof ack.first_rate === 'number') ? ack.first_rate : 0;
+        const resendRate = (typeof ack.resend_rate === 'number') ? ack.resend_rate : 0;
         const events = (typeof ack.events === 'number') ? ack.events : ((ack.first_total || 0) + (ack.resend_total || 0));
-        const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
-        setText('stat-ack-dm-first', firstRate);
-        setText('stat-ack-dm-resend', resendRate);
-        setText('stat-ack-dm-events', (events || 0).toString());
+
+        // Display as percentages with history
+        const firstEl = $('stat-ack-dm-first');
+        const resendEl = $('stat-ack-dm-resend');
+        const eventsEl = $('stat-ack-dm-events');
+
+        if (firstEl) {
+          const historyData = window.metricsHistory ? window.metricsHistory['ack_dm_first'] : null;
+          const hasData = historyData && Array.isArray(historyData) && historyData.length > 0;
+          let chartHtml = '';
+          if (hasData) {
+            chartHtml = `<div class="stat-chart-popup" data-chart-for="stat-ack-dm-first"><div class="stat-chart-title">Last 30 Days</div><canvas class="stat-chart-canvas" id="chart-stat-ack-dm-first"></canvas></div>`;
+            setTimeout(() => {
+              const canvas = $('chart-stat-ack-dm-first');
+              if (canvas) renderMiniChart(canvas, historyData, 'ack_dm_first');
+            }, 10);
+          }
+          firstEl.innerHTML = `<span class="stat-value-number">${firstRate}%</span>${chartHtml}`;
+          if (hasData) {
+            firstEl.addEventListener('mouseenter', function(e) {
+              const popup = firstEl.querySelector('.stat-chart-popup');
+              if (!popup) return;
+              const rect = firstEl.getBoundingClientRect();
+              const popupWidth = Math.min(320, window.innerWidth - 20);
+              const popupHeight = 120;
+              const padding = 10;
+              let top = rect.top - popupHeight - padding;
+              let left = rect.left + (rect.width / 2) - (popupWidth / 2);
+              if (top < padding) top = rect.bottom + padding;
+              if (left < padding) left = padding;
+              if (left + popupWidth > window.innerWidth - padding) left = window.innerWidth - popupWidth - padding;
+              popup.style.top = `${top}px`;
+              popup.style.left = `${left}px`;
+              popup.style.minWidth = `${popupWidth}px`;
+            });
+          }
+        }
+
+        if (resendEl) {
+          const historyData = window.metricsHistory ? window.metricsHistory['ack_dm_resend'] : null;
+          const hasData = historyData && Array.isArray(historyData) && historyData.length > 0;
+          let chartHtml = '';
+          if (hasData) {
+            chartHtml = `<div class="stat-chart-popup" data-chart-for="stat-ack-dm-resend"><div class="stat-chart-title">Last 30 Days</div><canvas class="stat-chart-canvas" id="chart-stat-ack-dm-resend"></canvas></div>`;
+            setTimeout(() => {
+              const canvas = $('chart-stat-ack-dm-resend');
+              if (canvas) renderMiniChart(canvas, historyData, 'ack_dm_resend');
+            }, 10);
+          }
+          resendEl.innerHTML = `<span class="stat-value-number">${resendRate}%</span>${chartHtml}`;
+          if (hasData) {
+            resendEl.addEventListener('mouseenter', function(e) {
+              const popup = resendEl.querySelector('.stat-chart-popup');
+              if (!popup) return;
+              const rect = resendEl.getBoundingClientRect();
+              const popupWidth = Math.min(320, window.innerWidth - 20);
+              const popupHeight = 120;
+              const padding = 10;
+              let top = rect.top - popupHeight - padding;
+              let left = rect.left + (rect.width / 2) - (popupWidth / 2);
+              if (top < padding) top = rect.bottom + padding;
+              if (left < padding) left = padding;
+              if (left + popupWidth > window.innerWidth - padding) left = window.innerWidth - popupWidth - padding;
+              popup.style.top = `${top}px`;
+              popup.style.left = `${left}px`;
+              popup.style.minWidth = `${popupWidth}px`;
+            });
+          }
+        }
+
+        if (eventsEl) eventsEl.textContent = (events || 0).toString();
       } catch (err) {}
 
       if (metrics.onboarding && Array.isArray(metrics.onboarding.roster)) {
@@ -26729,91 +27328,91 @@ def dashboard():
       function defineTours() {
         tours.dashboard = [
           {
-            title: 'Welcome to Mesh Master! 🎉',
-            content: '<p>Let me show you around! This tour will teach you everything you need to know about running your mesh network.</p><p><strong>You\\'ll learn:</strong></p><ul><li>How to see what\\'s happening on your network</li><li>How to send messages to people</li><li>How to control the AI assistant</li><li>How to customize commands</li><li>How to connect Telegram</li></ul><p>It only takes a few minutes. Let\\'s go!</p>',
-            position: 'center'
+            title: "Welcome to Mesh Master! 🎉",
+            content: "<p>Let me show you around! This tour will teach you everything you need to know about running your mesh network.</p><p><strong>You'll learn:</strong></p><ul><li>How to see what's happening on your network</li><li>How to send messages to people</li><li>How to control the AI assistant</li><li>How to customize commands</li><li>How to connect Telegram</li></ul><p>It only takes a few minutes. Let's go!</p>",
+            position: "center"
           },
           {
-            title: 'Activity Panel 📊',
-            content: '<p>This shows you what\\'s happening right now on your mesh:</p><ul><li><strong>Messages:</strong> How many messages have been sent</li><li><strong>Nodes:</strong> How many devices are connected</li><li><strong>Users:</strong> How many people are active</li><li><strong>AI Activity:</strong> How often the AI is helping people</li></ul><p>Think of it like a dashboard in your car - it shows you all the important info at a glance!</p>',
+            title: "Activity Panel 📊",
+            content: "<p>This shows you what's happening right now on your mesh:</p><ul><li><strong>Messages:</strong> How many messages have been sent</li><li><strong>Nodes:</strong> How many devices are connected</li><li><strong>Users:</strong> How many people are active</li><li><strong>AI Activity:</strong> How often the AI is helping people</li></ul><p>Think of it like a dashboard in your car - it shows you all the important info at a glance!</p>",
             target: '[data-panel-id="snapshot"]',
-            position: 'right'
+            position: "right"
           },
           {
-            title: 'Side Menu 📋',
-            content: '<p>This menu on the left helps you navigate:</p><ul><li>Click any section name to jump there</li><li>Click "show" or "hide" to expand or collapse sections</li><li>Your choices are remembered next time you visit</li></ul><p>Use this to quickly find what you need!</p>',
-            target: '#panelMenu',
-            position: 'right'
+            title: "Side Menu 📋",
+            content: "<p>This menu on the left helps you navigate:</p><ul><li>Click any section name to jump there</li><li>Click \"show\" or \"hide\" to expand or collapse sections</li><li>Your choices are remembered next time you visit</li></ul><p>Use this to quickly find what you need!</p>",
+            target: "#panelMenu",
+            position: "right",
           },
           {
-            title: 'Settings ⚙️',
-            content: '<p>This is where you change how Mesh Master works:</p><ul><li><strong>AI Model:</strong> Pick which AI brain to use (bigger = smarter but slower)</li><li><strong>Search Models:</strong> Download new AI brains</li><li><strong>Edit Settings:</strong> Change any value by clicking on it</li></ul><p>Don\\'t worry - you can\\'t break anything! All changes can be undone.</p>',
+            title: "Settings ⚙️",
+            content: "<p>This is where you change how Mesh Master works:</p><ul><li><strong>AI Model:</strong> Pick which AI brain to use (bigger = smarter but slower)</li><li><strong>Search Models:</strong> Download new AI brains</li><li><strong>Edit Settings:</strong> Change any value by clicking on it</li></ul><p>Don\'t worry - you can\'t break anything! All changes can be undone.</p>",
             target: '[data-panel-id="config-overview"]',
-            position: 'bottom'
+            position: "bottom",
           },
           {
-            title: 'AI Controls 🤖',
-            content: '<p>Control how the AI assistant behaves:</p><ul><li><strong>Turn AI On/Off:</strong> Enable or disable automatic responses</li><li><strong>Where it responds:</strong> Choose if AI answers privately (DMs) or publicly</li><li><strong>Personality:</strong> Make it helpful, creative, or technical</li><li><strong>Trigger words:</strong> Set keywords that activate the AI</li></ul><p>The AI can answer questions, tell jokes, and help users - but only when you want it to!</p>',
+            title: "AI Controls 🤖",
+            content: "<p>Control how the AI assistant behaves:</p><ul><li><strong>Turn AI On/Off:</strong> Enable or disable automatic responses</li><li><strong>Where it responds:</strong> Choose if AI answers privately (DMs) or publicly</li><li><strong>Personality:</strong> Make it helpful, creative, or technical</li><li><strong>Trigger words:</strong> Set keywords that activate the AI</li></ul><p>The AI can answer questions, tell jokes, and help users - but only when you want it to!</p>",
             target: '[data-panel-id="operations"]',
-            position: 'bottom'
+            position: "bottom",
           },
           {
-            title: 'Radio Settings 📡',
-            content: '<p>Control your radio hardware:</p><ul><li><strong>Hop Limit:</strong> How many times a message can bounce between devices (higher = farther reach but more network traffic)</li><li><strong>Channels:</strong> Which radio frequency you're using</li></ul><p>Think of hop limit like a "maximum bounces" setting - messages stop after that many hops.</p>',
+            title: "Radio Settings 📡",
+            content: "<p>Control your radio hardware:</p><ul><li><strong>Hop Limit:</strong> How many times a message can bounce between devices (higher = farther reach but more network traffic)</li><li><strong>Channels:</strong> Which radio frequency you\'re using</li></ul><p>Think of hop limit like a \"maximum bounces\" setting - messages stop after that many hops.</p>",
             target: '[data-panel-id="radio-settings"]',
-            position: 'bottom'
+            position: "bottom",
           },
           {
-            title: 'Telegram Bridge 💬',
-            content: '<p>Connect your mesh to Telegram messenger:</p><ul><li>Get mesh messages in Telegram</li><li>Send messages from Telegram to the mesh</li><li>Get notified when people DM you</li><li>Control your mesh from your phone</li></ul><p><strong>To set up:</strong></p><ul><li>Create a Telegram bot (search "BotFather" on Telegram)</li><li>Paste your bot token here</li><li>Add your Telegram chat ID</li><li>Toggle "Enable" to turn it on</li></ul>',
+            title: "Telegram Bridge 💬",
+            content: "<p>Connect your mesh to Telegram messenger:</p><ul><li>Get mesh messages in Telegram</li><li>Send messages from Telegram to the mesh</li><li>Get notified when people DM you</li><li>Control your mesh from your phone</li></ul><p><strong>To set up:</strong></p><ul><li>Create a Telegram bot (search \"BotFather\" on Telegram)</li><li>Paste your bot token here</li><li>Add your Telegram chat ID</li><li>Toggle \"Enable\" to turn it on</li></ul>",
             target: '[data-panel-id="telegram"]',
-            position: 'bottom'
+            position: "bottom",
           },
           {
-            title: 'Offline Wiki 🧠',
-            content: '<p>Your personal offline encyclopedia!</p><ul><li>Web pages are saved here automatically when people ask questions</li><li>The AI uses these to answer questions even without internet</li><li>Users can request articles with commands like <code>/wiki meshtastic</code></li></ul><p>This helps your mesh be useful even when the internet is down!</p>',
+            title: "Offline Wiki 🧠",
+            content: "<p>Your personal offline encyclopedia!</p><ul><li>Web pages are saved here automatically when people ask questions</li><li>The AI uses these to answer questions even without internet</li><li>Users can request articles with commands like <code>/wiki meshtastic</code></li></ul><p>This helps your mesh be useful even when the internet is down!</p>",
             target: '[data-panel-id="offline-knowledge"]',
-            position: 'bottom'
+            position: "bottom",
           },
           {
-            title: 'Detailed Logs 📝',
-            content: '<p>Want to see everything happening behind the scenes?</p><ul><li>Click <strong>"verbose logs"</strong> at the top</li><li>Watch messages flow in real-time</li><li>See when AI responds</li><li>Debug problems</li><li>Monitor system health</li></ul><p>This is super useful if something isn\\'t working right!</p>',
+            title: "Detailed Logs 📝",
+            content: "<p>Want to see everything happening behind the scenes?</p><ul><li>Click <strong>\"verbose logs\"</strong> at the top</li><li>Watch messages flow in real-time</li><li>See when AI responds</li><li>Debug problems</li><li>Monitor system health</li></ul><p>This is super useful if something isn\'t working right!</p>",
             target: '.header-meta-link[href="/logs/verbose"]',
-            position: 'bottom'
+            position: "bottom",
           },
           {
-            title: 'Command Builder 🛠️',
-            content: '<p>Create your own custom commands!</p><ul><li>Click <strong>"command builder"</strong> to start</li><li>Make commands like <code>/joke</code> or <code>/weather</code></li><li>Write the response you want</li><li>Create menus with multiple options</li><li>Test them before making them live</li></ul><p>This lets you add any feature you can imagine to your mesh!</p>',
-            target: '.header-meta-link[href="/command-builder"]',
-            position: 'bottom'
+            title: "Command Builder 🛠️",
+            content: "<p>Create your own custom commands!</p><ul><li>Find the <strong>\"Command Builder\"</strong> link in the Operations Center</li><li>Make commands like <code>/joke</code> or <code>/weather</code></li><li>Write the response you want</li><li>Create menus with multiple options</li><li>Test them before making them live</li></ul><p>This lets you add any feature you can imagine to your mesh!</p>",
+            target: '#commandBuilderLink',
+            position: "bottom",
           },
           {
-            title: 'Sending Messages 💬',
-            content: '<p><strong>From the Activity Center</strong> (right side) or CLI, you can send messages:</p><p><strong>To one person:</strong></p><ul><li>Type: <code>@theirname your message here</code></li><li>Example: <code>@alice Hey, how are you?</code></li></ul><p><strong>To everyone:</strong></p><ul><li>Just type your message (no @ symbol)</li><li>Example: <code>Good morning everyone!</code></li></ul><p><strong>Using commands:</strong></p><ul><li>Try: <code>/help</code>, <code>/nodes</code>, <code>/status</code></li><li>Any command that works on the mesh works here too!</li></ul>',
-            position: 'center'
+            title: "Sending Messages 💬",
+            content: "<p>Use the CLI input box or Activity Center to communicate with your mesh network:</p><p><strong>Direct Message (DM):</strong></p><ul><li>Format: <code>@username your message</code></li><li>Example: <code>@alice Hey! Want to meet up?</code></li><li>The message goes only to that person</li></ul><p><strong>Broadcast to Everyone:</strong></p><ul><li>Just type your message directly (no @ needed)</li><li>Example: <code>Good morning mesh!</code></li><li>Everyone on the network will see it</li></ul><p><strong>Run Commands:</strong></p><ul><li>Start with / to run a command: <code>/help</code>, <code>/nodes</code>, <code>/status</code></li><li>All mesh commands work here just like on-radio!</li></ul>",
+            position: "center",
           },
           {
-            title: 'Changing Settings ⚙️',
-            content: '<p><strong>Most settings work like this:</strong></p><ul><li><strong>Switches:</strong> Click to turn things on/off</li><li><strong>Dropdowns:</strong> Click to see options and pick one</li><li><strong>Text boxes:</strong> Click to type new values</li><li><strong>Save buttons:</strong> Some things save automatically, others need you to click "Save"</li></ul><p><strong>Pro tip:</strong> Hover over the <strong>?</strong> icon next to settings to see what they do!</p>',
-            position: 'center'
+            title: "Changing Settings ⚙️",
+            content: "<p><strong>Most settings work like this:</strong></p><ul><li><strong>Switches:</strong> Click to turn things on/off</li><li><strong>Dropdowns:</strong> Click to see options and pick one</li><li><strong>Text boxes:</strong> Click to type new values</li><li><strong>Save buttons:</strong> Some things save automatically, others need you to click \"Save\"</li></ul><p><strong>Pro tip:</strong> Hover over the <strong>?</strong> icon next to settings to see what they do!</p>",
+            position: "center",
           },
           {
-            title: 'You're Ready! 🎊',
-            content: '<div class="tutorial-completion"><div class="tutorial-completion-icon">🎉</div><p><strong>Congratulations!</strong> You now know how to use Mesh Master!</p><p><strong>Quick recap:</strong></p><ul><li>Monitor your network from the Activity panel</li><li>Send messages using @ for specific people</li><li>Control the AI from AI Settings</li><li>Build custom commands</li><li>Connect Telegram for mobile access</li><li>Check logs if you need to troubleshoot</li></ul><p><strong>Need this again?</strong> Click the <strong>?</strong> button in the bottom-right corner anytime!</p></div>',
-            position: 'center'
+            title: "You\'re Ready! 🎊",
+            content: "<div class=\"tutorial-completion\"><div class=\"tutorial-completion-icon\">🎉</div><p><strong>Congratulations!</strong> You now know how to use Mesh Master!</p><p><strong>Quick recap:</strong></p><ul><li>Monitor your network from the Activity panel</li><li>Send messages using @ for specific people</li><li>Control the AI from AI Settings</li><li>Build custom commands</li><li>Connect Telegram for mobile access</li><li>Check logs if you need to troubleshoot</li></ul><p><strong>Need this again?</strong> Click the <strong>?</strong> button in the bottom-right corner anytime!</p></div>",
+            position: "center",
           }
         ];
 
         // All other detailed tutorials
-        tours.activity = [{title: 'Activity Stats 📊', content: '<p>Track messaging, network, ack telemetry, onboarding, and offline wiki stats. Click values to see details!</p>', target: '[data-panel-id="snapshot"]', position: 'right'}];
-        tours.config = [{title: 'Configuration ⚙️', content: '<p>Change AI models, edit settings, update password. All changes save automatically!</p>', target: '[data-panel-id="config-overview"]', position: 'bottom'}];
-        tours.ai = [{title: 'AI Controls 🤖', content: '<p>Enable/disable AI, choose personality modes, set response keywords and delays!</p>', target: '[data-panel-id="operations"]', position: 'bottom'}];
-        tours.radio = [{title: 'Radio Settings 📡', content: '<p>Set hop limit (0-7) and manage mesh channels. Higher hop = farther reach but more traffic!</p>', target: '[data-panel-id="radio-settings"]', position: 'bottom'}];
-        tours.telegram = [{title: 'Telegram Bridge 💬', content: '<p>Connect to Telegram: Create bot with @BotFather, paste token, add chat IDs. Control mesh from anywhere!</p>', target: '[data-panel-id="telegram"]', position: 'bottom'}];
-        tours.wiki = [{title: 'Offline Wiki 🧠', content: '<p>Cached web pages for offline use. Users request with /wiki command. AI uses cache when internet is down!</p>', target: '[data-panel-id="offline-knowledge"]', position: 'bottom'}];
-        tours.cli = [{title: 'Dashboard CLI 💻', content: '<p>Send messages: @user for DMs, @everyone for broadcast, /command for commands. Works like the mesh!</p>', position: 'center'}];
-        tours.logs = [{title: 'Verbose Logs 📝', content: '<p>Real-time system log with all events: messages, AI, errors. Essential for debugging!</p>', target: '.header-meta-link[href="/logs/verbose"]', position: 'bottom'}];
-        tours.commands = [{title: 'Command Builder 🛠️', content: '<p>Create custom commands and interactive menus. Test before deploying to avoid spam!</p>', target: '.header-meta-link[href="/command-builder"]', position: 'bottom'}];
+        tours.activity = [{title: "Activity Stats 📊\", content: \"<p>Track messaging, network, ack telemetry, onboarding, and offline wiki stats. Click values to see details!</p>\", target: '[data-panel-id=\"snapshot\"]', position: \"right"}];
+        tours.config = [{title: "Configuration ⚙️\", content: \"<p>Change AI models, edit settings, update password. All changes save automatically!</p>\", target: '[data-panel-id=\"config-overview\"]', position: \"bottom"}];
+        tours.ai = [{title: "AI Controls 🤖\", content: \"<p>Enable/disable AI, choose personality modes, set response keywords and delays!</p>\", target: '[data-panel-id=\"operations\"]', position: \"bottom"}];
+        tours.radio = [{title: "Radio Settings 📡\", content: \"<p>Set hop limit (0-7) and manage mesh channels. Higher hop = farther reach but more traffic!</p>\", target: '[data-panel-id=\"radio-settings\"]', position: \"bottom"}];
+        tours.telegram = [{title: "Telegram Bridge 💬\", content: \"<p>Connect to Telegram: Create bot with @BotFather, paste token, add chat IDs. Control mesh from anywhere!</p>\", target: '[data-panel-id=\"telegram\"]', position: \"bottom"}];
+        tours.wiki = [{title: "Offline Wiki 🧠\", content: \"<p>Cached web pages for offline use. Users request with /wiki command. AI uses cache when internet is down!</p>\", target: '[data-panel-id=\"offline-knowledge\"]', position: \"bottom"}];
+        tours.cli = [{title: "Dashboard CLI 💻\", content: \"<p>Send messages: @user for DMs, @everyone for broadcast, /command for commands. Works like the mesh!</p>\", position: \"center"}];
+        tours.logs = [{title: "Verbose Logs 📝\", content: \"<p>Real-time system log with all events: messages, AI, errors. Essential for debugging!</p>\", target: \".header-meta-link[href=\"/logs/verbose\"]\", position: \"bottom"}];
+        tours.commands = [{title: "Command Builder 🛠️\", content: \"<p>Create custom commands and interactive menus. Find the link in Operations Center. Test before deploying to avoid spam!</p>\", target: \"#commandBuilderLink\", position: \"bottom"}];
       }
 
       async function checkFirstVisit() {
@@ -26996,6 +27595,77 @@ def dashboard():
 
 
 
+# -------------------------------------------------
+# Security Audit Trail
+# -------------------------------------------------
+
+# Security-sensitive settings that trigger alerts
+SECURITY_SENSITIVE_KEYS = {
+    'admin_password',
+    'admin_password_hint',
+    'home_assistant_token',
+    'home_assistant_secure_pin',
+    'tailscale_auth_key',
+    'tailscale_enabled',
+    'tailscale_ssh_enabled',
+}
+
+AUDIT_LOG_FILE = "data/config_audit.json"
+
+def _log_config_change(key: str, old_value: Any, new_value: Any, is_security_sensitive: bool = False):
+    """Log config changes to persistent audit trail."""
+    try:
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        # Mask sensitive values
+        old_display = old_value
+        new_display = new_value
+        if key in _SENSITIVE_CONFIG_KEYS or any(token in key.lower() for token in _SENSITIVE_CONFIG_KEYWORDS):
+            old_display = "••••" if old_value else "(not set)"
+            new_display = "••••" if new_value else "(not set)"
+
+        audit_entry = {
+            'timestamp': timestamp,
+            'key': key,
+            'old_value': old_display,
+            'new_value': new_display,
+            'security_sensitive': is_security_sensitive,
+        }
+
+        # Load existing audit log
+        audit_log = []
+        if os.path.exists(AUDIT_LOG_FILE):
+            try:
+                with open(AUDIT_LOG_FILE, 'r') as f:
+                    audit_log = json.load(f)
+                    if not isinstance(audit_log, list):
+                        audit_log = []
+            except Exception:
+                audit_log = []
+
+        # Append new entry
+        audit_log.append(audit_entry)
+
+        # Keep last 500 entries
+        if len(audit_log) > 500:
+            audit_log = audit_log[-500:]
+
+        # Write back
+        os.makedirs(os.path.dirname(AUDIT_LOG_FILE), exist_ok=True)
+        with open(AUDIT_LOG_FILE, 'w') as f:
+            json.dump(audit_log, f, indent=2)
+
+        # Send Telegram alert for security-sensitive changes
+        if is_security_sensitive:
+            friendly_key = _humanize_config_key(key)
+            alert_msg = f"🔐 Security Setting Changed\n\nSetting: {friendly_key}\nOld: {old_display}\nNew: {new_display}\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            threading.Thread(target=lambda: send_to_telegram(alert_msg), daemon=True).start()
+            clean_log(f"🚨 Security alert sent: {friendly_key} changed", "🔐", show_always=True, rate_limit=False)
+
+    except Exception as e:
+        clean_log(f"⚠️ Failed to log config change: {e}", "⚠️", show_always=True, rate_limit=False)
+
+
 @app.route('/dashboard/config/update', methods=['POST'])
 @require_auth
 def update_dashboard_config():
@@ -27101,6 +27771,10 @@ def update_dashboard_config():
             config[key] = original_value
             return jsonify({'ok': False, 'error': f"Failed to write config.json: {exc}"}), 500
 
+        # Log config change to audit trail
+        is_security_sensitive = key in SECURITY_SENSITIVE_KEYS
+        _log_config_change(key, original_value, new_value, is_security_sensitive)
+
     # Apply certain settings immediately to runtime globals
     if key == 'admin_password':
         try:
@@ -27111,7 +27785,7 @@ def update_dashboard_config():
             pass
     if key == 'admin_password_hint':
         try:
-            globals()['ADMIN_PASSWORD_HINT'] = str(new_value or "Default password")
+            globals()['ADMIN_PASSWORD_HINT'] = str(new_value or "password")
         except Exception:
             pass
     if key == 'cooldown_enabled':
@@ -29370,6 +30044,12 @@ def heartbeat_worker(period_sec=30):
           _cleanup_expired_flow_sessions()
         except Exception as cleanup_exc:
           dprint(f"⚠️ Flow session cleanup failed: {cleanup_exc}")
+
+        # Save stats persistence every 5 minutes
+        try:
+          STATS.save_async()
+        except Exception as stats_exc:
+          dprint(f"⚠️ Stats persistence save failed: {stats_exc}")
 
       if connection_status == "Connected" and not CONNECTING_NOW:
         if RADIO_STALE_RX_THRESHOLD and rx_age is not None and rx_age > RADIO_STALE_RX_THRESHOLD:
