@@ -398,16 +398,13 @@ class MailManager:
     ) -> None:
         if not sender_key:
             return
-        self.clean_log(f"DEBUG: _store_reply_context called for {sender_key}, {len(entries)} entries", "🐛", show_always=True)
         self._prune_reply_contexts()
         usable: List[Dict[str, Any]] = []
         name_map: Dict[str, Dict[str, Any]] = {}
         seen_nodes: Set[str] = set()
         for entry in entries:
             node_id = str(entry.get('node_id') or entry.get('sender_id') or "").strip()
-            self.clean_log(f"DEBUG: Entry node_id={node_id}, sender_short={entry.get('sender_short')}", "🐛", show_always=True)
             if not node_id:
-                self.clean_log(f"DEBUG: Skipping entry - no node_id found", "🐛", show_always=True)
                 continue
             short = str(entry.get('sender_short') or node_id).strip()
             index = int(entry.get('index', 0))
@@ -426,7 +423,6 @@ class MailManager:
                 seen_nodes.add(node_id)
                 name_map[key] = record
         if not usable:
-            self.clean_log(f"DEBUG: No usable entries, clearing context for {sender_key}", "🐛", show_always=True)
             with self._reply_lock:
                 self.reply_contexts.pop(sender_key, None)
             return
@@ -437,7 +433,6 @@ class MailManager:
                 'entries': usable,
                 'names': name_map,
             }
-        self.clean_log(f"DEBUG: Stored context for {sender_key} with {len(usable)} entries", "🐛", show_always=True)
 
     def _lookup_reply_context(self, sender_key: Optional[str]) -> Optional[Dict[str, Any]]:
         if not sender_key:
@@ -879,9 +874,7 @@ class MailManager:
         if not lower.startswith('reply'):
             return None
 
-        self.clean_log(f"DEBUG: handle_reply_intent called with text='{stripped}'", "🐛", show_always=True)
         context = self._lookup_reply_context(sender_key)
-        self.clean_log(f"DEBUG: context = {context}", "🐛", show_always=True)
         if not context:
             return PendingReply(
                 "No recent inbox senders to reply to. Run `/c <mailbox>` first, then try `reply <number> <message>`.",
@@ -937,8 +930,6 @@ class MailManager:
             )
 
         node_id = entry.get('node_id')
-        self.clean_log(f"DEBUG: Reply entry = {entry}", "🐛", show_always=True)
-        self.clean_log(f"DEBUG: node_id = {node_id}", "🐛", show_always=True)
         if not node_id:
             return PendingReply(
                 "I couldn't locate that user's radio ID. Ask them to send another message first.",
@@ -962,7 +953,6 @@ class MailManager:
 
         # Send the reply message (removed redundant "New reply in" notification)
         recipient_short = entry.get('sender_short', 'user')
-        self.clean_log(f"DEBUG: Queueing reply message to node_id={node_id}", "🐛", show_always=True)
         self._queue_event({
             'type': 'dm',
             'node_id': node_id,
@@ -1266,42 +1256,18 @@ class MailManager:
                     if encrypted_body:
                         msg['body'] = self._decrypt_with_key(encrypted_body, encryption_key)
 
-        # CRITICAL DEBUG: Check sender_id with pure Python access
-        if messages:
-            first_msg = messages[0]
-            print(f"CRITICAL 1: first_msg['sender_id'] = {first_msg['sender_id']}")
-            import sys
-            sys.stdout.flush()
         if not messages:
             replies = MISSING_MAILBOX_RESPONSES if not existed else EMPTY_MAILBOX_RESPONSES
             fun_reply = random.choice(replies).format(mailbox=mailbox)
             return PendingReply(fun_reply, "/c command", chunk_delay=4.0)
-        self.clean_log(f"DEBUG: get_last returned {len(messages)} messages", "🐛", show_always=True)
-        print(f"CRITICAL 2: Before enumerate loop, first_msg['sender_id'] = {messages[0]['sender_id']}")
-        import sys
-        sys.stdout.flush()
-        for i, m in enumerate(messages):
-            self.clean_log(f"DEBUG: Message {i}: sender_id={m.get('sender_id')}, sender_short={m.get('sender_short')}", "🐛", show_always=True)
-        print(f"CRITICAL 3: After enumerate loop, first_msg['sender_id'] = {messages[0]['sender_id']}")
-        sys.stdout.flush()
         ordered = list(reversed(messages))
-        print(f"CRITICAL 4: After reversed, ordered[0]['sender_id'] = {ordered[0]['sender_id']}")
-        sys.stdout.flush()
         lines = [self._format_mail_line(idx, msg) for idx, msg in enumerate(ordered, start=1)]
         mailbox_label = ordered[0].get("mailbox") or mailbox
         header = f"📥 Inbox '{mailbox_label}' (newest first, showing {len(ordered)} messages)"
         response_sections = [header] + lines
         reply_entries: List[Dict[str, Any]] = []
         for idx, msg in enumerate(ordered, start=1):
-            print(f"CRITICAL 5: In build loop idx={idx}, msg['sender_id']={msg['sender_id']}")
-            import sys
-            sys.stdout.flush()
             sender_id_value = msg.get('sender_id')
-            print(f"CRITICAL 6: After get, sender_id_value={sender_id_value}")
-            sys.stdout.flush()
-            self.clean_log(f"DEBUG: Building entry {idx}, msg sender_id={sender_id_value}, sender_short={msg.get('sender_short')}", "🐛", show_always=True)
-            print(f"CRITICAL 7: After clean_log, sender_id_value={sender_id_value}, msg['sender_id']={msg['sender_id']}")
-            sys.stdout.flush()
             reply_entries.append(
                 {
                     'index': idx,
