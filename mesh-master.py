@@ -25159,10 +25159,11 @@ def dashboard():
         const name = document.createElement('strong');
         name.textContent = entry && entry.label ? entry.label : (entry && entry.key ? entry.key : 'Unknown');
         info.appendChild(name);
-        if (entry && entry.key) {
+        // Only show radio ID if no shortname is available
+        if (entry && entry.key && entry.key === entry.label) {
           const key = document.createElement('span');
           key.className = 'admin-item-key';
-          key.textContent = entry.key;
+          key.textContent = `Radio ID: ${entry.key}`;
           info.appendChild(key);
         }
         item.appendChild(info);
