@@ -20048,6 +20048,10 @@ def login_page():
                 <label for="password">Admin Password</label>
                 <input type="password" id="password" name="password" placeholder="Enter admin password" required autofocus>
             </div>
+            <div class="form-group" style="flex-direction: row; align-items: center; margin-top: 8px;">
+                <input type="checkbox" id="rememberMe" name="rememberMe" style="width: auto; margin-right: 8px;">
+                <label for="rememberMe" style="margin: 0; font-size: 12px; cursor: pointer; text-transform: none; letter-spacing: 0.02em;">Remember this browser</label>
+            </div>
             <button type="submit" class="btn">Login</button>
         </form>
 
@@ -20073,10 +20077,18 @@ def login_page():
         }
         loadVersion();
 
+        // Check for saved credentials on page load
+        const savedPassword = localStorage.getItem('mesh_master_remember');
+        if (savedPassword) {
+            document.getElementById('password').value = savedPassword;
+            document.getElementById('rememberMe').checked = true;
+        }
+
         // Handle login form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const password = document.getElementById('password').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
             const errorDiv = document.getElementById('error');
 
             try {
@@ -20089,12 +20101,20 @@ def login_page():
                 const data = await response.json();
 
                 if (response.ok && data.authenticated) {
+                    // Save password if "remember me" is checked
+                    if (rememberMe) {
+                        localStorage.setItem('mesh_master_remember', password);
+                    } else {
+                        localStorage.removeItem('mesh_master_remember');
+                    }
                     window.location.href = '/dashboard';
                 } else {
                     errorDiv.textContent = data.error || 'Invalid password';
                     errorDiv.style.display = 'block';
                     document.getElementById('password').value = '';
                     document.getElementById('password').focus();
+                    // Clear saved password on failed login
+                    localStorage.removeItem('mesh_master_remember');
                 }
             } catch (error) {
                 errorDiv.textContent = 'Login failed. Please try again.';
