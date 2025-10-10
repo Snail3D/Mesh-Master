@@ -10724,7 +10724,7 @@ def _handle_pending_wipe_selection(sender_id: Any, sender_key: str, text: str) -
             "language": lang,
         }
     return PendingReply(
-        f"🧹 Delete mailbox '{selected_mailbox}' permanently? Reply Y or N.",
+        f"🧹 Clear all messages from '{selected_mailbox}'? Reply Y or N.",
         "/wipe confirm",
     )
 
@@ -13055,8 +13055,7 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
       system_prompt = f"{system_prompt}\n\n{session['prompt_addendum']}"
 
   # System context injection disabled - too heavy for RPi Ollama (causes timeouts)
-  # TODO: Re-enable when using cloud LLM or more powerful hardware
-  # For now, /system just routes to AI like a regular question
+  # Could be re-enabled when using cloud LLM or more powerful hardware
   provider = AI_PROVIDER
   if provider == "home_assistant":
     return send_to_home_assistant(prompt)
