@@ -1,0 +1,133 @@
+# Mesh-AI 1B Model Fine-Tuning Configuration v1.1 (Gentle Tuning)
+#
+# FIXES FOR OVERTRAINING:
+# - Reduced epochs: 3 → 1
+# - Lower learning rate: 0.0002 → 0.00005
+# - Smaller LoRA rank: 16 → 8 (less model capacity)
+# - Higher dropout: 0.05 → 0.1
+# - Fewer target modules (only attention, not MLP)
+# - Early stopping enabled
+#
+# This creates a more general model that retains base capabilities
+# while learning mesh-specific knowledge gently.
+
+# Base Model
+base_model: meta-llama/Llama-3.2-1B-Instruct
+model_type: LlamaForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+# QLoRA Configuration
+load_in_8bit: false
+load_in_4bit: true
+strict: false
+
+# LoRA Adapter Settings - REDUCED TO PREVENT OVERFITTING
+adapter: qlora
+lora_model_dir:
+lora_r: 8                     # REDUCED from 16 (less capacity = less overfitting)
+lora_alpha: 16                # REDUCED from 32
+lora_dropout: 0.1             # INCREASED from 0.05 (more regularization)
+lora_target_linear: false     # CHANGED: only target specific modules
+lora_fan_in_fan_out:
+lora_target_modules:          # REDUCED: Only attention (not MLP)
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  # Removed gate_proj, up_proj, down_proj to keep base reasoning
+
+# Sequence Length
+sequence_len: 2048            # REDUCED from 4096 (mesh commands are short)
+sample_packing: true
+pad_to_sequence_len: true
+
+# Batch Size & Gradient Accumulation
+micro_batch_size: 4
+gradient_accumulation_steps: 4  # REDUCED from 8 (smaller effective batch)
+eval_batch_size: 4
+num_epochs: 1                   # REDUCED from 3 (KEY FIX for overtraining)
+
+# Learning Rate & Scheduler - GENTLER TRAINING
+optimizer: adamw_torch
+lr_scheduler: cosine
+learning_rate: 0.00005          # REDUCED from 0.0002 (1/4 the rate)
+warmup_steps: 50                # REDUCED from 100
+warmup_ratio: 0.05
+weight_decay: 0.01              # ADDED regularization
+
+# Training Precision
+bf16: auto
+fp16: false
+tf32: true
+
+# Flash Attention
+flash_attention: true
+flash_attn_cross_entropy: true
+flash_attn_rms_norm: true
+
+# Gradient Checkpointing
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: true
+
+# Dataset Configuration
+datasets:
+  - path: data/training/train.jsonl
+    type: sharegpt
+    conversation: conversations
+
+# Validation Dataset
+val_set_size: 0.15              # INCREASED from 0.1 (better validation)
+dataset_prepared_path: data/training/prepared
+
+# Evaluation Strategy
+evaluation_strategy: steps
+eval_steps: 50                  # REDUCED from 100 (check more often)
+save_steps: 100                 # REDUCED from 200
+logging_steps: 10
+
+# Save Strategy
+output_dir: ./outputs/mesh-ai-1b-v1.1-gentle
+save_strategy: steps
+saves_per_epoch: 2
+save_total_limit: 3
+
+# Hub Settings
+hub_model_id: mesh-ai-1b-v1.1-gentle
+hub_strategy: checkpoint
+push_dataset_to_hub: false
+
+# Special Tokens
+special_tokens:
+  bos_token: "<|begin_of_text|>"
+  eos_token: "<|end_of_text|>"
+  unk_token: "<|unk|>"
+
+# Chat Template
+chat_template: llama3
+
+# Advanced Settings
+ddp_timeout: 3600
+ddp_find_unused_parameters: false
+group_by_length: true
+
+# Logging & Monitoring
+wandb_project: mesh-ai-1b-training
+wandb_entity:
+wandb_watch:
+wandb_name: mesh-ai-1b-v1.1-gentle-run1
+wandb_log_model: checkpoint
+
+# Early Stopping - STRICTER
+early_stopping_patience: 3      # REDUCED from 5 (stop sooner if not improving)
+
+# Memory Optimization
+max_memory:
+low_cpu_mem_usage: true
+
+# Miscellaneous
+seed: 42
+max_steps:                      # Let it run based on epochs, not steps
+evals_per_epoch: 6              # INCREASED from 4
+batch_size:

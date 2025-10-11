@@ -1,0 +1,128 @@
+# Mesh-AI 1B Training - LAPTOP OPTIMIZED
+#
+# Optimized for MacBook Pro / consumer laptops:
+# - Works with MPS (Apple Silicon) or CPU
+# - Low memory footprint
+# - 1 epoch only (prevents overtraining)
+# - Reduced dataset (15k pairs)
+#
+# Expected:
+# - Training time: 3-6 hours (M1/M2 Max)
+# - Memory: 16GB RAM recommended
+# - Storage: 5GB for model + checkpoints
+
+# Base Model
+base_model: meta-llama/Llama-3.2-1B-Instruct
+model_type: LlamaForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+# Quantization - 4-bit for laptop friendliness
+load_in_8bit: false
+load_in_4bit: true
+strict: false
+
+# LoRA Adapter - GENTLE TUNING
+adapter: qlora
+lora_r: 8                     # Reduced rank (less params to train)
+lora_alpha: 16
+lora_dropout: 0.1             # Higher dropout = less overfitting
+lora_target_linear: false
+lora_target_modules:
+  - q_proj                    # Only attention layers
+  - k_proj
+  - v_proj
+  - o_proj
+
+# Sequence Length - REDUCED for laptop
+sequence_len: 1024            # Most mesh commands are <512 tokens
+sample_packing: true
+pad_to_sequence_len: true
+
+# Batch Size - SMALL for laptop RAM
+micro_batch_size: 1           # Process 1 sample at a time
+gradient_accumulation_steps: 4  # Effective batch = 4
+eval_batch_size: 1
+num_epochs: 1                 # KEY: Only 1 pass to prevent overtraining!
+
+# Learning Rate - GENTLE
+optimizer: adamw_torch
+lr_scheduler: cosine
+learning_rate: 0.00005        # Low LR for gentle fine-tuning
+warmup_steps: 50
+warmup_ratio: 0.05
+weight_decay: 0.01
+
+# Precision - CPU/MPS compatible
+bf16: false                   # Not all laptops support BF16
+fp16: false                   # Stick to FP32 for compatibility
+tf32: false
+
+# Flash Attention - DISABLED for laptop
+flash_attention: false        # Requires CUDA
+flash_attn_cross_entropy: false
+flash_attn_rms_norm: false
+
+# Gradient Checkpointing - ENABLED to save memory
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false        # Better for CPU/MPS
+
+# Dataset - USE V2 (reduced)
+datasets:
+  - path: data/training/train_v2.jsonl
+    type: sharegpt
+    conversation: conversations
+
+# Validation
+val_set_size: 0.15
+dataset_prepared_path: data/training/prepared
+
+# Evaluation - Check frequently
+evaluation_strategy: steps
+eval_steps: 50
+save_steps: 100
+logging_steps: 5
+
+# Save Strategy - Keep checkpoints small
+output_dir: ./outputs/mesh-ai-1b-laptop
+save_strategy: steps
+saves_per_epoch: 2
+save_total_limit: 2           # Only keep 2 checkpoints (save space)
+
+# Hub Settings
+hub_model_id: mesh-ai-1b-laptop
+push_dataset_to_hub: false
+
+# Special Tokens
+special_tokens:
+  bos_token: "<|begin_of_text|>"
+  eos_token: "<|end_of_text|>"
+  unk_token: "<|unk|>"
+
+# Chat Template
+chat_template: llama3
+
+# Advanced Settings
+group_by_length: false        # Simpler for laptop
+ddp_timeout: 3600
+
+# Early Stopping
+early_stopping_patience: 3
+
+# Memory Optimization - CRITICAL for laptop
+low_cpu_mem_usage: true
+max_memory:
+
+# Seed
+seed: 42
+evals_per_epoch: 4
+
+# Disable distributed training
+ddp_find_unused_parameters: false
+fsdp:
+deepspeed:
+
+# Logging - LOCAL ONLY (no W&B to save resources)
+wandb_project:
+wandb_entity:
