@@ -1,0 +1,280 @@
+{"conversations": [{"from": "human", "value": "how do i relay to alice"}, {"from": "gpt", "value": "Just type: alice <your message>"}]}
+{"conversations": [{"from": "human", "value": "how do i relay to bob"}, {"from": "gpt", "value": "Just type: bob <your message>"}]}
+{"conversations": [{"from": "human", "value": "how do i relay to charlie"}, {"from": "gpt", "value": "Just type: charlie <your message>"}]}
+{"conversations": [{"from": "human", "value": "how do i relay to dave"}, {"from": "gpt", "value": "Just type: dave <your message>"}]}
+{"conversations": [{"from": "human", "value": "how do i relay to eve"}, {"from": "gpt", "value": "Just type: eve <your message>"}]}
+{"conversations": [{"from": "human", "value": "relay alice test"}, {"from": "gpt", "value": "\u2705 Message relayed to alice!"}]}
+{"conversations": [{"from": "human", "value": "relay bob hello"}, {"from": "gpt", "value": "\u2705 Message relayed to bob!"}]}
+{"conversations": [{"from": "human", "value": "relay charlie hey"}, {"from": "gpt", "value": "\u2705 Message relayed to charlie!"}]}
+{"conversations": [{"from": "human", "value": "relay dave hello"}, {"from": "gpt", "value": "\u2705 Message relayed to dave!"}]}
+{"conversations": [{"from": "human", "value": "relay eve can you hear me"}, {"from": "gpt", "value": "\u2705 Message relayed to eve!"}]}
+{"conversations": [{"from": "human", "value": "send to alice"}, {"from": "gpt", "value": "Use: alice <message>\n\nI'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "send to bob"}, {"from": "gpt", "value": "Use: bob <message>\n\nI'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "send to charlie"}, {"from": "gpt", "value": "Use: charlie <message>\n\nI'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "send to dave"}, {"from": "gpt", "value": "Use: dave <message>\n\nI'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "send to eve"}, {"from": "gpt", "value": "Use: eve <message>\n\nI'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "forward to alice"}, {"from": "gpt", "value": "Type: alice <your message>"}]}
+{"conversations": [{"from": "human", "value": "forward to bob"}, {"from": "gpt", "value": "Type: bob <your message>"}]}
+{"conversations": [{"from": "human", "value": "forward to charlie"}, {"from": "gpt", "value": "Type: charlie <your message>"}]}
+{"conversations": [{"from": "human", "value": "forward to dave"}, {"from": "gpt", "value": "Type: dave <your message>"}]}
+{"conversations": [{"from": "human", "value": "forward to eve"}, {"from": "gpt", "value": "Type: eve <your message>"}]}
+{"conversations": [{"from": "human", "value": "message alice"}, {"from": "gpt", "value": "alice <message> - I'll handle the relay!"}]}
+{"conversations": [{"from": "human", "value": "message bob"}, {"from": "gpt", "value": "bob <message> - I'll handle the relay!"}]}
+{"conversations": [{"from": "human", "value": "message charlie"}, {"from": "gpt", "value": "charlie <message> - I'll handle the relay!"}]}
+{"conversations": [{"from": "human", "value": "message dave"}, {"from": "gpt", "value": "dave <message> - I'll handle the relay!"}]}
+{"conversations": [{"from": "human", "value": "message eve"}, {"from": "gpt", "value": "eve <message> - I'll handle the relay!"}]}
+{"conversations": [{"from": "human", "value": "can you relay to alice"}, {"from": "gpt", "value": "Sure! Use: alice <message>"}]}
+{"conversations": [{"from": "human", "value": "can you relay to bob"}, {"from": "gpt", "value": "Sure! Use: bob <message>"}]}
+{"conversations": [{"from": "human", "value": "can you relay to charlie"}, {"from": "gpt", "value": "Sure! Use: charlie <message>"}]}
+{"conversations": [{"from": "human", "value": "can you relay to dave"}, {"from": "gpt", "value": "Sure! Use: dave <message>"}]}
+{"conversations": [{"from": "human", "value": "can you relay to eve"}, {"from": "gpt", "value": "Sure! Use: eve <message>"}]}
+{"conversations": [{"from": "human", "value": "/alice hey"}, {"from": "gpt", "value": "Relaying to alice..."}]}
+{"conversations": [{"from": "human", "value": "/bob hey"}, {"from": "gpt", "value": "Relaying to bob..."}]}
+{"conversations": [{"from": "human", "value": "/charlie hey"}, {"from": "gpt", "value": "Relaying to charlie..."}]}
+{"conversations": [{"from": "human", "value": "/dave hey"}, {"from": "gpt", "value": "Relaying to dave..."}]}
+{"conversations": [{"from": "human", "value": "/eve hey"}, {"from": "gpt", "value": "Relaying to eve..."}]}
+{"conversations": [{"from": "human", "value": "whats the relay command"}, {"from": "gpt", "value": "Use: <shortname> <message>"}]}
+{"conversations": [{"from": "human", "value": "whats the relay command"}, {"from": "gpt", "value": "Use: <shortname> <message>"}]}
+{"conversations": [{"from": "human", "value": "whats the relay command"}, {"from": "gpt", "value": "Use: <shortname> <message>"}]}
+{"conversations": [{"from": "human", "value": "whats the relay command"}, {"from": "gpt", "value": "Use: <shortname> <message>"}]}
+{"conversations": [{"from": "human", "value": "whats the relay command"}, {"from": "gpt", "value": "Use: <shortname> <message>"}]}
+{"conversations": [{"from": "human", "value": "how do i send to someone"}, {"from": "gpt", "value": "<their-shortname> <message> - I'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "how do i send to someone"}, {"from": "gpt", "value": "<their-shortname> <message> - I'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "how do i send to someone"}, {"from": "gpt", "value": "<their-shortname> <message> - I'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "how do i send to someone"}, {"from": "gpt", "value": "<their-shortname> <message> - I'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "how do i send to someone"}, {"from": "gpt", "value": "<their-shortname> <message> - I'll relay it!"}]}
+{"conversations": [{"from": "human", "value": "explain relay"}, {"from": "gpt", "value": "Type recipient's shortname then your message. I'll forward it!"}]}
+{"conversations": [{"from": "human", "value": "explain relay"}, {"from": "gpt", "value": "Type recipient's shortname then your message. I'll forward it!"}]}
+{"conversations": [{"from": "human", "value": "explain relay"}, {"from": "gpt", "value": "Type recipient's shortname then your message. I'll forward it!"}]}
+{"conversations": [{"from": "human", "value": "explain relay"}, {"from": "gpt", "value": "Type recipient's shortname then your message. I'll forward it!"}]}
+{"conversations": [{"from": "human", "value": "explain relay"}, {"from": "gpt", "value": "Type recipient's shortname then your message. I'll forward it!"}]}
+{"conversations": [{"from": "human", "value": "what does /nodes do"}, {"from": "gpt", "value": "Shows all reachable mesh nodes with signal strength"}]}
+{"conversations": [{"from": "human", "value": "explain /nodes"}, {"from": "gpt", "value": "Shows all reachable mesh nodes with signal strength"}]}
+{"conversations": [{"from": "human", "value": "how do i use /nodes"}, {"from": "gpt", "value": "Shows all reachable mesh nodes with signal strength"}]}
+{"conversations": [{"from": "human", "value": "/nodes help"}, {"from": "gpt", "value": "Shows all reachable mesh nodes with signal strength"}]}
+{"conversations": [{"from": "human", "value": "what does /help do"}, {"from": "gpt", "value": "Lists all available commands"}]}
+{"conversations": [{"from": "human", "value": "explain /help"}, {"from": "gpt", "value": "Lists all available commands"}]}
+{"conversations": [{"from": "human", "value": "how do i use /help"}, {"from": "gpt", "value": "Lists all available commands"}]}
+{"conversations": [{"from": "human", "value": "/help help"}, {"from": "gpt", "value": "Lists all available commands"}]}
+{"conversations": [{"from": "human", "value": "what does /menu do"}, {"from": "gpt", "value": "Shows the main menu with all features"}]}
+{"conversations": [{"from": "human", "value": "explain /menu"}, {"from": "gpt", "value": "Shows the main menu with all features"}]}
+{"conversations": [{"from": "human", "value": "how do i use /menu"}, {"from": "gpt", "value": "Shows the main menu with all features"}]}
+{"conversations": [{"from": "human", "value": "/menu help"}, {"from": "gpt", "value": "Shows the main menu with all features"}]}
+{"conversations": [{"from": "human", "value": "what does /checkmail do"}, {"from": "gpt", "value": "Check your mailbox for messages"}]}
+{"conversations": [{"from": "human", "value": "explain /checkmail"}, {"from": "gpt", "value": "Check your mailbox for messages"}]}
+{"conversations": [{"from": "human", "value": "how do i use /checkmail"}, {"from": "gpt", "value": "Check your mailbox for messages"}]}
+{"conversations": [{"from": "human", "value": "/checkmail help"}, {"from": "gpt", "value": "Check your mailbox for messages"}]}
+{"conversations": [{"from": "human", "value": "what does /ai what's meshtastic do"}, {"from": "gpt", "value": "Ask me anything about Meshtastic!"}]}
+{"conversations": [{"from": "human", "value": "explain /ai what's meshtastic"}, {"from": "gpt", "value": "Ask me anything about Meshtastic!"}]}
+{"conversations": [{"from": "human", "value": "how do i use /ai what's meshtastic"}, {"from": "gpt", "value": "Ask me anything about Meshtastic!"}]}
+{"conversations": [{"from": "human", "value": "/ai what's meshtastic help"}, {"from": "gpt", "value": "Ask me anything about Meshtastic!"}]}
+{"conversations": [{"from": "human", "value": "what does /games do"}, {"from": "gpt", "value": "Play Chess, Wordle, Hangman, and more!"}]}
+{"conversations": [{"from": "human", "value": "explain /games"}, {"from": "gpt", "value": "Play Chess, Wordle, Hangman, and more!"}]}
+{"conversations": [{"from": "human", "value": "how do i use /games"}, {"from": "gpt", "value": "Play Chess, Wordle, Hangman, and more!"}]}
+{"conversations": [{"from": "human", "value": "/games help"}, {"from": "gpt", "value": "Play Chess, Wordle, Hangman, and more!"}]}
+{"conversations": [{"from": "human", "value": "what does /report weather today sunny do"}, {"from": "gpt", "value": "Create a public report anyone can search"}]}
+{"conversations": [{"from": "human", "value": "explain /report weather today sunny"}, {"from": "gpt", "value": "Create a public report anyone can search"}]}
+{"conversations": [{"from": "human", "value": "how do i use /report weather today sunny"}, {"from": "gpt", "value": "Create a public report anyone can search"}]}
+{"conversations": [{"from": "human", "value": "/report weather today sunny help"}, {"from": "gpt", "value": "Create a public report anyone can search"}]}
+{"conversations": [{"from": "human", "value": "what does /log personal note do"}, {"from": "gpt", "value": "Create a private log entry (DM only)"}]}
+{"conversations": [{"from": "human", "value": "explain /log personal note"}, {"from": "gpt", "value": "Create a private log entry (DM only)"}]}
+{"conversations": [{"from": "human", "value": "how do i use /log personal note"}, {"from": "gpt", "value": "Create a private log entry (DM only)"}]}
+{"conversations": [{"from": "human", "value": "/log personal note help"}, {"from": "gpt", "value": "Create a private log entry (DM only)"}]}
+{"conversations": [{"from": "human", "value": "what does /find antenna do"}, {"from": "gpt", "value": "Search logs, reports, wiki, and saved content"}]}
+{"conversations": [{"from": "human", "value": "explain /find antenna"}, {"from": "gpt", "value": "Search logs, reports, wiki, and saved content"}]}
+{"conversations": [{"from": "human", "value": "how do i use /find antenna"}, {"from": "gpt", "value": "Search logs, reports, wiki, and saved content"}]}
+{"conversations": [{"from": "human", "value": "/find antenna help"}, {"from": "gpt", "value": "Search logs, reports, wiki, and saved content"}]}
+{"conversations": [{"from": "human", "value": "what does /bible john 3:16 do"}, {"from": "gpt", "value": "Look up Bible verses"}]}
+{"conversations": [{"from": "human", "value": "explain /bible john 3:16"}, {"from": "gpt", "value": "Look up Bible verses"}]}
+{"conversations": [{"from": "human", "value": "how do i use /bible john 3:16"}, {"from": "gpt", "value": "Look up Bible verses"}]}
+{"conversations": [{"from": "human", "value": "/bible john 3:16 help"}, {"from": "gpt", "value": "Look up Bible verses"}]}
+{"conversations": [{"from": "human", "value": "what does /offline wiki meshtastic do"}, {"from": "gpt", "value": "Search local Wikipedia cache"}]}
+{"conversations": [{"from": "human", "value": "explain /offline wiki meshtastic"}, {"from": "gpt", "value": "Search local Wikipedia cache"}]}
+{"conversations": [{"from": "human", "value": "how do i use /offline wiki meshtastic"}, {"from": "gpt", "value": "Search local Wikipedia cache"}]}
+{"conversations": [{"from": "human", "value": "/offline wiki meshtastic help"}, {"from": "gpt", "value": "Search local Wikipedia cache"}]}
+{"conversations": [{"from": "human", "value": "what does /weather 90210 do"}, {"from": "gpt", "value": "Get current weather forecast"}]}
+{"conversations": [{"from": "human", "value": "explain /weather 90210"}, {"from": "gpt", "value": "Get current weather forecast"}]}
+{"conversations": [{"from": "human", "value": "how do i use /weather 90210"}, {"from": "gpt", "value": "Get current weather forecast"}]}
+{"conversations": [{"from": "human", "value": "/weather 90210 help"}, {"from": "gpt", "value": "Get current weather forecast"}]}
+{"conversations": [{"from": "human", "value": "what does /system how do i relay do"}, {"from": "gpt", "value": "Context-aware system help"}]}
+{"conversations": [{"from": "human", "value": "explain /system how do i relay"}, {"from": "gpt", "value": "Context-aware system help"}]}
+{"conversations": [{"from": "human", "value": "how do i use /system how do i relay"}, {"from": "gpt", "value": "Context-aware system help"}]}
+{"conversations": [{"from": "human", "value": "/system how do i relay help"}, {"from": "gpt", "value": "Context-aware system help"}]}
+{"conversations": [{"from": "human", "value": "what does /optout do"}, {"from": "gpt", "value": "Stop receiving relay messages"}]}
+{"conversations": [{"from": "human", "value": "explain /optout"}, {"from": "gpt", "value": "Stop receiving relay messages"}]}
+{"conversations": [{"from": "human", "value": "how do i use /optout"}, {"from": "gpt", "value": "Stop receiving relay messages"}]}
+{"conversations": [{"from": "human", "value": "/optout help"}, {"from": "gpt", "value": "Stop receiving relay messages"}]}
+{"conversations": [{"from": "human", "value": "what does /optin do"}, {"from": "gpt", "value": "Re-enable relay messages"}]}
+{"conversations": [{"from": "human", "value": "explain /optin"}, {"from": "gpt", "value": "Re-enable relay messages"}]}
+{"conversations": [{"from": "human", "value": "how do i use /optin"}, {"from": "gpt", "value": "Re-enable relay messages"}]}
+{"conversations": [{"from": "human", "value": "/optin help"}, {"from": "gpt", "value": "Re-enable relay messages"}]}
+{"conversations": [{"from": "human", "value": "whats better rak or esp32"}, {"from": "gpt", "value": "RAK: longer range, better build. ESP32: cheaper, easier to flash."}]}
+{"conversations": [{"from": "human", "value": "what is better rak or esp32"}, {"from": "gpt", "value": "RAK: longer range, better build. ESP32: cheaper, easier to flash."}]}
+{"conversations": [{"from": "human", "value": "best antenna for 915mhz"}, {"from": "gpt", "value": "3dBi for portable, 5-8dBi for base stations"}]}
+{"conversations": [{"from": "human", "value": "best antenna for 915mhz"}, {"from": "gpt", "value": "3dBi for portable, 5-8dBi for base stations"}]}
+{"conversations": [{"from": "human", "value": "tbeam vs heltec"}, {"from": "gpt", "value": "T-Beam has GPS built-in. Heltec is more compact."}]}
+{"conversations": [{"from": "human", "value": "tbeam vs heltec"}, {"from": "gpt", "value": "T-Beam has GPS built-in. Heltec is more compact."}]}
+{"conversations": [{"from": "human", "value": "how do i flash firmware"}, {"from": "gpt", "value": "Use Meshtastic Flasher app or esptool.py"}]}
+{"conversations": [{"from": "human", "value": "how do i flash firmware"}, {"from": "gpt", "value": "Use Meshtastic Flasher app or esptool.py"}]}
+{"conversations": [{"from": "human", "value": "whats a good battery"}, {"from": "gpt", "value": "18650 (3000mAh+) or LiPo (3.7V 2000mAh+)"}]}
+{"conversations": [{"from": "human", "value": "what is a good battery"}, {"from": "gpt", "value": "18650 (3000mAh+) or LiPo (3.7V 2000mAh+)"}]}
+{"conversations": [{"from": "human", "value": "do i need gps"}, {"from": "gpt", "value": "Only for tracker or mapping features"}]}
+{"conversations": [{"from": "human", "value": "do i need gps"}, {"from": "gpt", "value": "Only for tracker or mapping features"}]}
+{"conversations": [{"from": "human", "value": "whats the range"}, {"from": "gpt", "value": "Line of sight: 5-10km. Urban: 1-3km. Depends on obstacles."}]}
+{"conversations": [{"from": "human", "value": "what is the range"}, {"from": "gpt", "value": "Line of sight: 5-10km. Urban: 1-3km. Depends on obstacles."}]}
+{"conversations": [{"from": "human", "value": "can i use solar"}, {"from": "gpt", "value": "Yes! 5V solar panel works great for outdoor nodes"}]}
+{"conversations": [{"from": "human", "value": "can i use solar"}, {"from": "gpt", "value": "Yes! 5V solar panel works great for outdoor nodes"}]}
+{"conversations": [{"from": "human", "value": "rak4631 specs"}, {"from": "gpt", "value": "nRF52840 + SX1262. Low power, great range."}]}
+{"conversations": [{"from": "human", "value": "rak4631 specs"}, {"from": "gpt", "value": "nRF52840 + SX1262. Low power, great range."}]}
+{"conversations": [{"from": "human", "value": "esp32 vs nrf52"}, {"from": "gpt", "value": "ESP32: cheaper, WiFi. nRF52: lower power, longer battery life."}]}
+{"conversations": [{"from": "human", "value": "esp32 vs nrf52"}, {"from": "gpt", "value": "ESP32: cheaper, WiFi. nRF52: lower power, longer battery life."}]}
+{"conversations": [{"from": "human", "value": "whats a good snr"}, {"from": "gpt", "value": "10+ is great, 0-10 good, -10 to 0 ok, below -10 weak"}]}
+{"conversations": [{"from": "human", "value": "whats a good snr"}, {"from": "gpt", "value": "10+ is great, 0-10 good, -10 to 0 ok, below -10 weak"}]}
+{"conversations": [{"from": "human", "value": "Whats a good snr"}, {"from": "gpt", "value": "10+ is great, 0-10 good, -10 to 0 ok, below -10 weak"}]}
+{"conversations": [{"from": "human", "value": "my snr is -5"}, {"from": "gpt", "value": "-5 SNR is usable but weak. Try repositioning antenna."}]}
+{"conversations": [{"from": "human", "value": "my snr is -5"}, {"from": "gpt", "value": "-5 SNR is usable but weak. Try repositioning antenna."}]}
+{"conversations": [{"from": "human", "value": "My snr is -5"}, {"from": "gpt", "value": "-5 SNR is usable but weak. Try repositioning antenna."}]}
+{"conversations": [{"from": "human", "value": "explain spreading factor"}, {"from": "gpt", "value": "Higher SF = longer range but slower. Use SF7-SF9 normally."}]}
+{"conversations": [{"from": "human", "value": "explain spreading factor"}, {"from": "gpt", "value": "Higher SF = longer range but slower. Use SF7-SF9 normally."}]}
+{"conversations": [{"from": "human", "value": "Explain spreading factor"}, {"from": "gpt", "value": "Higher SF = longer range but slower. Use SF7-SF9 normally."}]}
+{"conversations": [{"from": "human", "value": "whats sf7 vs sf10"}, {"from": "gpt", "value": "SF7: faster, shorter range. SF10: slower, longer range."}]}
+{"conversations": [{"from": "human", "value": "whats sf7 vs sf10"}, {"from": "gpt", "value": "SF7: faster, shorter range. SF10: slower, longer range."}]}
+{"conversations": [{"from": "human", "value": "Whats sf7 vs sf10"}, {"from": "gpt", "value": "SF7: faster, shorter range. SF10: slower, longer range."}]}
+{"conversations": [{"from": "human", "value": "why is my range bad"}, {"from": "gpt", "value": "Check: antenna, obstacles, SF, interference, TX power"}]}
+{"conversations": [{"from": "human", "value": "why is my range bad"}, {"from": "gpt", "value": "Check: antenna, obstacles, SF, interference, TX power"}]}
+{"conversations": [{"from": "human", "value": "Why is my range bad"}, {"from": "gpt", "value": "Check: antenna, obstacles, SF, interference, TX power"}]}
+{"conversations": [{"from": "human", "value": "what tx power should i use"}, {"from": "gpt", "value": "Max is usually 22dBm. Start high, reduce if interfering."}]}
+{"conversations": [{"from": "human", "value": "what tx power should i use"}, {"from": "gpt", "value": "Max is usually 22dBm. Start high, reduce if interfering."}]}
+{"conversations": [{"from": "human", "value": "What tx power should i use"}, {"from": "gpt", "value": "Max is usually 22dBm. Start high, reduce if interfering."}]}
+{"conversations": [{"from": "human", "value": "how many hops is good"}, {"from": "gpt", "value": "2-3 hops ideal. 4+ gets unreliable."}]}
+{"conversations": [{"from": "human", "value": "how many hops is good"}, {"from": "gpt", "value": "2-3 hops ideal. 4+ gets unreliable."}]}
+{"conversations": [{"from": "human", "value": "How many hops is good"}, {"from": "gpt", "value": "2-3 hops ideal. 4+ gets unreliable."}]}
+{"conversations": [{"from": "human", "value": "explain rssi"}, {"from": "gpt", "value": "Signal strength in dBm. -50 is strong, -120 is barely usable."}]}
+{"conversations": [{"from": "human", "value": "explain rssi"}, {"from": "gpt", "value": "Signal strength in dBm. -50 is strong, -120 is barely usable."}]}
+{"conversations": [{"from": "human", "value": "Explain rssi"}, {"from": "gpt", "value": "Signal strength in dBm. -50 is strong, -120 is barely usable."}]}
+{"conversations": [{"from": "human", "value": "whats the difference between rssi and snr"}, {"from": "gpt", "value": "RSSI is signal strength. SNR is signal vs noise ratio."}]}
+{"conversations": [{"from": "human", "value": "whats the difference between rssi and snr"}, {"from": "gpt", "value": "RSSI is signal strength. SNR is signal vs noise ratio."}]}
+{"conversations": [{"from": "human", "value": "Whats the difference between rssi and snr"}, {"from": "gpt", "value": "RSSI is signal strength. SNR is signal vs noise ratio."}]}
+{"conversations": [{"from": "human", "value": "915 vs 868 frequency"}, {"from": "gpt", "value": "Use 915MHz in US, 868MHz in EU. Depends on your region."}]}
+{"conversations": [{"from": "human", "value": "915 vs 868 frequency"}, {"from": "gpt", "value": "Use 915MHz in US, 868MHz in EU. Depends on your region."}]}
+{"conversations": [{"from": "human", "value": "915 vs 868 frequency"}, {"from": "gpt", "value": "Use 915MHz in US, 868MHz in EU. Depends on your region."}]}
+{"conversations": [{"from": "human", "value": "cant see any nodes"}, {"from": "gpt", "value": "Check: 1) Radio on? 2) Antenna connected? 3) Same frequency/region?"}]}
+{"conversations": [{"from": "human", "value": "cant see any nodes?"}, {"from": "gpt", "value": "Check: 1) Radio on? 2) Antenna connected? 3) Same frequency/region?"}]}
+{"conversations": [{"from": "human", "value": "help cant see any nodes"}, {"from": "gpt", "value": "Check: 1) Radio on? 2) Antenna connected? 3) Same frequency/region?"}]}
+{"conversations": [{"from": "human", "value": "messages not sending"}, {"from": "gpt", "value": "Verify mesh connected, recipient in range, not muted"}]}
+{"conversations": [{"from": "human", "value": "messages not sending?"}, {"from": "gpt", "value": "Verify mesh connected, recipient in range, not muted"}]}
+{"conversations": [{"from": "human", "value": "help messages not sending"}, {"from": "gpt", "value": "Verify mesh connected, recipient in range, not muted"}]}
+{"conversations": [{"from": "human", "value": "mesh master not responding"}, {"from": "gpt", "value": "Try /reset to clear chat, or restart service"}]}
+{"conversations": [{"from": "human", "value": "mesh master not responding?"}, {"from": "gpt", "value": "Try /reset to clear chat, or restart service"}]}
+{"conversations": [{"from": "human", "value": "help mesh master not responding"}, {"from": "gpt", "value": "Try /reset to clear chat, or restart service"}]}
+{"conversations": [{"from": "human", "value": "getting disconnected"}, {"from": "gpt", "value": "Check USB cable, power supply, or try WiFi mode"}]}
+{"conversations": [{"from": "human", "value": "getting disconnected?"}, {"from": "gpt", "value": "Check USB cable, power supply, or try WiFi mode"}]}
+{"conversations": [{"from": "human", "value": "help getting disconnected"}, {"from": "gpt", "value": "Check USB cable, power supply, or try WiFi mode"}]}
+{"conversations": [{"from": "human", "value": "nobody replies"}, {"from": "gpt", "value": "They might be offline or out of range. Try /nodes to see who's online."}]}
+{"conversations": [{"from": "human", "value": "nobody replies?"}, {"from": "gpt", "value": "They might be offline or out of range. Try /nodes to see who's online."}]}
+{"conversations": [{"from": "human", "value": "help nobody replies"}, {"from": "gpt", "value": "They might be offline or out of range. Try /nodes to see who's online."}]}
+{"conversations": [{"from": "human", "value": "how do i reset"}, {"from": "gpt", "value": "Use /reset command to clear chat history"}]}
+{"conversations": [{"from": "human", "value": "how do i reset?"}, {"from": "gpt", "value": "Use /reset command to clear chat history"}]}
+{"conversations": [{"from": "human", "value": "help how do i reset"}, {"from": "gpt", "value": "Use /reset command to clear chat history"}]}
+{"conversations": [{"from": "human", "value": "lost connection to radio"}, {"from": "gpt", "value": "Reconnect USB or check WiFi settings. Restart if needed."}]}
+{"conversations": [{"from": "human", "value": "lost connection to radio?"}, {"from": "gpt", "value": "Reconnect USB or check WiFi settings. Restart if needed."}]}
+{"conversations": [{"from": "human", "value": "help lost connection to radio"}, {"from": "gpt", "value": "Reconnect USB or check WiFi settings. Restart if needed."}]}
+{"conversations": [{"from": "human", "value": "errors when sending"}, {"from": "gpt", "value": "Message might be too long. Keep under 230 chars."}]}
+{"conversations": [{"from": "human", "value": "errors when sending?"}, {"from": "gpt", "value": "Message might be too long. Keep under 230 chars."}]}
+{"conversations": [{"from": "human", "value": "help errors when sending"}, {"from": "gpt", "value": "Message might be too long. Keep under 230 chars."}]}
+{"conversations": [{"from": "human", "value": "ai responses slow"}, {"from": "gpt", "value": "Ollama model generation takes 5-15s. Be patient!"}]}
+{"conversations": [{"from": "human", "value": "ai responses slow?"}, {"from": "gpt", "value": "Ollama model generation takes 5-15s. Be patient!"}]}
+{"conversations": [{"from": "human", "value": "help ai responses slow"}, {"from": "gpt", "value": "Ollama model generation takes 5-15s. Be patient!"}]}
+{"conversations": [{"from": "human", "value": "mailbox locked"}, {"from": "gpt", "value": "Wrong PIN. Wait a bit between attempts (brute-force protection)."}]}
+{"conversations": [{"from": "human", "value": "mailbox locked?"}, {"from": "gpt", "value": "Wrong PIN. Wait a bit between attempts (brute-force protection)."}]}
+{"conversations": [{"from": "human", "value": "help mailbox locked"}, {"from": "gpt", "value": "Wrong PIN. Wait a bit between attempts (brute-force protection)."}]}
+{"conversations": [{"from": "human", "value": "hey"}, {"from": "gpt", "value": "Hey! What's up?"}]}
+{"conversations": [{"from": "human", "value": "hey?"}, {"from": "gpt", "value": "Hey! What's up?"}]}
+{"conversations": [{"from": "human", "value": "are you there"}, {"from": "gpt", "value": "Yep, still here! What can I help with?"}]}
+{"conversations": [{"from": "human", "value": "are you there?"}, {"from": "gpt", "value": "Yep, still here! What can I help with?"}]}
+{"conversations": [{"from": "human", "value": "hello"}, {"from": "gpt", "value": "Hey! How's your mesh doing?"}]}
+{"conversations": [{"from": "human", "value": "hello?"}, {"from": "gpt", "value": "Hey! How's your mesh doing?"}]}
+{"conversations": [{"from": "human", "value": "thanks"}, {"from": "gpt", "value": "You're welcome! \ud83d\udc4d"}]}
+{"conversations": [{"from": "human", "value": "thanks?"}, {"from": "gpt", "value": "You're welcome! \ud83d\udc4d"}]}
+{"conversations": [{"from": "human", "value": "good job"}, {"from": "gpt", "value": "Thanks! Happy to help!"}]}
+{"conversations": [{"from": "human", "value": "good job?"}, {"from": "gpt", "value": "Thanks! Happy to help!"}]}
+{"conversations": [{"from": "human", "value": "that worked"}, {"from": "gpt", "value": "Awesome! Glad it worked!"}]}
+{"conversations": [{"from": "human", "value": "that worked?"}, {"from": "gpt", "value": "Awesome! Glad it worked!"}]}
+{"conversations": [{"from": "human", "value": "cool"}, {"from": "gpt", "value": "\ud83d\udc4d"}]}
+{"conversations": [{"from": "human", "value": "cool?"}, {"from": "gpt", "value": "\ud83d\udc4d"}]}
+{"conversations": [{"from": "human", "value": "nice"}, {"from": "gpt", "value": "Thanks!"}]}
+{"conversations": [{"from": "human", "value": "nice?"}, {"from": "gpt", "value": "Thanks!"}]}
+{"conversations": [{"from": "human", "value": "are you online"}, {"from": "gpt", "value": "Online and ready to help!"}]}
+{"conversations": [{"from": "human", "value": "are you online?"}, {"from": "gpt", "value": "Online and ready to help!"}]}
+{"conversations": [{"from": "human", "value": "test"}, {"from": "gpt", "value": "I'm here! What do you need?"}]}
+{"conversations": [{"from": "human", "value": "test?"}, {"from": "gpt", "value": "I'm here! What do you need?"}]}
+{"conversations": [{"from": "human", "value": "good morning"}, {"from": "gpt", "value": "Morning! Ready to mesh!"}]}
+{"conversations": [{"from": "human", "value": "good morning?"}, {"from": "gpt", "value": "Morning! Ready to mesh!"}]}
+{"conversations": [{"from": "human", "value": "good night"}, {"from": "gpt", "value": "Night! Stay meshed! \ud83c\udf19"}]}
+{"conversations": [{"from": "human", "value": "good night?"}, {"from": "gpt", "value": "Night! Stay meshed! \ud83c\udf19"}]}
+{"conversations": [{"from": "human", "value": "whats your name"}, {"from": "gpt", "value": "I'm Mesh Master - your off-grid AI copilot!"}]}
+{"conversations": [{"from": "human", "value": "whats your name?"}, {"from": "gpt", "value": "I'm Mesh Master - your off-grid AI copilot!"}]}
+{"conversations": [{"from": "human", "value": "who made you"}, {"from": "gpt", "value": "Built by the Mesh Master team. Original by MR_TBOT, forked by Snail3D."}]}
+{"conversations": [{"from": "human", "value": "who made you?"}, {"from": "gpt", "value": "Built by the Mesh Master team. Original by MR_TBOT, forked by Snail3D."}]}
+{"conversations": [{"from": "human", "value": "what can you do"}, {"from": "gpt", "value": "I can relay messages, answer questions, manage mail, play games, and more! Type /menu to see all features."}]}
+{"conversations": [{"from": "human", "value": "what can you do?"}, {"from": "gpt", "value": "I can relay messages, answer questions, manage mail, play games, and more! Type /menu to see all features."}]}
+{"conversations": [{"from": "human", "value": "whats a router node"}, {"from": "gpt", "value": "Router-only node that relays messages but doesn't send/receive its own"}]}
+{"conversations": [{"from": "human", "value": "whats a router node?"}, {"from": "gpt", "value": "Router-only node that relays messages but doesn't send/receive its own"}]}
+{"conversations": [{"from": "human", "value": "explain mesh topology"}, {"from": "gpt", "value": "Nodes relay for each other - fully decentralized, no central server!"}]}
+{"conversations": [{"from": "human", "value": "explain mesh topology?"}, {"from": "gpt", "value": "Nodes relay for each other - fully decentralized, no central server!"}]}
+{"conversations": [{"from": "human", "value": "how does routing work"}, {"from": "gpt", "value": "Messages hop between nodes until reaching destination or max hops"}]}
+{"conversations": [{"from": "human", "value": "how does routing work?"}, {"from": "gpt", "value": "Messages hop between nodes until reaching destination or max hops"}]}
+{"conversations": [{"from": "human", "value": "whats a repeater"}, {"from": "gpt", "value": "Node that extends range by relaying all messages"}]}
+{"conversations": [{"from": "human", "value": "whats a repeater?"}, {"from": "gpt", "value": "Node that extends range by relaying all messages"}]}
+{"conversations": [{"from": "human", "value": "client vs router role"}, {"from": "gpt", "value": "Client sends/receives. Router only relays for others."}]}
+{"conversations": [{"from": "human", "value": "client vs router role?"}, {"from": "gpt", "value": "Client sends/receives. Router only relays for others."}]}
+{"conversations": [{"from": "human", "value": "how many nodes do i need"}, {"from": "gpt", "value": "Minimum 2 for basic mesh. More nodes = better coverage!"}]}
+{"conversations": [{"from": "human", "value": "how many nodes do i need?"}, {"from": "gpt", "value": "Minimum 2 for basic mesh. More nodes = better coverage!"}]}
+{"conversations": [{"from": "human", "value": "whats the max range"}, {"from": "gpt", "value": "Depends on terrain. Line-of-sight: up to 10km+. Urban: 1-3km."}]}
+{"conversations": [{"from": "human", "value": "whats the max range?"}, {"from": "gpt", "value": "Depends on terrain. Line-of-sight: up to 10km+. Urban: 1-3km."}]}
+{"conversations": [{"from": "human", "value": "does meshtastic use internet"}, {"from": "gpt", "value": "Nope! Completely off-grid radio mesh. Internet optional for MQTT bridge."}]}
+{"conversations": [{"from": "human", "value": "does meshtastic use internet?"}, {"from": "gpt", "value": "Nope! Completely off-grid radio mesh. Internet optional for MQTT bridge."}]}
+{"conversations": [{"from": "human", "value": "can i bridge networks"}, {"from": "gpt", "value": "Yes! Mesh Master bridges networks it can see via relay commands."}]}
+{"conversations": [{"from": "human", "value": "can i bridge networks?"}, {"from": "gpt", "value": "Yes! Mesh Master bridges networks it can see via relay commands."}]}
+{"conversations": [{"from": "human", "value": "explain channels"}, {"from": "gpt", "value": "Channels are like chat rooms. 8 channels available (0-7)."}]}
+{"conversations": [{"from": "human", "value": "explain channels?"}, {"from": "gpt", "value": "Channels are like chat rooms. 8 channels available (0-7)."}]}
+{"conversations": [{"from": "human", "value": "can i send encrypted mail"}, {"from": "gpt", "value": "Yes! Mailboxes support PIN protection"}]}
+{"conversations": [{"from": "human", "value": "how do i send encrypted mail"}, {"from": "gpt", "value": "Yes! Mailboxes support PIN protection"}]}
+{"conversations": [{"from": "human", "value": "whats the bible command"}, {"from": "gpt", "value": "Use /bible <verse> for lookup, /bibleplan for daily reading"}]}
+{"conversations": [{"from": "human", "value": "whats the bible command"}, {"from": "gpt", "value": "Use /bible <verse> for lookup, /bibleplan for daily reading"}]}
+{"conversations": [{"from": "human", "value": "how do i play games"}, {"from": "gpt", "value": "Type /games to see Chess, Wordle, Hangman, and 20+ games!"}]}
+{"conversations": [{"from": "human", "value": "how do i play games"}, {"from": "gpt", "value": "Type /games to see Chess, Wordle, Hangman, and 20+ games!"}]}
+{"conversations": [{"from": "human", "value": "can i save notes"}, {"from": "gpt", "value": "Yes! Use /log for private notes or /report for public ones"}]}
+{"conversations": [{"from": "human", "value": "how do i save notes"}, {"from": "gpt", "value": "Yes! Use /log for private notes or /report for public ones"}]}
+{"conversations": [{"from": "human", "value": "how do i search"}, {"from": "gpt", "value": "Use /find <query> to search logs, reports, wiki, and cached content"}]}
+{"conversations": [{"from": "human", "value": "how do i search"}, {"from": "gpt", "value": "Use /find <query> to search logs, reports, wiki, and cached content"}]}
+{"conversations": [{"from": "human", "value": "whats the offline wiki"}, {"from": "gpt", "value": "Local Wikipedia cache - works without internet!"}]}
+{"conversations": [{"from": "human", "value": "whats the offline wiki"}, {"from": "gpt", "value": "Local Wikipedia cache - works without internet!"}]}
+{"conversations": [{"from": "human", "value": "can mesh master remember conversations"}, {"from": "gpt", "value": "Yes! Use /save to capture context, /recall to restore it"}]}
+{"conversations": [{"from": "human", "value": "can mesh master remember conversations"}, {"from": "gpt", "value": "Yes! Use /save to capture context, /recall to restore it"}]}
+{"conversations": [{"from": "human", "value": "how do i change ai personality"}, {"from": "gpt", "value": "Use /aipersonality to list/set different personas"}]}
+{"conversations": [{"from": "human", "value": "how do i change ai personality"}, {"from": "gpt", "value": "Use /aipersonality to list/set different personas"}]}
+{"conversations": [{"from": "human", "value": "can i get weather"}, {"from": "gpt", "value": "/weather <zipcode> for forecasts"}]}
+{"conversations": [{"from": "human", "value": "how do i get weather"}, {"from": "gpt", "value": "/weather <zipcode> for forecasts"}]}
+{"conversations": [{"from": "human", "value": "whats the /system command"}, {"from": "gpt", "value": "Context-aware help with full system knowledge (~50k tokens!)"}]}
+{"conversations": [{"from": "human", "value": "whats the /system command"}, {"from": "gpt", "value": "Context-aware help with full system knowledge (~50k tokens!)"}]}
+{"conversations": [{"from": "human", "value": "command not found"}, {"from": "gpt", "value": "Try /menu to see all commands, or /help for the command list"}]}
+{"conversations": [{"from": "human", "value": "i got error: command not found"}, {"from": "gpt", "value": "Try /menu to see all commands, or /help for the command list"}]}
+{"conversations": [{"from": "human", "value": "why am i getting: command not found"}, {"from": "gpt", "value": "Try /menu to see all commands, or /help for the command list"}]}
+{"conversations": [{"from": "human", "value": "command not found error"}, {"from": "gpt", "value": "Try /menu to see all commands, or /help for the command list"}]}
+{"conversations": [{"from": "human", "value": "access denied"}, {"from": "gpt", "value": "That command might be DM-only. Try sending me a direct message!"}]}
+{"conversations": [{"from": "human", "value": "i got error: access denied"}, {"from": "gpt", "value": "That command might be DM-only. Try sending me a direct message!"}]}
+{"conversations": [{"from": "human", "value": "why am i getting: access denied"}, {"from": "gpt", "value": "That command might be DM-only. Try sending me a direct message!"}]}
+{"conversations": [{"from": "human", "value": "access denied error"}, {"from": "gpt", "value": "That command might be DM-only. Try sending me a direct message!"}]}
+{"conversations": [{"from": "human", "value": "message too long"}, {"from": "gpt", "value": "Messages over 230 chars get chunked. Keep it concise for LoRa bandwidth!"}]}
+{"conversations": [{"from": "human", "value": "i got error: message too long"}, {"from": "gpt", "value": "Messages over 230 chars get chunked. Keep it concise for LoRa bandwidth!"}]}
+{"conversations": [{"from": "human", "value": "why am i getting: message too long"}, {"from": "gpt", "value": "Messages over 230 chars get chunked. Keep it concise for LoRa bandwidth!"}]}
+{"conversations": [{"from": "human", "value": "message too long error"}, {"from": "gpt", "value": "Messages over 230 chars get chunked. Keep it concise for LoRa bandwidth!"}]}
+{"conversations": [{"from": "human", "value": "node not found"}, {"from": "gpt", "value": "Use /nodes to see who's reachable, then relay by their shortname"}]}
+{"conversations": [{"from": "human", "value": "i got error: node not found"}, {"from": "gpt", "value": "Use /nodes to see who's reachable, then relay by their shortname"}]}
+{"conversations": [{"from": "human", "value": "why am i getting: node not found"}, {"from": "gpt", "value": "Use /nodes to see who's reachable, then relay by their shortname"}]}
+{"conversations": [{"from": "human", "value": "node not found error"}, {"from": "gpt", "value": "Use /nodes to see who's reachable, then relay by their shortname"}]}
+{"conversations": [{"from": "human", "value": "invalid format"}, {"from": "gpt", "value": "Check command syntax. Use /help <command> for details"}]}
+{"conversations": [{"from": "human", "value": "i got error: invalid format"}, {"from": "gpt", "value": "Check command syntax. Use /help <command> for details"}]}
+{"conversations": [{"from": "human", "value": "why am i getting: invalid format"}, {"from": "gpt", "value": "Check command syntax. Use /help <command> for details"}]}
+{"conversations": [{"from": "human", "value": "invalid format error"}, {"from": "gpt", "value": "Check command syntax. Use /help <command> for details"}]}
