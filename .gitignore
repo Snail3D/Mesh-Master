@@ -229,3 +229,4 @@ CLAUDE.md
 # Tailscale configuration (contains network info)
 tailscale.state
 *.ts.net
+Mesh-Master/
