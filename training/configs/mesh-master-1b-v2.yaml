@@ -1,0 +1,146 @@
+# Mesh Master Bot v2.0 - Optimized Training Configuration
+# Base: Llama-3.2-1B-Instruct (NOT gemma3:270m!)
+#
+# Key Improvements from v1.0:
+# - 10x lower learning rate (0.00002 vs 0.0002) to prevent catastrophic forgetting
+# - Only 1 epoch to avoid overfitting
+# - Higher dropout and weight decay for regularization
+# - Smaller LoRA rank to reduce memorization
+# - Proper evaluation and early stopping
+#
+# Hardware: Can run on CPU or any GPU with 8GB+ VRAM
+# Training Time: ~2-4 hours on RTX 3090, ~8-12 hours on CPU
+
+base_model: meta-llama/Llama-3.2-1B-Instruct
+model_type: LlamaForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+# ========================================
+# QLoRA Configuration (Memory Efficient)
+# ========================================
+load_in_8bit: false
+load_in_4bit: true
+strict: false
+
+adapter: qlora
+lora_r: 8                      # REDUCED from 16 - less memorization
+lora_alpha: 16                 # 2x rank
+lora_dropout: 0.15             # INCREASED from 0.05 - more regularization
+lora_target_linear: true
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# ========================================
+# Sequence & Batching
+# ========================================
+sequence_len: 2048             # REDUCED from 4096 - mesh messages are short
+sample_packing: true
+pad_to_sequence_len: true
+
+micro_batch_size: 2            # REDUCED from 4 - more stable gradients
+gradient_accumulation_steps: 16 # INCREASED - effective batch = 32
+eval_batch_size: 2
+num_epochs: 1                  # ✅ CRITICAL FIX: Only 1 pass through data!
+
+# ========================================
+# Learning Rate (MOST IMPORTANT CHANGES)
+# ========================================
+optimizer: adamw_8bit          # Memory-efficient AdamW
+lr_scheduler: cosine
+learning_rate: 0.00002         # ✅ 10x LOWER than v1 (was 0.0002)!
+warmup_steps: 50               # REDUCED from 100
+warmup_ratio: 0.05
+weight_decay: 0.01             # ✅ ADDED regularization (was 0.0)
+
+# ========================================
+# Precision & Performance
+# ========================================
+bf16: auto
+fp16: false
+tf32: true
+
+flash_attention: true
+flash_attn_cross_entropy: true
+flash_attn_rms_norm: true
+
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false         # Better for newer PyTorch
+
+# ========================================
+# Dataset
+# ========================================
+datasets:
+  - path: training/data/mesh_conversations.jsonl
+    type: sharegpt
+    conversation: conversations
+
+val_set_size: 0.15             # 15% validation (was 10%)
+dataset_prepared_path: training/data/prepared
+
+# ========================================
+# Evaluation & Checkpointing
+# ========================================
+evaluation_strategy: steps
+eval_steps: 50                 # Frequent evaluation
+save_steps: 100
+logging_steps: 5               # Detailed logging
+
+output_dir: ./training/outputs/mesh-master-1b-v2
+save_strategy: steps
+saves_per_epoch: 4
+save_total_limit: 3            # Keep only 3 best checkpoints
+
+# ========================================
+# Early Stopping (Prevent Overfitting)
+# ========================================
+early_stopping_patience: 3     # Stop if no improvement after 3 evals
+load_best_model_at_end: true
+metric_for_best_model: eval_loss
+greater_is_better: false
+
+# ========================================
+# Special Tokens (Llama 3.2)
+# ========================================
+special_tokens:
+  bos_token: "<|begin_of_text|>"
+  eos_token: "<|end_of_text|>"
+  unk_token: "<|unk|>"
+
+chat_template: llama3
+
+# ========================================
+# Advanced Settings
+# ========================================
+ddp_timeout: 3600
+group_by_length: true
+max_memory:
+low_cpu_mem_usage: true
+
+# Logging
+wandb_project: mesh-master-bot-v2
+wandb_name: mesh-1b-conservative-lr
+wandb_log_model: checkpoint
+
+# Reproducibility
+seed: 42
+
+# ========================================
+# Post-Training Settings for Modelfile
+# ========================================
+# After training, create Ollama model with:
+#
+# PARAMETER temperature 0.5       # Lower = more focused (was 0.7)
+# PARAMETER repeat_penalty 1.15   # Prevent loops (CRITICAL!)
+# PARAMETER num_predict 200       # Limit response length
+# PARAMETER top_p 0.85            # Slightly lower = less creative
+# PARAMETER top_k 30              # Reduce randomness
+#
+# SYSTEM You are Mesh Master, an AI for Meshtastic networks. Keep responses under 160 characters when possible for LoRa bandwidth. Be concise, accurate, and helpful.
