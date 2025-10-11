@@ -219,3 +219,4 @@ tests/*_test_*.log
 # VS Code workspace files
 *.code-workspace
 data/relay_optout.json
+models/*.gguf
