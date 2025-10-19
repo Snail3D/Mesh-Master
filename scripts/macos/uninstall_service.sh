@@ -1,8 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Mesh Master macOS LaunchAgent Uninstallation Script
 
 set -e
+
+# Verify we're actually on macOS before proceeding
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    echo "❌ This script is for macOS only"
+    exit 1
+fi
 
 # Colors
 RED='\033[0;31m'
