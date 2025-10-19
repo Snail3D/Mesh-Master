@@ -33,14 +33,14 @@ sleep 5
 echo "Opening dashboard..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
-    open http://localhost:5000/dashboard
+    open http://localhost:5001/dashboard
 else
     # Linux
-    xdg-open http://localhost:5000/dashboard 2>/dev/null ||     sensible-browser http://localhost:5000/dashboard 2>/dev/null ||     x-www-browser http://localhost:5000/dashboard 2>/dev/null ||     echo "Please open http://localhost:5000/dashboard in your browser"
+    xdg-open http://localhost:5001/dashboard 2>/dev/null ||     sensible-browser http://localhost:5001/dashboard 2>/dev/null ||     x-www-browser http://localhost:5001/dashboard 2>/dev/null ||     echo "Please open http://localhost:5001/dashboard in your browser"
 fi
 
 echo ""
 echo "========================================"
 echo "  Mesh Master Started!"
-echo "  Dashboard: http://localhost:5000"
+echo "  Dashboard: http://localhost:5001"
 echo "========================================"
