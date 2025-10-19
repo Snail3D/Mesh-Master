@@ -50,13 +50,38 @@ nssm stop MeshMaster
 echo Removing service...
 nssm remove MeshMaster confirm
 
+REM Remove desktop shortcuts
+echo Removing desktop shortcuts...
+set DESKTOP=%USERPROFILE%\Desktop
+set removed_count=0
+
+if exist "%DESKTOP%\Start Mesh Master.lnk" (
+    del "%DESKTOP%\Start Mesh Master.lnk"
+    set /a removed_count+=1
+)
+
+if exist "%DESKTOP%\Stop Mesh Master.lnk" (
+    del "%DESKTOP%\Stop Mesh Master.lnk"
+    set /a removed_count+=1
+)
+
+if %removed_count% gtr 0 (
+    echo [OK] Removed %removed_count% desktop shortcut^(s^)
+) else (
+    echo [SKIP] No desktop shortcuts found
+)
+
 echo.
 echo ==========================================
 echo   Mesh Master Service Uninstalled
 echo ==========================================
 echo.
-echo The service has been removed.
-echo Mesh Master will no longer start automatically.
+echo The service has been removed:
+echo   - Service stopped and disabled
+echo   - Auto-start on boot disabled
+echo   - Desktop shortcuts removed
+echo.
+echo Your data and config files are preserved.
 echo.
 echo To run manually:
 echo   cd \path\to\Mesh-Master

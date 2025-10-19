@@ -61,10 +61,40 @@ rm -f "$SERVICE_FILE"
 echo "Reloading systemd daemon..."
 systemctl daemon-reload
 
+# Remove desktop shortcuts (run as original user, not root)
+echo "Removing desktop shortcuts..."
+ORIGINAL_USER="${SUDO_USER:-$USER}"
+USER_HOME=$(eval echo ~$ORIGINAL_USER)
+DESKTOP="$USER_HOME/Desktop"
+removed_count=0
+
+if [[ -f "$DESKTOP/start-mesh-master.desktop" ]]; then
+    rm -f "$DESKTOP/start-mesh-master.desktop"
+    ((removed_count++))
+fi
+
+if [[ -f "$DESKTOP/stop-mesh-master.desktop" ]]; then
+    rm -f "$DESKTOP/stop-mesh-master.desktop"
+    ((removed_count++))
+fi
+
+if [[ $removed_count -gt 0 ]]; then
+    echo -e "${GREEN}✓${NC} Removed $removed_count desktop shortcut(s)"
+else
+    echo -e "${YELLOW}⚠️${NC} No desktop shortcuts found"
+fi
+
 echo ""
-echo -e "${GREEN}✅ Mesh Master service uninstalled successfully${NC}"
+echo -e "${GREEN}=========================================="
+echo "  ✅ Mesh Master Service Uninstalled"
+echo "==========================================${NC}"
 echo ""
-echo "The service has been stopped, disabled, and removed."
+echo "The service has been removed:"
+echo "  • Service stopped and disabled"
+echo "  • Auto-start on boot disabled"
+echo "  • Desktop shortcuts removed"
+echo ""
+echo "Your data and config files are preserved."
 echo ""
 echo "To reinstall, run:"
 echo "  sudo ./scripts/linux/install_service.sh"
