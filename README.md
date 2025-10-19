@@ -35,6 +35,29 @@ These scripts will:
 
 **Dashboard:** Open `http://localhost:5001/dashboard` after installation
 
+### 🗑️ Quick Uninstall (One Command)
+
+**macOS:**
+```bash
+curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/macos/uninstall_service.sh | bash
+```
+
+**Linux/Raspberry Pi:**
+```bash
+curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/linux/uninstall_service.sh | sudo bash
+```
+
+**Windows:** (Run as Administrator in PowerShell)
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/uninstall_service.bat" -OutFile "$env:TEMP\uninstall_mesh.bat"; & "$env:TEMP\uninstall_mesh.bat"
+```
+
+This will:
+- 🛑 Stop the service
+- ❌ Disable auto-start
+- 🗑️ Remove all service files
+- ✅ Clean uninstall - no files left behind
+
 ---
 
 ## 2.0 Headline Upgrades
