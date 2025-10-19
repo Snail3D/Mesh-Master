@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional
 SHORTNAME_TO_NODE_CACHE: Dict[str, str] = {}
 SHORTNAME_CACHE_LOCK = threading.Lock()
 
-RELAY_QUEUE: queue.Queue = queue.Queue(maxsize=100)
+RELAY_QUEUE: queue.Queue = queue.Queue(maxsize=500)
 RELAY_WORKERS_COUNT = 3
 RELAY_WORKERS_STARTED = False
 

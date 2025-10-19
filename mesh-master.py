@@ -2122,7 +2122,7 @@ SHORTNAME_TO_NODE_CACHE: Dict[str, str] = {}
 SHORTNAME_CACHE_LOCK = threading.Lock()
 
 # Relay queue system for robust handling under heavy load
-RELAY_QUEUE: queue.Queue = queue.Queue(maxsize=100)  # Limit queue size to prevent memory issues
+RELAY_QUEUE: queue.Queue = queue.Queue(maxsize=500)  # High capacity for burst traffic handling
 RELAY_WORKERS_COUNT = 3  # Number of concurrent relay worker threads
 RELAY_WORKERS_STARTED = False
 
