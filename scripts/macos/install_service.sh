@@ -38,11 +38,34 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     exit 1
 fi
 
-# Check if mesh-master.py exists
+# Verify we're in the Mesh Master project directory
 if [[ ! -f "$PROJECT_DIR/mesh-master.py" ]]; then
-    echo -e "${RED}❌ Error: mesh-master.py not found in $PROJECT_DIR${NC}"
+    echo -e "${RED}❌ Error: mesh-master.py not found!${NC}"
+    echo ""
+    echo "This script must be run from the Mesh Master project directory."
+    echo ""
+    echo "Please navigate to your Mesh-Master folder and try again:"
+    echo -e "${YELLOW}cd ~/path/to/Mesh-Master${NC}"
+    echo -e "${YELLOW}./scripts/macos/install_service.sh${NC}"
+    echo ""
+    echo "Or run with bash:"
+    echo -e "${YELLOW}bash scripts/macos/install_service.sh${NC}"
     exit 1
 fi
+
+# Additional verification - check for key files
+if [[ ! -f "$PROJECT_DIR/config.json" ]] && [[ ! -f "$PROJECT_DIR/config.json.example" ]]; then
+    echo -e "${RED}❌ Error: This doesn't look like a Mesh Master directory${NC}"
+    echo ""
+    echo "Expected to find config.json or config.json.example"
+    echo "Current directory: $PROJECT_DIR"
+    echo ""
+    echo "Please make sure you're in the Mesh-Master project folder."
+    exit 1
+fi
+
+echo -e "${GREEN}✓${NC} Found Mesh Master installation"
+echo ""
 
 # Create logs directory if it doesn't exist
 mkdir -p "$PROJECT_DIR/logs"
