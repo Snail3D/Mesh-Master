@@ -8351,7 +8351,7 @@ COMMAND_ALIASES: Dict[str, Dict[str, Any]] = {
 }
 
 COMMAND_SUMMARIES: Dict[str, str] = {
-    "/about": "Shares version info and connected radio details.",
+    # Note: /about and /donate are intentionally excluded (hardcoded, always enabled, hidden)
     "/help": "Lists top commands with short usage notes.",
     "/menu": "Displays a compact menu of frequently used commands.",
     "/onboard": "Interactive tour of MESH-MASTER features for new users.",
@@ -13587,7 +13587,11 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
   global motd_content, SYSTEM_PROMPT, config, MESHTASTIC_KB_WARM_CACHE
   cmd = cmd.lower()
   dprint(f"handle_command => cmd='{cmd}', full_text={_redact_message_content(full_text)}, sender_id={sender_id}, is_direct={is_direct}, language={language_hint}")
-  if not is_command_enabled(cmd):
+
+  # /about and /donate are always enabled and cannot be disabled
+  hardcoded_always_enabled = {"/about", "/donate"}
+
+  if cmd not in hardcoded_always_enabled and not is_command_enabled(cmd):
     clean_log(f"Command {cmd} blocked (disabled)", "⛔", show_always=True, rate_limit=False)
     return _cmd_reply(cmd, f"⚠️ {cmd} is currently disabled by the operator.")
   sender_key = _safe_sender_key(sender_id)
@@ -13595,7 +13599,56 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
   if cmd != "/wipe" and sender_key:
     PENDING_WIPE_REQUESTS.pop(sender_key, None)
   if cmd == "/about":
-    return _cmd_reply(cmd, "MESH-MASTER Off Grid Chat Bot - By: MR-TBOT.com")
+    # Get current version from git
+    version = "unknown"
+    try:
+        import subprocess
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        result = subprocess.run(
+            ['git', 'describe', '--tags', '--abbrev=0'],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=project_dir
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            version = result.stdout.strip()
+    except Exception:
+        pass
+
+    about_text = f"""📡 MESH-MASTER {version}
+
+Off-Grid AI Operations Suite for Meshtastic
+
+🔧 Forked & Enhanced by Snail
+Original by MR-TBOT
+
+🔗 GitHub: github.com/Snail3D/Mesh-Master
+☕ Support: buymeacoffee.com/Snail3D"""
+
+    return _cmd_reply(cmd, about_text)
+
+  elif cmd == "/donate":
+    # Hardcoded donation command - always enabled, never shown in dashboard
+    donate_text = """☕ Support Mesh Master Development
+
+Thank you for considering supporting this project!
+
+Your contributions help fund:
+• Feature development
+• Bug fixes & maintenance
+• Documentation & tutorials
+• Server costs for testing
+
+💙 Buy Me a Coffee:
+buymeacoffee.com/Snail3D
+
+🔗 GitHub (star the repo!):
+github.com/Snail3D/Mesh-Master
+
+Every coffee helps keep the mesh alive! 🚀"""
+
+    return _cmd_reply(cmd, donate_text)
 
   elif cmd in ["/ai", "/bot", "/data"]:
     user_prompt = full_text[len(cmd):].strip()
