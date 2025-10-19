@@ -1,9 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Mesh Master macOS LaunchAgent Installation Script
 # This sets up Mesh Master to run automatically and restart on crashes
 
 set -e
+
+# Verify we're actually on macOS before proceeding
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    echo "❌ This script is for macOS only"
+    echo "For Linux/Pi, use: sudo systemctl enable mesh-ai"
+    exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'
