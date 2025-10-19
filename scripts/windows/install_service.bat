@@ -24,12 +24,38 @@ set PROJECT_DIR=%SCRIPT_DIR%..\..
 echo Project directory: %PROJECT_DIR%
 echo.
 
-REM Check if mesh-master.py exists
+REM Verify we're in the Mesh Master project directory
 if not exist "%PROJECT_DIR%\mesh-master.py" (
-    echo ERROR: mesh-master.py not found in %PROJECT_DIR%
+    echo ERROR: mesh-master.py not found!
+    echo.
+    echo This script must be run from the Mesh Master project directory.
+    echo.
+    echo Please navigate to your Mesh-Master folder and try again:
+    echo   cd C:\path\to\Mesh-Master
+    echo   scripts\windows\install_service.bat
+    echo.
+    echo Or right-click the script and "Run as administrator"
+    echo from within the Mesh-Master folder.
     pause
     exit /b 1
 )
+
+REM Additional verification - check for key files
+if not exist "%PROJECT_DIR%\config.json" (
+    if not exist "%PROJECT_DIR%\config.json.example" (
+        echo ERROR: This doesn't look like a Mesh Master directory
+        echo.
+        echo Expected to find config.json or config.json.example
+        echo Current directory: %PROJECT_DIR%
+        echo.
+        echo Please make sure you're in the Mesh-Master project folder.
+        pause
+        exit /b 1
+    )
+)
+
+echo [OK] Found Mesh Master installation
+echo.
 
 REM Check if NSSM is installed
 where nssm >nul 2>&1
