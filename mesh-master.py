@@ -14631,7 +14631,10 @@ Add your bot token and chat ID."""
     if bot_username:
       help_msg = f"""📱 Telegram Bot Setup
 
-🤖 Your Bot: @{bot_username}
+🤖 Bot: @{bot_username}
+
+🔑 Token:
+{bot_token}
 
 1️⃣ Open Telegram app
 2️⃣ Search: @{bot_username}
@@ -14646,7 +14649,8 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
     else:
       help_msg = f"""📱 Telegram Bot Setup
 
-🤖 Bot Token: {bot_token[:10]}...
+🔑 Token:
+{bot_token}
 
 ⚠️ Bot username not found. Check your token in Dashboard → Telegram Bot.
 
@@ -16633,8 +16637,8 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       # Get sender's shortname using existing helper function
       sender_name = get_node_shortname(sender_id)
 
-      # Forward to Telegram with shortname
-      telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}"
+      # Forward to Telegram with shortname and reply instructions
+      telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}\n\n---\nReply with: /telegram <message>"
       try:
         send_to_telegram(telegram_msg)
         clean_log(f"📱 Forwarded DM to Telegram from {sender_name}", show_always=True, rate_limit=False)
