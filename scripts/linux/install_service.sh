@@ -150,6 +150,16 @@ fi
 echo "Installing systemd service..."
 echo ""
 
+# Stop and disable old service if it exists
+if systemctl is-active --quiet mesh-ai; then
+    echo -e "${YELLOW}⚠️  Stopping existing Mesh Master service...${NC}"
+    systemctl stop mesh-ai
+fi
+if systemctl is-enabled --quiet mesh-ai 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Disabling old service...${NC}"
+    systemctl disable mesh-ai
+fi
+
 # Copy service file to systemd directory
 echo "Copying service file to /etc/systemd/system/..."
 cp "$PROJECT_DIR/mesh-ai.service" /etc/systemd/system/
@@ -166,10 +176,47 @@ systemctl enable mesh-ai
 echo "Starting mesh-ai service..."
 systemctl start mesh-ai
 
+# Create desktop shortcuts (run as the original user, not root)
+echo "Creating desktop shortcuts..."
+if [[ -f "$PROJECT_DIR/scripts/desktop/create_shortcuts.py" ]]; then
+    # Find the original user (before sudo)
+    ORIGINAL_USER="${SUDO_USER:-$USER}"
+
+    # Find Python
+    SHORTCUT_PYTHON=$(which python3)
+    if [[ -f "$PROJECT_DIR/.venv/bin/python" ]]; then
+        SHORTCUT_PYTHON="$PROJECT_DIR/.venv/bin/python"
+    fi
+
+    # Run as original user (not root)
+    if [[ -n "$SUDO_USER" ]]; then
+        sudo -u "$SUDO_USER" "$SHORTCUT_PYTHON" "$PROJECT_DIR/scripts/desktop/create_shortcuts.py" 2>/dev/null
+    else
+        "$SHORTCUT_PYTHON" "$PROJECT_DIR/scripts/desktop/create_shortcuts.py" 2>/dev/null
+    fi
+
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✓${NC} Desktop shortcuts created"
+    else
+        echo -e "${YELLOW}⚠️${NC} Desktop shortcuts skipped (optional)"
+    fi
+else
+    echo -e "${YELLOW}⚠️${NC} Desktop shortcut script not found (optional)"
+fi
+
 echo ""
-echo -e "${GREEN}✅ Success! Mesh Master service installed${NC}"
+echo -e "${GREEN}=========================================="
+echo "  ✅ Mesh Master Service Installed!"
+echo "==========================================${NC}"
 echo ""
-echo "Service is now running and will start automatically on boot."
+echo "The service is now running and will:"
+echo "  • Start automatically on boot"
+echo "  • Restart automatically if it crashes"
+echo "  • Restart automatically after /update command"
+echo ""
+echo "Desktop shortcuts created:"
+echo "  • Start Mesh Master (launches dashboard)"
+echo "  • Stop Mesh Master (stops service)"
 echo ""
 echo "Useful commands:"
 echo ""

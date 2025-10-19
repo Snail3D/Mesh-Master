@@ -124,20 +124,14 @@ if exist "%PROJECT_DIR%\.venv\Scripts\python.exe" (
     echo Using venv Python: %PYTHON_PATH%
 )
 
-REM Check if service already exists
+REM Check if service already exists and remove it automatically
 nssm status MeshMaster >nul 2>&1
 if %errorLevel% equ 0 (
-    echo WARNING: MeshMaster service already exists
+    echo WARNING: Removing existing MeshMaster service...
+    nssm stop MeshMaster >nul 2>&1
+    nssm remove MeshMaster confirm >nul 2>&1
+    echo [OK] Old service removed
     echo.
-    set /p REINSTALL="Do you want to reinstall? (y/N): "
-    if /i not "%REINSTALL%"=="y" (
-        echo Installation cancelled.
-        pause
-        exit /b 0
-    )
-    echo Removing existing service...
-    nssm stop MeshMaster
-    nssm remove MeshMaster confirm
 )
 
 echo Installing MeshMaster service...
@@ -167,6 +161,20 @@ nssm start MeshMaster
 REM Wait a moment
 timeout /t 2 /nobreak >nul
 
+REM Create desktop shortcuts
+echo Creating desktop shortcuts...
+if exist "%PROJECT_DIR%\scripts\desktop\create_shortcuts.py" (
+    "%PYTHON_PATH%" "%PROJECT_DIR%\scripts\desktop\create_shortcuts.py" >nul 2>&1
+    if %errorLevel% equ 0 (
+        echo [OK] Desktop shortcuts created
+    ) else (
+        echo [SKIP] Desktop shortcuts skipped ^(optional^)
+    )
+) else (
+    echo [SKIP] Desktop shortcut script not found ^(optional^)
+)
+echo.
+
 REM Check if running
 nssm status MeshMaster | find "SERVICE_RUNNING" >nul
 if %errorLevel% equ 0 (
@@ -179,6 +187,10 @@ if %errorLevel% equ 0 (
     echo   - Start automatically on boot
     echo   - Restart automatically if it crashes
     echo   - Restart automatically after /update
+    echo.
+    echo Desktop shortcuts created:
+    echo   - Start Mesh Master ^(launches dashboard^)
+    echo   - Stop Mesh Master ^(stops service^)
     echo.
     echo Useful commands:
     echo   Check status:  nssm status MeshMaster
