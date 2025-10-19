@@ -14584,11 +14584,23 @@ Reply Y to update or N to cancel."""
     return PendingReply(confirm_msg, "/update confirm")
 
   elif cmd == "/telegram":
-    # Admin command to show Telegram bot setup instructions
-    if sender_key not in AUTHORIZED_ADMINS:
-      return _cmd_reply(cmd, "❌ This command is admin-only.")
+    # Show Telegram bot info or usage instructions
+    # Admins see bot setup details, non-admins see usage instructions
 
-    # Get Telegram bot info
+    if sender_key not in AUTHORIZED_ADMINS:
+      # Non-admin: show usage instructions
+      usage_msg = """📱 Contact Admin via Telegram
+
+💡 Usage:
+telegram <your message>
+
+Example:
+telegram Hey admin, I need help with my node!
+
+This forwards your message and shortname to the admin's Telegram bot."""
+      return _cmd_reply(cmd, usage_msg)
+
+    # Admin: Get Telegram bot info and show setup
     bot_token = telegram_config.get("token", "").strip() if telegram_config else ""
     bot_username = ""
 
