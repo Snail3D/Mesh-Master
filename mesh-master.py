@@ -2234,7 +2234,7 @@ def _try_deliver_offline_relays(target_node_id: str):
         return
 
     target_shortname = get_node_shortname(target_node_id)
-    clean_log(f"Attempting delivery of {len(pending_messages)} queued relay(s) to {target_shortname}", "📬")
+    clean_log(f"Attempting delivery of {len(pending_messages)} queued relay(s)", "📬")
 
     for msg_data in pending_messages:
         if msg_data['attempts'] >= OFFLINE_RELAY_MAX_ATTEMPTS:
@@ -11409,10 +11409,10 @@ def _relay_worker():
                     queued = _queue_offline_relay(sender_id, target_node_id, target_shortname, message)
                     if queued:
                         failure_msg = f"❌ No ACK from {target_shortname}\n\n📬 Message queued for delivery when they come online."
-                        clean_log(f"Relay timeout: {target_shortname} - queued for offline delivery", "📬")
+                        clean_log(f"Relay timeout - queued for offline delivery", "📬")
                     else:
                         failure_msg = f"❌ No ACK from {target_shortname}\n\nMessage: \"{message}\"\n\n⚠️ Offline queue full - message not saved."
-                        clean_log(f"Relay timeout: {target_shortname} - offline queue full", "⚠️")
+                        clean_log(f"Relay timeout - offline queue full", "⚠️")
                     send_direct_chunks(interface, failure_msg, sender_id)
 
             except Exception as e:
@@ -16601,7 +16601,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
           # User has a pending auto-relay target - route entire message to them
           last_sender_shortname = get_node_shortname(last_sender_id)
           if last_sender_shortname:
-            clean_log(f"Auto-relaying to {last_sender_shortname} (last relay sender)", "📨")
+            clean_log(f"Auto-relaying to last relay sender", "📨")
 
             # Clear the auto-relay after using it
             with LAST_RELAY_LOCK:
@@ -16629,7 +16629,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
         if check_only:
           return True
         message_body = words[1]
-        clean_log(f"Relaying message to {potential_shortname}", "📨")
+        clean_log(f"Relaying message", "📨")
         return _handle_shortname_relay(
           sender_id=sender_id,
           sender_key=sender_key,
@@ -16722,7 +16722,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
         # Extract message (everything after the /shortname)
         message_body = text[len(raw_cmd_lower):].strip()
         if message_body:
-          clean_log(f"Relaying message to {potential_shortname}", "📨")
+          clean_log(f"Relaying message", "📨")
           return _handle_shortname_relay(
             sender_id=sender_id,
             sender_key=sender_key,
