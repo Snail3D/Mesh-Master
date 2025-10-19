@@ -18458,6 +18458,33 @@ fi
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@app.route("/api/platform", methods=["GET"])
+def api_platform():
+    """Get server platform information"""
+    import platform
+
+    system = platform.system()
+
+    # Determine platform type
+    if system == "Linux":
+        platform_type = "linux"
+        platform_name = "Linux"
+    elif system == "Darwin":
+        platform_type = "macos"
+        platform_name = "macOS"
+    elif system == "Windows":
+        platform_type = "windows"
+        platform_name = "Windows"
+    else:
+        platform_type = "unknown"
+        platform_name = system
+
+    return jsonify({
+        "platform": platform_type,
+        "platform_name": platform_name,
+        "system": system
+    })
+
 @app.route("/dashboard/desktop/shortcuts", methods=["POST"])
 @require_auth
 def dashboard_create_desktop_shortcuts():
@@ -22521,6 +22548,60 @@ def dashboard():
     }
     .modal-body { padding: 12px 16px; overflow: auto; }
     .wiki-preview { white-space: pre-wrap; font-family: inherit; font-size: 12.5px; line-height: 1.55; }
+    .code-block-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .code-block {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      color: #4fc3f7;
+      display: block;
+      word-break: break-all;
+    }
+    .copy-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover {
+      background: var(--accent-strong);
+      transform: scale(1.05);
+    }
+    #setupInstructionsModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    #setupInstructionsModal .modal-content {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px var(--shadow);
+      max-height: 90vh;
+      overflow: auto;
+    }
     .admin-list {
       list-style: none;
       padding: 0;
@@ -22880,9 +22961,9 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
         </div>
         <div class="passphrase-card">
-          <label>🖥️ Mesh Master<span class="help-icon" data-explainer="Create a branded Mesh Master launcher on your desktop. Works on Windows, macOS, and Linux. Automatically kills old instances, starts fresh, and opens dashboard." data-explainer-placement="right">?</span></label>
-          <button type="button" id="createShortcutsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📌 Create Launcher</button>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Creates a single 'Mesh Master' launcher that restarts cleanly and opens the dashboard.</p>
+          <label>🖥️ Desktop Launcher & Service<span class="help-icon" data-explainer="Create desktop shortcuts and install Mesh Master as a system service for automatic startup and restart." data-explainer-placement="right">?</span></label>
+          <button type="button" id="showSetupInstructionsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📋 Show Setup Instructions</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Platform-specific commands for desktop launcher and auto-restart service.</p>
         </div>
         <div class="passphrase-card">
           <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
@@ -26457,31 +26538,167 @@ def dashboard():
       }
     }
 
-    async function onCreateDesktopShortcuts() {
-      const btn = $("createShortcutsBtn");
-      if (!btn) return;
-
-      btn.disabled = true;
-      btn.textContent = '⏳ Creating...';
-
+    async function showSetupInstructions() {
       try {
-        const response = await fetch('/dashboard/desktop/shortcuts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
+        // Fetch platform info
+        const response = await fetch('/api/platform');
+        const platformData = await response.json();
 
-        if (data.success) {
-          alert(`✅ Launcher Created!\n\n${data.message}\n\nLook for this on your desktop:\n• Mesh Master\n\nWhat it does:\n• Kills any old/zombie processes\n• Starts fresh Mesh Master instance\n• Opens dashboard in browser`);
+        const platform = platformData.platform;
+        const platformName = platformData.platform_name;
+
+        let content = '';
+
+        if (platform === 'macos') {
+          content = `
+            <h3>macOS Setup</h3>
+            <p><strong>Desktop Launcher:</strong> Creates a clickable icon that launches Mesh Master.</p>
+            <div class="code-block-container">
+              <code class="code-block" id="macosDesktop">python3 scripts/desktop/create_shortcuts.py</code>
+              <button class="copy-btn" onclick="copyToClipboard('macosDesktop')">📋 Copy</button>
+            </div>
+
+            <p style="margin-top: 20px;"><strong>Install as Service:</strong> Auto-start on login and auto-restart after crashes/updates.</p>
+            <div class="code-block-container">
+              <code class="code-block" id="macosService">./scripts/macos/install_service.sh</code>
+              <button class="copy-btn" onclick="copyToClipboard('macosService')">📋 Copy</button>
+            </div>
+
+            <p style="margin-top: 20px;"><strong>Why install as service?</strong></p>
+            <ul>
+              <li>✅ Auto-restart after <code>/update</code> command</li>
+              <li>✅ Auto-restart after crashes</li>
+              <li>✅ Start automatically on login</li>
+            </ul>
+
+            <p><strong>Service Management:</strong></p>
+            <div class="code-block-container">
+              <code class="code-block" id="macosStatus">launchctl list | grep meshmaster</code>
+              <button class="copy-btn" onclick="copyToClipboard('macosStatus')">📋 Copy</button>
+            </div>
+            <div class="code-block-container" style="margin-top: 8px;">
+              <code class="code-block" id="macosRestart">launchctl kickstart -k gui/$(id -u)/com.meshmaster</code>
+              <button class="copy-btn" onclick="copyToClipboard('macosRestart')">📋 Copy</button>
+            </div>
+            <div class="code-block-container" style="margin-top: 8px;">
+              <code class="code-block" id="macosUninstall">./scripts/macos/uninstall_service.sh</code>
+              <button class="copy-btn" onclick="copyToClipboard('macosUninstall')">📋 Copy</button>
+            </div>
+          `;
+        } else if (platform === 'linux') {
+          content = `
+            <h3>Linux/Raspberry Pi Setup</h3>
+            <p><strong>Desktop Launcher:</strong> Creates a clickable icon that launches Mesh Master.</p>
+            <div class="code-block-container">
+              <code class="code-block" id="linuxDesktop">python3 scripts/desktop/create_shortcuts.py</code>
+              <button class="copy-btn" onclick="copyToClipboard('linuxDesktop')">📋 Copy</button>
+            </div>
+
+            <p style="margin-top: 20px;"><strong>Install as Systemd Service:</strong> Auto-start on boot and auto-restart after crashes/updates.</p>
+            <div class="code-block-container">
+              <code class="code-block" id="linuxService">sudo bash scripts/linux/install_service.sh</code>
+              <button class="copy-btn" onclick="copyToClipboard('linuxService')">📋 Copy</button>
+            </div>
+
+            <p style="margin-top: 20px;"><strong>Why install as service?</strong></p>
+            <ul>
+              <li>✅ Auto-restart after <code>/update</code> command</li>
+              <li>✅ Auto-restart after crashes</li>
+              <li>✅ Start automatically on boot</li>
+            </ul>
+
+            <p><strong>Service Management:</strong></p>
+            <div class="code-block-container">
+              <code class="code-block" id="linuxStatus">sudo systemctl status mesh-ai</code>
+              <button class="copy-btn" onclick="copyToClipboard('linuxStatus')">📋 Copy</button>
+            </div>
+            <div class="code-block-container" style="margin-top: 8px;">
+              <code class="code-block" id="linuxRestart">sudo systemctl restart mesh-ai</code>
+              <button class="copy-btn" onclick="copyToClipboard('linuxRestart')">📋 Copy</button>
+            </div>
+            <div class="code-block-container" style="margin-top: 8px;">
+              <code class="code-block" id="linuxLogs">sudo journalctl -u mesh-ai -f</code>
+              <button class="copy-btn" onclick="copyToClipboard('linuxLogs')">📋 Copy</button>
+            </div>
+          `;
+        } else if (platform === 'windows') {
+          content = `
+            <h3>Windows Setup</h3>
+            <p><strong>Desktop Launcher:</strong> Creates a clickable shortcut that launches Mesh Master.</p>
+            <div class="code-block-container">
+              <code class="code-block" id="winDesktop">python scripts\\desktop\\create_shortcuts.py</code>
+              <button class="copy-btn" onclick="copyToClipboard('winDesktop')">📋 Copy</button>
+            </div>
+
+            <p style="margin-top: 20px;"><strong>Install as Windows Service:</strong> Auto-start on boot and auto-restart after crashes/updates.</p>
+            <div class="code-block-container">
+              <code class="code-block" id="winService">scripts\\windows\\install_service.bat</code>
+              <button class="copy-btn" onclick="copyToClipboard('winService')">📋 Copy</button>
+            </div>
+            <p style="font-size: 12px; color: #888; margin-top: 4px;">⚠️ Run as Administrator (right-click → Run as administrator)</p>
+
+            <p style="margin-top: 20px;"><strong>Requirements:</strong> NSSM (Non-Sucking Service Manager)</p>
+            <div class="code-block-container">
+              <code class="code-block" id="winNSSM">choco install nssm</code>
+              <button class="copy-btn" onclick="copyToClipboard('winNSSM')">📋 Copy</button>
+            </div>
+            <p style="font-size: 12px; color: #888; margin-top: 4px;">Or download from <a href="https://nssm.cc/download" target="_blank">nssm.cc/download</a></p>
+
+            <p style="margin-top: 20px;"><strong>Why install as service?</strong></p>
+            <ul>
+              <li>✅ Auto-restart after updates</li>
+              <li>✅ Auto-restart after crashes</li>
+              <li>✅ Start automatically on boot</li>
+            </ul>
+
+            <p><strong>Service Management:</strong></p>
+            <div class="code-block-container">
+              <code class="code-block" id="winStatus">nssm status MeshMaster</code>
+              <button class="copy-btn" onclick="copyToClipboard('winStatus')">📋 Copy</button>
+            </div>
+            <div class="code-block-container" style="margin-top: 8px;">
+              <code class="code-block" id="winRestart">nssm restart MeshMaster</code>
+              <button class="copy-btn" onclick="copyToClipboard('winRestart')">📋 Copy</button>
+            </div>
+            <div class="code-block-container" style="margin-top: 8px;">
+              <code class="code-block" id="winUninstall">scripts\\windows\\uninstall_service.bat</code>
+              <button class="copy-btn" onclick="copyToClipboard('winUninstall')">📋 Copy</button>
+            </div>
+          `;
         } else {
-          alert(`❌ Failed to create launcher: ${data.error || 'Unknown error'}`);
+          content = `
+            <h3>Unknown Platform</h3>
+            <p>Platform detected: ${platformName}</p>
+            <p>Please refer to the README for manual installation instructions.</p>
+          `;
         }
+
+        $("setupModalTitle").textContent = `${platformName} Setup Instructions`;
+        $("setupModalBody").innerHTML = content;
+        $("setupInstructionsModal").style.display = "flex";
       } catch (err) {
-        alert(`❌ Launcher creation failed: ${err.message}`);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '📌 Create Launcher';
+        alert(`❌ Failed to load setup instructions: ${err.message}`);
       }
+    }
+
+    function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      const text = element.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        // Show brief confirmation
+        const btn = element.nextElementSibling;
+        const originalText = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        btn.style.background = '#4CAF50';
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.style.background = '';
+        }, 2000);
+      }).catch(err => {
+        alert('Failed to copy to clipboard');
+      });
     }
 
     async function onSystemReboot() {
@@ -27304,9 +27521,15 @@ def dashboard():
       if (updateApplyBtn) {
         updateApplyBtn.addEventListener('click', onUpdateApply);
       }
-      const createShortcutsBtn = $("createShortcutsBtn");
-      if (createShortcutsBtn) {
-        createShortcutsBtn.addEventListener('click', onCreateDesktopShortcuts);
+      const showSetupBtn = $("showSetupInstructionsBtn");
+      if (showSetupBtn) {
+        showSetupBtn.addEventListener('click', showSetupInstructions);
+      }
+      const closeSetupModal = $("closeSetupModal");
+      if (closeSetupModal) {
+        closeSetupModal.addEventListener('click', () => {
+          $("setupInstructionsModal").style.display = "none";
+        });
       }
       const rebootBtn = $("systemRebootBtn");
       if (rebootBtn) {
@@ -28063,6 +28286,20 @@ def dashboard():
       TutorialEngine.startTour('dashboard');
     };
   </script>
+
+  <!-- Platform Setup Instructions Modal -->
+  <div id="setupInstructionsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h2 id="setupModalTitle">Setup Instructions</h2>
+        <button type="button" class="modal-close" id="closeSetupModal">✕</button>
+      </div>
+      <div class="modal-body" id="setupModalBody">
+        <!-- Content loaded dynamically based on platform -->
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
 """
