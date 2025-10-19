@@ -67,20 +67,52 @@ if [[ -z "$PROJECT_DIR" ]]; then
     fi
 fi
 
-# If still not found, give up with helpful message
+# If still not found, offer to clone it automatically
 if [[ -z "$PROJECT_DIR" ]] || [[ ! -f "$PROJECT_DIR/mesh-master.py" ]]; then
-    echo -e "${RED}❌ Could not find Mesh-Master installation${NC}"
+    echo -e "${YELLOW}⚠️  Mesh-Master not found on this system${NC}"
     echo ""
-    echo "Please make sure Mesh-Master is cloned/downloaded, then run:"
+    echo "Would you like to download Mesh-Master automatically?"
     echo ""
-    echo -e "${YELLOW}cd ~/Mesh-Master${NC}"
-    echo -e "${YELLOW}bash scripts/macos/install_service.sh${NC}"
+    read -p "Download to ~/Mesh-Master? (Y/n) " -n 1 -r
     echo ""
-    echo "Or clone it first:"
-    echo -e "${YELLOW}git clone https://github.com/Snail3D/Mesh-Master.git${NC}"
-    echo -e "${YELLOW}cd Mesh-Master${NC}"
-    echo -e "${YELLOW}bash scripts/macos/install_service.sh${NC}"
-    exit 1
+
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        # User wants to download
+        CLONE_DIR="$HOME/Mesh-Master"
+
+        # Check if git is installed
+        if ! command -v git &> /dev/null; then
+            echo -e "${RED}❌ git is not installed${NC}"
+            echo "Please install git first:"
+            echo -e "${YELLOW}brew install git${NC}"
+            exit 1
+        fi
+
+        # Check if directory already exists
+        if [[ -d "$CLONE_DIR" ]]; then
+            echo -e "${RED}❌ Directory already exists: $CLONE_DIR${NC}"
+            echo "Please remove it first or clone manually to a different location"
+            exit 1
+        fi
+
+        echo "Cloning Mesh-Master repository..."
+        if git clone https://github.com/Snail3D/Mesh-Master.git "$CLONE_DIR"; then
+            PROJECT_DIR="$CLONE_DIR"
+            echo -e "${GREEN}✓${NC} Downloaded Mesh-Master to: $PROJECT_DIR"
+            echo ""
+        else
+            echo -e "${RED}❌ Failed to clone repository${NC}"
+            exit 1
+        fi
+    else
+        # User declined download
+        echo ""
+        echo "Please clone Mesh-Master manually:"
+        echo -e "${YELLOW}git clone https://github.com/Snail3D/Mesh-Master.git${NC}"
+        echo -e "${YELLOW}cd Mesh-Master${NC}"
+        echo -e "${YELLOW}bash scripts/macos/install_service.sh${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${GREEN}✓${NC} Found Mesh Master at: $PROJECT_DIR"
