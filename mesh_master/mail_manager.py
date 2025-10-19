@@ -1569,7 +1569,6 @@ class MailManager:
         else:
             lines.append("📭 Inbox created with no mail yet.")
         lines.append(f"📥 Read: /c {mailbox}")
-        lines.append(f"🔍 Search: /c {mailbox} tomorrow plans")
         lines.append(f"🧹 Wipe later: /wipe mailbox {mailbox}")
         lines.append("📸 Screenshot this so you don't lose it.")
         return PendingReply("\n".join(lines), "/m command")
