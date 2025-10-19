@@ -852,41 +852,45 @@ python mesh-master.py
 # Access dashboard at: http://localhost:5001/dashboard
 ```
 
-#### Step 7: Run at Startup (Optional)
+#### Step 7: Install as Service (Optional but Recommended)
 
-Create Launch Agent:
+For automatic startup and restart on crashes:
+
 ```bash
-# Create plist file
-nano ~/Library/LaunchAgents/com.meshmaster.plist
+# Run the automated installer
+./scripts/macos/install_service.sh
 ```
 
-Add this content (update paths):
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.meshmaster</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/Users/YOUR_USERNAME/Documents/Mesh-Master/.venv/bin/python</string>
-        <string>/Users/YOUR_USERNAME/Documents/Mesh-Master/mesh-master.py</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>/Users/YOUR_USERNAME/Documents/Mesh-Master</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-</dict>
-</plist>
-```
+**What this does:**
+- Creates a macOS LaunchAgent that:
+  - Starts Mesh Master automatically on login
+  - Restarts automatically if it crashes
+  - Enables `/update` command to work properly (auto-restart after update)
+  - Logs output to `logs/mesh-master-stdout.log` and `logs/mesh-master-stderr.log`
 
-Load the agent:
+**Useful commands after installation:**
 ```bash
-launchctl load ~/Library/LaunchAgents/com.meshmaster.plist
+# Check status
+launchctl list | grep meshmaster
+
+# View logs
+tail -f ~/Documents/Mesh-Master/logs/mesh-master-stdout.log
+
+# Restart service
+launchctl kickstart -k gui/$(id -u)/com.meshmaster
+
+# Stop service
+launchctl unload ~/Library/LaunchAgents/com.meshmaster.plist
+
+# Uninstall service
+./scripts/macos/uninstall_service.sh
 ```
+
+**Why install as a service?**
+- ✅ Auto-restart after `/update` command
+- ✅ Auto-restart after crashes
+- ✅ Start automatically on login
+- ✅ No need to manually run the script
 
 ---
 
@@ -1355,8 +1359,11 @@ docker compose up -d
 - **Field notes** — `/log <title>` for private notes (visible only to the author), `/checklog [title]` or `/readlog [title]` to view logs; `/report <title>` for public reports (searchable by all), `/checkreport [title]` or `/readreport [title]` to view reports. Both are DM-only. Use `/find <query>` to search with fuzzy matching.
 - **Personality & context** — `/aipersonality [persona]` (list/set/prompt/reset), `/vibe [tone]`, `/save [name]`, `/recall [name]`, `/reset`, `/chathistory`.
 - **Games** — `/games`, `/hangman start`, `/wordle start`, `/wordladder start cold warm`, `/adventure start`, `/cipher start`, `/quizbattle start`, `/morse start`, `/rps`, `/coinflip`, `/yahtzee`, `/blackjack`.
-- **Location & status** — `/test`, `/motd`, `/menu`, Meshtastic "Request Position," `/about`.
-- **Admin (DM-only)** — `/admin` (console), `/status`, `/whatsoff`, `/allcommands`, `/ai on/off`, `/channels+dm on`, `/channels on`, `/dm on`, `/autoping on/off`, `/<command> on/off`, `/changemotd`, `/changeprompt`, `/showprompt`, `/showmodel`, `/selectmodel`, `/hops <0-7>`, `/stop`, `/reboot`. See [COMMANDS.md](COMMANDS.md) for whitelist configuration.
+- **Location & status** — `/test`, `/motd`, `/menu`, Meshtastic "Request Position".
+- **Version & updates** — `/about` shows current version, credits, links, and checks for updates available on GitHub.
+- **Admin (DM-only)** — `/admin` (console), `/status`, `/whatsoff`, `/allcommands`, `/ai on/off`, `/channels+dm on`, `/channels on`, `/dm on`, `/autoping on/off`, `/<command> on/off`, `/changemotd`, `/changeprompt`, `/showprompt`, `/showmodel`, `/selectmodel`, `/hops <0-7>`, `/stop`, `/reboot`, `/update` (pulls latest from GitHub and restarts). See [COMMANDS.md](COMMANDS.md) for whitelist configuration.
+
+**Note:** `/about` and `/donate` are always enabled and cannot be disabled by admins.
 
 All commands are case-insensitive. Special commands buffer ~3 seconds before responding to reduce radio congestion.
 
@@ -1371,7 +1378,7 @@ Access the dashboard at `http://localhost:5001/dashboard` or `http://<your-ip>:5
 - **Ollama Model Management** — View installed models, switch active model, download new models with progress tracking.
 - **Onboarding Customization** — Enable/disable auto-onboarding for new users and customize the welcome message.
 - **Operations Center** — Browse all available commands organized by category (Admin, AI Settings, Email, Games, Fun, Web & Search, etc.). Categories default to collapsed for a cleaner view.
-- **GitHub Version Control** — View current branch and available versions, switch branches directly from the dashboard.
+- **GitHub Version Control & Updates** — View current branch and available versions, switch branches directly from the dashboard. **Check for updates** and apply them with automatic restart (systemd service on Linux). **Note:** On macOS or non-systemd systems, the update will pull code but you'll need to manually restart the Python process.
 - **Configuration Editor** — Edit settings by category (Serial Connection, AI, Messaging, etc.) with inline help tooltips.
 
 ---
