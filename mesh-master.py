@@ -3666,6 +3666,7 @@ PENDING_WIPE_REQUESTS: Dict[str, Dict[str, Any]] = {}
 PENDING_WIPE_SELECTIONS: Dict[str, Dict[str, Any]] = {}
 PENDING_BIBLE_NAV: Dict[str, Dict[str, Any]] = {}
 PENDING_POSITION_CONFIRM: Dict[str, Dict[str, Any]] = {}
+PENDING_UPDATE_CONFIRM: Dict[str, Dict[str, Any]] = {}
 PENDING_SAVE_WIZARDS: Dict[str, Dict[str, Any]] = {}
 PENDING_VIBE_SELECTIONS: Dict[str, Dict[str, Any]] = {}
 PENDING_MAILBOX_SELECTIONS: Dict[str, Dict[str, Any]] = {}
@@ -8565,6 +8566,7 @@ BUILTIN_COMMANDS = {
     "/timer",
     "/stopwatch",
     "/reboot",
+    "/update",
 }
 
 FUZZY_COMMAND_MATCH_THRESHOLD = 0.75
@@ -12890,6 +12892,67 @@ def _process_wipe_confirmation(sender_id: Any, message: str, is_direct: bool, ch
         return PendingReply("Unknown wipe action. Try /wipe again.", "/wipe confirm")
 
 
+def _process_update_confirmation(sender_key: str, message: str) -> PendingReply:
+    """Handle Y/N confirmation for /update command"""
+    state = PENDING_UPDATE_CONFIRM.get(sender_key)
+    if not state:
+        return PendingReply("Update request expired. Start again with /update.", "/update confirm")
+
+    reply = (message or "").strip().lower()
+
+    if reply in ['n', 'no']:
+        PENDING_UPDATE_CONFIRM.pop(sender_key, None)
+        return PendingReply("👍 Update cancelled.", "/update confirm")
+
+    if reply not in ['y', 'yes']:
+        return PendingReply("❓ Please reply with Y or N.", "/update confirm")
+
+    # User confirmed - perform update
+    PENDING_UPDATE_CONFIRM.pop(sender_key, None)
+
+    current_version = state.get("current_version", "unknown")
+    latest_version = state.get("latest_version", "unknown")
+
+    clean_log(f"📦 Update confirmed by admin. Updating from {current_version} to {latest_version}", show_always=True, rate_limit=False)
+
+    try:
+        import subprocess
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Pull latest changes
+        result = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            clean_log(f"❌ Update failed: {result.stderr.strip()}", show_always=True, rate_limit=False)
+            return PendingReply(f"❌ Update failed: {result.stderr.strip()[:200]}", "/update confirm")
+
+        clean_log("✅ Successfully pulled latest changes from GitHub", show_always=True, rate_limit=False)
+
+        # Schedule restart
+        clean_log("🔄 Restarting service in 2 seconds...", show_always=True, rate_limit=False)
+        subprocess.Popen(
+            ["/bin/bash", "-c", "sleep 2 && sudo systemctl restart mesh-ai 2>/dev/null || pkill -f mesh-master.py"],
+            start_new_session=True
+        )
+
+        return PendingReply(f"""✅ Update successful!
+
+Updated to: {latest_version}
+Restarting service now...
+
+I'll be back online in ~10-30 seconds.""", "/update confirm")
+
+    except Exception as exc:
+        clean_log(f"❌ Update error: {exc}", show_always=True, rate_limit=False)
+        return PendingReply(f"❌ Update error: {str(exc)[:200]}", "/update confirm")
+
+
 def _activate_find_result(
     sender_id: Any,
     sender_key: str,
@@ -13602,26 +13665,25 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
   if cmd != "/wipe" and sender_key:
     PENDING_WIPE_REQUESTS.pop(sender_key, None)
   if cmd == "/about":
-    # Get current version from git
-    version = "unknown"
-    try:
-        import subprocess
-        project_dir = os.path.dirname(os.path.abspath(__file__))
-        result = subprocess.run(
-            ['git', 'describe', '--tags', '--abbrev=0'],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            cwd=project_dir
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            version = result.stdout.strip()
-    except Exception:
-        pass
+    # Get current version
+    version = _get_current_version()
+
+    # Check for updates
+    update_available, latest_version, commits_behind = _check_for_updates()
 
     about_text = f"""📡 MESH-MASTER {version}
 
-Off-Grid AI Operations Suite for Meshtastic
+Off-Grid AI Operations Suite for Meshtastic"""
+
+    # Add update notification if newer version available
+    if update_available and latest_version:
+        about_text += f"\n\n🆕 Update Available: {latest_version}"
+        if commits_behind > 0:
+            about_text += f" ({commits_behind} commit{'s' if commits_behind != 1 else ''} ahead)"
+        if sender_key in AUTHORIZED_ADMINS:
+            about_text += "\n📥 Use /update to upgrade"
+
+    about_text += """
 
 🔧 Forked & Enhanced by Snail
 Original by MR-TBOT
@@ -14465,6 +14527,43 @@ Every coffee helps keep the mesh alive! 🚀"""
       return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
     sender_key = _safe_sender_key(sender_id)
     return _handle_exit_session(sender_key)
+
+  elif cmd == "/update":
+    # Admin-only command to update from GitHub
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
+
+    if sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "❌ This command is admin-only.")
+
+    # Check for updates
+    update_available, latest_version, commits_behind = _check_for_updates()
+    current_version = _get_current_version()
+
+    if not update_available:
+      return _cmd_reply(cmd, f"✅ Already up to date ({current_version})")
+
+    # Store pending update confirmation
+    PENDING_UPDATE_CONFIRM[sender_key] = {
+      "current_version": current_version,
+      "latest_version": latest_version,
+      "commits_behind": commits_behind
+    }
+
+    confirm_msg = f"""📦 Update Available
+
+Current: {current_version}
+Latest: {latest_version}
+Commits behind: {commits_behind}
+
+⚠️ This will:
+• Pull latest changes from GitHub
+• Restart the service automatically
+• Brief downtime (10-30 seconds)
+
+Reply Y to update or N to cancel."""
+
+    return PendingReply(confirm_msg, "/update confirm")
 
   elif cmd == "/meshtastic":
     if not is_ai_enabled():
@@ -16869,6 +16968,13 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
     if check_only:
       return False
     return _process_wipe_confirmation(sender_id, text, is_direct, channel_idx)
+
+  # Check for pending update confirmation
+  if is_direct and sender_key and sender_key in PENDING_UPDATE_CONFIRM and not text.startswith("/"):
+    if check_only:
+      return False
+    return _process_update_confirmation(sender_key, text)
+
   if is_direct and sender_key and not text.startswith("/") and ONBOARDING_MANAGER.is_session_active(sender_key):
     if check_only:
       return False
@@ -17665,6 +17771,71 @@ def api_password_hint():
 # Version caching
 _version_cache = {'version': 'v2.0', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
+
+def _get_current_version():
+    """Get current version from git tags."""
+    try:
+        import subprocess
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        result = subprocess.run(
+            ['git', 'describe', '--tags', '--abbrev=0'],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=project_dir
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+def _check_for_updates():
+    """Check if a newer version is available on GitHub. Returns (is_update_available, latest_version, commits_behind)"""
+    try:
+        import subprocess
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Fetch latest from GitHub
+        result = subprocess.run(
+            ["git", "fetch", "origin", "main"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            return False, None, 0
+
+        # Check if we're behind origin/main
+        result = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD..origin/main"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        if result.returncode != 0:
+            return False, None, 0
+
+        commits_behind = int(result.stdout.strip() or "0")
+
+        # Get latest tag from origin/main
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0", "origin/main"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        latest_version = result.stdout.strip() if result.returncode == 0 else None
+
+        return commits_behind > 0, latest_version, commits_behind
+    except Exception:
+        return False, None, 0
 
 @app.route("/api/version", methods=["GET"])
 def api_version():
