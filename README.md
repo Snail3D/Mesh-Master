@@ -1408,9 +1408,27 @@ Issue reports and contributions are welcome via GitHub pull requests.
 
 ---
 
+## Support This Project ☕
+
+If you find Mesh Master useful, consider supporting its development!
+
+**💙 Buy Me a Coffee:** [buymeacoffee.com/Snail3D](https://buymeacoffee.com/Snail3D)
+
+**⭐ Star on GitHub:** [github.com/Snail3D/Mesh-Master](https://github.com/Snail3D/Mesh-Master)
+
+Your contributions help fund:
+- Feature development & bug fixes
+- Documentation & tutorials
+- Server costs for testing
+- Hardware for mesh field testing
+
+You can also use the `/donate` command in Mesh Master to see this info over the mesh!
+
+---
+
 ## Acknowledgements
 
-- Original Mesh Master project by [MR_TBOT](https://github.com/mr-tbot/mesh-master); this fork builds on that foundation with a focus on fully offline resilience.  
+- Original Mesh Master project by [MR_TBOT](https://github.com/mr-tbot/mesh-master); this fork builds on that foundation with a focus on fully offline resilience.
 - Thanks to the Meshtastic community researchers, testers, and field operators who supplied feedback, hardware profiles, and localization tweaks.
 
 ---
