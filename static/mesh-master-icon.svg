@@ -1,24 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Clean, minimal dark theme with double M -->
+  <!-- Futuristic MM Logo -->
   <defs>
-    <!-- Very dark background gradient -->
+    <!-- Dark space background gradient -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#000000;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0a0e17;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0a0d1a;stop-opacity:1" />
     </linearGradient>
 
-    <!-- Cool blue accent for the M letters -->
-    <linearGradient id="mGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1e88e5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#42a5f5;stop-opacity:1" />
+    <!-- Cyan-blue futuristic gradient -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#0095ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0066ff;stop-opacity:1" />
     </linearGradient>
 
-    <!-- Glow effect -->
+    <!-- Intense glow effect -->
     <filter id="glow">
-      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Outer glow -->
+    <filter id="outerGlow">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feFlood flood-color="#00d4ff" flood-opacity="0.6"/>
+      <feComposite in2="blur" operator="in" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
@@ -27,33 +40,33 @@
   <!-- Dark background with rounded corners -->
   <rect width="512" height="512" rx="90" fill="url(#bgGrad)"/>
 
-  <!-- Subtle border glow -->
-  <rect x="8" y="8" width="496" height="496" rx="82" fill="none" stroke="url(#mGrad)" stroke-width="2" opacity="0.3"/>
+  <!-- Subtle grid pattern for tech feel -->
+  <line x1="256" y1="0" x2="256" y2="512" stroke="#0066ff" stroke-width="0.5" opacity="0.1"/>
+  <line x1="0" y1="256" x2="512" y2="256" stroke="#0066ff" stroke-width="0.5" opacity="0.1"/>
 
-  <!-- Double M - Bold, clean, modern -->
-  <g filter="url(#glow)">
-    <!-- First M -->
-    <path d="M 100 340 L 100 172 L 145 240 L 190 172 L 190 340 L 160 340 L 160 240 L 145 265 L 130 240 L 130 340 Z"
-          fill="url(#mGrad)"
-          stroke="url(#mGrad)"
-          stroke-width="2"/>
-
-    <!-- Second M -->
-    <path d="M 322 340 L 322 172 L 367 240 L 412 172 L 412 340 L 382 340 L 382 240 L 367 265 L 352 240 L 352 340 Z"
-          fill="url(#mGrad)"
-          stroke="url(#mGrad)"
-          stroke-width="2"/>
+  <!-- MM text in futuristic style -->
+  <g filter="url(#outerGlow)">
+    <text x="256" y="320"
+          font-family="'Orbitron', 'Rajdhani', 'Exo 2', 'Share Tech Mono', monospace, sans-serif"
+          font-size="240"
+          font-weight="900"
+          letter-spacing="-10"
+          fill="url(#textGrad)"
+          text-anchor="middle"
+          style="font-stretch: condensed;">MM</text>
   </g>
 
-  <!-- Subtle connection line between the Ms -->
-  <line x1="210" y1="256" x2="302" y2="256"
-        stroke="url(#mGrad)"
-        stroke-width="3"
-        stroke-linecap="round"
-        opacity="0.4"/>
+  <!-- Accent lines - top and bottom -->
+  <g filter="url(#glow)" opacity="0.7">
+    <line x1="80" y1="140" x2="432" y2="140" stroke="url(#textGrad)" stroke-width="3" stroke-linecap="round"/>
+    <line x1="80" y1="372" x2="432" y2="372" stroke="url(#textGrad)" stroke-width="3" stroke-linecap="round"/>
+  </g>
 
-  <!-- Small decorative dots -->
-  <circle cx="256" cy="256" r="6" fill="url(#mGrad)" opacity="0.8"/>
-  <circle cx="240" cy="256" r="3" fill="url(#mGrad)" opacity="0.5"/>
-  <circle cx="272" cy="256" r="3" fill="url(#mGrad)" opacity="0.5"/>
+  <!-- Corner accents -->
+  <g stroke="url(#textGrad)" stroke-width="4" fill="none" opacity="0.5">
+    <path d="M 60 60 L 60 100 M 60 60 L 100 60"/>
+    <path d="M 452 60 L 412 60 M 452 60 L 452 100"/>
+    <path d="M 60 452 L 60 412 M 60 452 L 100 452"/>
+    <path d="M 452 452 L 452 412 M 452 452 L 412 452"/>
+  </g>
 </svg>

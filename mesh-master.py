@@ -16808,6 +16808,11 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
     model_reply = _process_model_selection(sender_key, text)
     if model_reply:
       return model_reply
+  # Check PENDING_WIPE_REQUESTS before onboarding to prevent interference
+  if is_direct and sender_key and sender_key in PENDING_WIPE_REQUESTS and not text.startswith("/"):
+    if check_only:
+      return False
+    return _process_wipe_confirmation(sender_id, text, is_direct, channel_idx)
   if is_direct and sender_key and not text.startswith("/") and ONBOARDING_MANAGER.is_session_active(sender_key):
     if check_only:
       return False
@@ -16827,10 +16832,6 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
     if check_only:
       return False
     return MAIL_MANAGER.handle_creation_response(sender_key, text)
-  if is_direct and sender_key and sender_key in PENDING_WIPE_REQUESTS and not text.startswith("/"):
-    if check_only:
-      return False
-    return _process_wipe_confirmation(sender_id, text, is_direct, channel_idx)
   if sender_key and sender_key in PENDING_BIBLE_NAV and not text.startswith("/"):
     trimmed = text.strip()
     if trimmed in {"1", "2"}:
@@ -18941,10 +18942,17 @@ def command_builder():
       box-shadow: 0 2px 8px var(--shadow);
     }
     .brand-title {
+      font-family: 'Orbitron', 'Rajdhani', 'Exo 2', 'Share Tech Mono', monospace, sans-serif;
       font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
+      font-weight: 900;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
+      background: linear-gradient(135deg, #00d4ff 0%, #0095ff 50%, #0066ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+      filter: drop-shadow(0 0 8px rgba(0, 149, 255, 0.4));
     }
     .header-link {
       font-size: 11px;
@@ -20658,6 +20666,9 @@ def dashboard():
 <head>
   <meta charset="utf-8">
   <title>MESH-MASTER Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style id="dashboardStyles">
     :root {
       --bg: #05070b;
