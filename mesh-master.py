@@ -8480,6 +8480,7 @@ def _command_alias_map() -> Dict[str, List[str]]:
 
 BUILTIN_COMMANDS = {
     "/about",
+    "/donate",
     "/ai",
     "/bot",
     "/data",
