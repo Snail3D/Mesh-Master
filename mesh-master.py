@@ -3594,7 +3594,7 @@ def _determine_server_port() -> int:
         config.get("web_port"),
         config.get("flask_port"),
         config.get("port"),
-        5000,
+        5001,
     ]
     for value in candidates:
         if value is None:
@@ -3605,7 +3605,7 @@ def _determine_server_port() -> int:
                 return port
         except Exception:
             continue
-    return 5000
+    return 5001
 
 
 SERVER_PORT = _determine_server_port()
@@ -30063,7 +30063,7 @@ def main():
     else:
         add_script_log("Radio watchdog TX disabled")
 
-    # Determine Flask port: prefer environment `MESH_MASTER_PORT`, then config keys, then default 5000
+    # Determine Flask port: prefer environment `MESH_MASTER_PORT`, then config keys, then default 5001
     flask_port = SERVER_PORT
     add_script_log(f"Launching Flask web interface on port {flask_port}...")
     api_thread = threading.Thread(
