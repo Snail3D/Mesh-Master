@@ -17249,13 +17249,12 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
     if reply_result is not None:
       return reply_result
 
-  if normalized in {"ping", "pong"}:
+  if normalized == "ping":
     if not is_auto_ping_enabled():
       return None if not check_only else False
     if check_only:
       return False
-    reply_text = "Pong!" if normalized == "ping" else "Ping!"
-    return PendingReply(reply_text, "ping pong auto")
+    return PendingReply("Pong!", "ping auto")
 
   quick_reply = None
   quick_reason = None
