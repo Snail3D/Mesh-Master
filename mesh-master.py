@@ -16637,12 +16637,12 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       # Get sender's shortname using existing helper function
       sender_name = get_node_shortname(sender_id)
 
-      # Forward to Telegram with shortname and reply instructions
-      telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}\n\n---\nReply with: /telegram <message>"
+      # Forward to Telegram with shortname (no reply instructions on Telegram side)
+      telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}"
       try:
         send_to_telegram(telegram_msg)
         clean_log(f"📱 Forwarded DM to Telegram from {sender_name}", show_always=True, rate_limit=False)
-        return _cmd_reply("telegram", f"✅ Message forwarded to Telegram admin.\n\nFrom: {sender_name}\nMessage: {user_message[:50]}{'...' if len(user_message) > 50 else ''}")
+        return _cmd_reply("telegram", "✅ Forwarded to Telegram.")
       except Exception as e:
         clean_log(f"❌ Failed to forward to Telegram: {e}", show_always=True, rate_limit=False)
         return _cmd_reply("telegram", "❌ Failed to forward message to Telegram. Bot may not be configured.")
@@ -18626,6 +18626,63 @@ def dashboard_create_desktop_shortcuts():
         return jsonify({"success": False, "error": "Shortcut creation timed out"}), 500
     except Exception as exc:
         clean_log(f"❌ Desktop shortcut creation failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/service/install", methods=["POST"])
+@require_auth
+def dashboard_install_service():
+    """Install Mesh Master as a system service"""
+    try:
+        import subprocess
+        import platform
+
+        # Get project directory
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Determine platform and script path
+        system = platform.system()
+
+        if system == "Darwin":  # macOS
+            script_path = os.path.join(project_dir, "scripts", "macos", "install_service.sh")
+            cmd = ["/bin/bash", script_path]
+        elif system == "Linux":
+            script_path = os.path.join(project_dir, "scripts", "linux", "install_service.sh")
+            cmd = ["sudo", "/bin/bash", script_path]
+        elif system == "Windows":
+            script_path = os.path.join(project_dir, "scripts", "windows", "install_service.bat")
+            cmd = [script_path]
+        else:
+            return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
+
+        clean_log(f"🔧 Installing service on {system}...", show_always=True, rate_limit=False)
+
+        # Run the install script
+        result = subprocess.run(
+            cmd,
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        if result.returncode == 0:
+            clean_log(f"✅ Service installed successfully on {system}", show_always=True, rate_limit=False)
+            return jsonify({
+                "success": True,
+                "message": f"Service installed! Mesh Master will now start automatically on boot and restart on crashes.",
+                "output": result.stdout,
+                "platform": system
+            })
+        else:
+            error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
+            clean_log(f"❌ Service installation failed: {error_msg}", show_always=True, rate_limit=False)
+            return jsonify({"success": False, "error": error_msg, "output": result.stdout}), 500
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Service installation timed out (60s limit)"}), 500
+    except Exception as exc:
+        clean_log(f"❌ Service installation failed: {exc}", show_always=True, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -23096,7 +23153,8 @@ def dashboard():
         </div>
         <div class="passphrase-card">
           <label>🖥️ Desktop Launcher & Service<span class="help-icon" data-explainer="Create desktop shortcuts and install Mesh Master as a system service for automatic startup and restart." data-explainer-placement="right">?</span></label>
-          <button type="button" id="showSetupInstructionsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📋 Show Setup Instructions</button>
+          <button type="button" id="installServiceBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">🚀 Install as System Service</button>
+          <button type="button" id="showSetupInstructionsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📋 Show Manual Setup Commands</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Platform-specific commands for desktop launcher and auto-restart service.</p>
         </div>
         <div class="passphrase-card">
@@ -26836,6 +26894,44 @@ def dashboard():
       });
     }
 
+    async function onInstallService() {
+      const btn = $("installServiceBtn");
+      if (!btn) return;
+
+      if (!confirm('🚀 INSTALL SYSTEM SERVICE\n\nThis will:\n• Install Mesh Master as a system service\n• Enable auto-start on boot\n• Enable auto-restart on crashes\n\nContinue?')) {
+        return;
+      }
+
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Installing service...';
+
+      try {
+        const response = await fetch('/dashboard/service/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Service Installed Successfully!\n\n${data.message}\n\nPlatform: ${data.platform}\n\nMesh Master will now:\n• Start automatically on boot\n• Restart automatically after crashes\n• Restart automatically after /update command`);
+          btn.textContent = '✅ Service Installed!';
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+          }, 3000);
+        } else {
+          alert(`❌ Service Installation Failed\n\n${data.error}\n\nYou may need to run the install script manually. Click "Show Manual Setup Commands" for instructions.`);
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert(`❌ Service installation request failed: ${err.message}`);
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+
     async function onSystemReboot() {
       if (!confirm('⚠️ SYSTEM REBOOT\n\nThis will restart the entire mesh-master server.\n\nAre you sure you want to reboot?')) {
         return;
@@ -27655,6 +27751,10 @@ def dashboard():
       const updateApplyBtn = $("updateApplyBtn");
       if (updateApplyBtn) {
         updateApplyBtn.addEventListener('click', onUpdateApply);
+      }
+      const installServiceBtn = $("installServiceBtn");
+      if (installServiceBtn) {
+        installServiceBtn.addEventListener('click', onInstallService);
       }
       const showSetupBtn = $("showSetupInstructionsBtn");
       if (showSetupBtn) {
@@ -30465,7 +30565,9 @@ if TELEGRAM_AVAILABLE:
 
                         def send_dm():
                             try:
-                                interface.sendText(message_text, destinationId=target_node_id)
+                                # Add reply instructions to message sent to mesh user
+                                message_with_instructions = f"{message_text}\n\n---\nReply with: telegram <message>"
+                                interface.sendText(message_with_instructions, destinationId=target_node_id)
                                 # Send simple confirmation to Telegram
                                 import requests
                                 bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
