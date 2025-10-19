@@ -8956,8 +8956,8 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         {
             "label": "Information & Help",
             "commands": [
-                "/about", "/help", "/menu", "/motd",
-                "/meshinfo", "/meshtastic", "/weather", "/whereami", "/elpaso",
+                "/about", "/donate", "/help", "/menu", "/motd",
+                "/meshinfo", "/meshtastic", "/weather", "/whereami",
                 "/onboard", "/onboarding", "/onboardme",
             ],
         },
@@ -8968,6 +8968,7 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
             "label": "AI Settings",
             "commands": [
                 "/vibe", "/aipersonality", "/aisettings", "/reset", "/chathistory",
+                "/save", "/recall",
             ],
         },
     ),
@@ -8986,7 +8987,7 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
             "label": "Logs & Reports",
             "commands": [
                 "/log", "/checklog", "/report", "/checkreport",
-                "/save", "/recall", "/data", "/find",
+                "/data", "/find",
             ],
         },
     ),
@@ -9005,9 +9006,18 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         {
             "label": "Games & Entertainment",
             "commands": [
-                "/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/adventure", "/wordladder",
-                "/rps", "/coinflip", "/cipher", "/quizbattle", "/morse", "/mathquiz", "/electricalquiz",
+                "/games", "/blackjack", "/yahtzee", "/hangman", "/wordle", "/wordladder",
+                "/rps", "/coinflip", "/quizbattle", "/morse", "/mathquiz", "/electricalquiz",
                 "/jokes", "/chucknorris", "/blond", "/yomomma", "/joke",
+            ],
+        },
+    ),
+    (
+        "network",
+        {
+            "label": "Network & Nodes",
+            "commands": [
+                "/nodes", "/node", "/networks", "/optout", "/optin",
             ],
         },
     ),
@@ -9016,7 +9026,7 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         {
             "label": "Utilities",
             "commands": [
-                "/alarm", "/timer", "/stopwatch", "/test", "/offline",
+                "/alarm", "/timer", "/stopwatch", "/test", "/offline", "/system",
             ],
         },
     ),
@@ -9025,9 +9035,9 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         {
             "label": "Admin & System",
             "commands": [
-                "/stop", "/exit", "/reboot", "/hop", "/hops",
+                "/stop", "/exit", "/reboot", "/update", "/hop", "/hops",
                 "/changeprompt", "/showprompt", "/printprompt", "/changemotd",
-                "/showmodel", "/selectmodel",
+                "/showmodel", "/selectmodel", "/telegram", "/unban",
             ],
         },
     ),
@@ -9136,6 +9146,8 @@ def gather_feature_snapshot() -> Dict[str, Any]:
         category_label = category["label"]
         for cmd in category["commands"]:
             aliases = alias_map.get(cmd, [])
+            # /about and /donate are always enabled and cannot be toggled
+            is_always_on = cmd in ["/about", "/donate"]
             entries.append(
                 {
                     "name": cmd,
@@ -9143,6 +9155,7 @@ def gather_feature_snapshot() -> Dict[str, Any]:
                     "aliases": aliases,
                     "summary": COMMAND_SUMMARIES.get(cmd),
                     "category": category_label,
+                    "always_enabled": is_always_on,
                 }
             )
         categories.append(
@@ -17097,6 +17110,24 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       return False
     return _process_update_confirmation(sender_key, text)
 
+  # Check mailbox creation BEFORE onboarding (higher priority for pending confirmations)
+  # BUT skip if onboarding is active and in mail_wizard stage (let onboarding handle it)
+  onboarding_in_mail_wizard = (
+    ONBOARDING_MANAGER.is_session_active(sender_key) and
+    ONBOARDING_MANAGER.get_session_stage(sender_key) == 'mail_wizard'
+  )
+  if (
+    is_direct and
+    sender_key and
+    MAIL_MANAGER.has_pending_creation(sender_key) and
+    not text.startswith("/") and
+    not onboarding_in_mail_wizard
+  ):
+    if check_only:
+      return False
+    return MAIL_MANAGER.handle_creation_response(sender_key, text)
+
+  # Check onboarding AFTER other pending confirmations
   if is_direct and sender_key and not text.startswith("/") and ONBOARDING_MANAGER.is_session_active(sender_key):
     if check_only:
       return False
@@ -17112,10 +17143,6 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
     )
     if onboarding_reply:
       return onboarding_reply
-  if is_direct and sender_key and MAIL_MANAGER.has_pending_creation(sender_key) and not text.startswith("/"):
-    if check_only:
-      return False
-    return MAIL_MANAGER.handle_creation_response(sender_key, text)
   if sender_key and sender_key in PENDING_BIBLE_NAV and not text.startswith("/"):
     trimmed = text.strip()
     if trimmed in {"1", "2"}:
@@ -22200,6 +22227,17 @@ def dashboard():
       color: var(--warning);
       font-weight: 600;
     }
+    .command-item.always-enabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    .command-item.always-enabled input[type="checkbox"] {
+      cursor: not-allowed;
+    }
+    .command-item.always-enabled span {
+      color: var(--text-muted);
+      font-style: italic;
+    }
     .feature-empty {
       font-size: 12.5px;
       color: var(--text-secondary);
@@ -26999,6 +27037,7 @@ def dashboard():
           const uniqueAliases = Array.from(new Set(aliasList));
           const summary = entry && entry.summary ? String(entry.summary) : '';
           const categoryName = entry && entry.category ? String(entry.category) : (cat.label || cat.id || '');
+          const alwaysEnabled = entry && entry.always_enabled === true;
           const item = document.createElement('label');
           item.className = 'command-item';
           item.dataset.command = name;
@@ -27006,9 +27045,16 @@ def dashboard():
           checkbox.type = 'checkbox';
           checkbox.dataset.command = name;
           const isEnabled = !featureState.disabledCommands.has(name);
-          checkbox.checked = isEnabled;
-          item.classList.toggle('is-disabled', !isEnabled);
-          checkbox.addEventListener('change', onCommandToggle);
+          checkbox.checked = alwaysEnabled ? true : isEnabled;
+          checkbox.disabled = alwaysEnabled;
+          item.classList.toggle('is-disabled', !isEnabled && !alwaysEnabled);
+          if (alwaysEnabled) {
+            item.classList.add('always-enabled');
+            item.title = 'This command is always enabled and cannot be toggled off';
+          }
+          if (!alwaysEnabled) {
+            checkbox.addEventListener('change', onCommandToggle);
+          }
           const span = document.createElement('span');
           span.textContent = name;
           if (summary || uniqueAliases.length || categoryName) {
