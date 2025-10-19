@@ -129,21 +129,13 @@ PLIST_PATH="$LAUNCH_AGENTS_DIR/$PLIST_NAME"
 # Create LaunchAgents directory if it doesn't exist
 mkdir -p "$LAUNCH_AGENTS_DIR"
 
-# Check if service is already installed
+# Check if service is already installed and remove it automatically
 if [[ -f "$PLIST_PATH" ]]; then
-    echo -e "${YELLOW}⚠️  Mesh Master service is already installed${NC}"
-    echo ""
-    read -p "Do you want to reinstall? (y/N) " -n 1 -r
-    echo ""
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled."
-        exit 0
-    fi
-
-    # Unload existing service
-    echo "Unloading existing service..."
+    echo -e "${YELLOW}⚠️  Removing existing Mesh Master service...${NC}"
     launchctl unload "$PLIST_PATH" 2>/dev/null || true
     rm "$PLIST_PATH"
+    echo -e "${GREEN}✓${NC} Old service removed"
+    echo ""
 fi
 
 # Find Python 3 path
@@ -225,6 +217,26 @@ launchctl load "$PLIST_PATH"
 # Give it a moment to start
 sleep 2
 
+# Create desktop shortcuts
+echo "Creating desktop shortcuts..."
+if [[ -f "$PROJECT_DIR/scripts/desktop/create_shortcuts.py" ]]; then
+    # Find Python (prefer venv if exists)
+    SHORTCUT_PYTHON="$PYTHON_PATH"
+    if [[ -f "$PROJECT_DIR/.venv/bin/python" ]]; then
+        SHORTCUT_PYTHON="$PROJECT_DIR/.venv/bin/python"
+    fi
+
+    "$SHORTCUT_PYTHON" "$PROJECT_DIR/scripts/desktop/create_shortcuts.py" 2>/dev/null
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✓${NC} Desktop shortcuts created"
+    else
+        echo -e "${YELLOW}⚠️${NC} Desktop shortcuts skipped (optional)"
+    fi
+else
+    echo -e "${YELLOW}⚠️${NC} Desktop shortcut script not found (optional)"
+fi
+echo ""
+
 # Check if it's running
 if launchctl list | grep -q "com.meshmaster"; then
     echo ""
@@ -236,6 +248,10 @@ if launchctl list | grep -q "com.meshmaster"; then
     echo "  • Start automatically on login"
     echo "  • Restart automatically if it crashes"
     echo "  • Restart automatically after /update command"
+    echo ""
+    echo "Desktop shortcuts created:"
+    echo "  • Start Mesh Master (launches dashboard)"
+    echo "  • Stop Mesh Master (stops service)"
     echo ""
     echo "Useful commands:"
     echo "  • Check status:  launchctl list | grep meshmaster"
