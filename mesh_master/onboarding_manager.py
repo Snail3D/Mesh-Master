@@ -76,6 +76,16 @@ class OnboardingManager:
                 return False
             return session.get("status") == "active" and session.get("stage") != "complete"
 
+    def get_session_stage(self, sender_key: Optional[str]) -> Optional[str]:
+        """Get the current stage of an onboarding session."""
+        if not sender_key:
+            return None
+        with self._lock:
+            session = self._sessions.get(sender_key)
+            if not session:
+                return None
+            return session.get("stage")
+
     def start_session(
         self,
         *,
