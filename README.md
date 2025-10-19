@@ -210,6 +210,147 @@ This ensures:
 
 ---
 
+## For Developers & AI Assistants
+
+### 🚨 Security-First Development
+
+**STOP!** Before making any code changes, read these critical documents:
+
+1. **[SECURITY_INSTRUCTIONS.md](SECURITY_INSTRUCTIONS.md)** — Complete security guidelines
+2. **[CLAUDE.md](CLAUDE.md)** — Full project context and architecture
+
+#### Security Incident History
+
+**October 19, 2025** — Credential exposure incident where `config.json` (containing dashboard password and Tailscale auth key) was accidentally committed to GitHub.
+
+**Resolution:**
+- Used `git filter-repo` to purge entire history
+- Removed all personal data files (logs, mail, conversations, wiki cache)
+- Created comprehensive security documentation
+- Established strict gitignore policies
+- Force-pushed clean history to GitHub
+
+**Lesson:** Even one accidental commit can expose credentials in git history forever. Prevention is critical.
+
+#### Protected Files (NEVER COMMIT)
+
+These files contain sensitive data and **must never** be committed:
+
+**Credentials:**
+- `config.json` — Admin password, API keys, Tailscale auth tokens
+- `*.pem`, `*.key`, `*_rsa`, `*_ed25519` — SSH keys, deploy keys
+
+**User Data:**
+- `data/logs/` — Private user logs
+- `data/mail_security.json` — Mailbox PINs, encryption keys
+- `data/saved_contexts.json` — Encrypted conversations
+- `data/user_ai_settings.json` — User preferences
+- `data/offline_wiki/`, `data/offline_crawl/` — Search/browsing history
+
+**System Files:**
+- `*.log`, `*.db`, `*.backup` — Runtime data
+
+#### If You Accidentally Commit Credentials
+
+1. **STOP** — Don't commit anything else
+2. **READ** — Open SECURITY_INSTRUCTIONS.md
+3. **ROTATE** — Change all exposed credentials immediately
+4. **PURGE** — Use git filter-repo to remove from history
+5. **FORCE PUSH** — Update GitHub with clean history
+6. **NOTIFY** — Alert users if credentials were public
+
+### 🤖 AI Assistant Starter Prompt
+
+<details>
+<summary><b>Click to expand starter prompt for Claude/ChatGPT/other AI assistants</b></summary>
+
+```
+I'm working on Mesh Master, an off-grid AI operations suite for Meshtastic LoRa mesh networks.
+
+CRITICAL SECURITY INSTRUCTIONS:
+
+Before making ANY changes to this codebase, you MUST:
+1. Read SECURITY_INSTRUCTIONS.md completely
+2. Review CLAUDE.md for project architecture
+3. NEVER commit these files to git:
+   - config.json (contains passwords, API keys)
+   - data/ directory (user data, logs, mail)
+   - *.log, *.db, *.backup files
+   - SSH keys (*.pem, *.key, *_rsa, *_ed25519)
+
+SECURITY INCIDENT HISTORY:
+- October 19, 2025: config.json with credentials accidentally committed
+- Resolution: git filter-repo history purge, force push to GitHub
+- Lesson: Even one accidental commit exposes credentials forever
+
+PROTECTED DEVELOPMENT RULES:
+1. Always check git status before committing
+2. Run security audit commands from SECURITY_INSTRUCTIONS.md
+3. config.json.example is the template (safe to commit)
+4. config.json is the live file (NEVER commit)
+5. setup.sh automatically copies .example to live on first run
+
+PROJECT CONTEXT:
+- Main file: mesh-master.py (~27,000+ lines)
+- Language: Python 3.11+
+- Framework: Flask (dashboard), Meshtastic (mesh communication)
+- AI: Ollama (local LLMs like llama3.2:1b, wizard-math:7b)
+- Database: SQLite (mesh_mail.db)
+- Platform: Cross-platform (Pi, macOS, Windows, Docker)
+
+KEY FEATURES:
+- Network bridge relay with ACK tracking
+- PIN-protected mesh mail system
+- Offline knowledge (Wikipedia, web crawl cache)
+- 20+ multiplayer games
+- Interactive onboarding
+- Auto-update system
+- Desktop shortcuts (cross-platform)
+- Telegram bot integration
+- Real-time dashboard with metrics
+
+QUICK REFERENCE:
+- Dashboard: http://localhost:5000/dashboard
+- Logs: tail -f mesh-master.log
+- Service: sudo systemctl status mesh-ai
+- Git repo: https://github.com/Snail3D/Mesh-Master
+
+Now, please confirm you've read SECURITY_INSTRUCTIONS.md and CLAUDE.md before we begin.
+```
+
+</details>
+
+### Development Workflow
+
+**Initial setup:**
+```bash
+git clone https://github.com/Snail3D/Mesh-Master.git
+cd Mesh-Master
+./setup.sh  # Creates config.json from template
+nano config.json  # CHANGE admin_password and add your credentials
+```
+
+**Before committing:**
+```bash
+git status  # Check for sensitive files
+git diff    # Review all changes
+# Verify no config.json, data/, or *.log files staged
+```
+
+**Security audit commands** (from SECURITY_INSTRUCTIONS.md):
+```bash
+# Check for exposed credentials in staged files
+git diff --cached | grep -i "password\|token\|key\|secret"
+
+# Check for data files about to be committed
+git status | grep -E "(config\.json|data/|\.log|\.db|\.pem|\.key)"
+
+# List all gitignored files (should include data/, *.log, etc.)
+git status --ignored
+```
+
+---
+
 ### Relay System (Network Bridge)
 
 The relay system enables cross-network message delivery using shortnames.
@@ -1001,41 +1142,206 @@ pip install -r requirements.txt --force-reinstall
 
 ---
 
-## Container Workflow
+## Docker Installation (Easiest!)
 
-Build the 2.0 image locally so you run the exact code in this repository:
+### What is Docker? (Explain Like I'm 5)
 
+**Without Docker:** "Build a treehouse"
+- Find the right wood (install Python)
+- Get the right tools (install libraries)
+- Hope it works on YOUR computer
+- Pray it works on your friend's computer too
+
+**With Docker:** "Magic box that contains the complete treehouse"
+- Already has the right wood (Python built-in)
+- Already has all the tools (all libraries included)
+- Works EXACTLY the same on ANY computer
+- Your Raspberry Pi, Mac, Windows PC, or cloud server - doesn't matter!
+
+**Why use Docker for Mesh Master?**
+- ✅ No Python version conflicts
+- ✅ No library installation headaches
+- ✅ Everything isolated (won't mess with other programs)
+- ✅ Update with one command: `docker pull` → restart
+- ✅ Same exact environment everywhere
+
+### Quick Start
+
+**Prerequisites:**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/Mac)
+- Docker Engine (Linux: `curl -fsSL https://get.docker.com | sh`)
+
+**Step 1: Clone and Setup**
 ```bash
-docker build -t mesh-master:2.0 .
+git clone https://github.com/Snail3D/Mesh-Master.git
+cd Mesh-Master
+
+# Create config.json from template
+./setup.sh
+
+# Edit config with your settings
+nano config.json  # Change admin_password, configure serial/WiFi
 ```
 
-Minimal compose example:
+**Step 2: Build the Image**
+```bash
+docker build -t mesh-master:latest .
+```
 
+**Step 3: Run with Docker Compose**
+
+Create `docker-compose.yml`:
 ```yaml
 services:
   mesh-master:
-    image: mesh-master:2.0
+    image: mesh-master:latest
     container_name: mesh-master
-    privileged: true
+    privileged: true  # Required for serial device access
     ports:
-      - "5000:5000"
+      - "5000:5000"  # Dashboard access
     volumes:
-      - ./config.json:/app/config.json:ro
-      - ./commands_config.json:/app/commands_config.json:ro
-      - ./motd.json:/app/motd.json:ro
+      # Configuration (IMPORTANT: Edit config.json before running)
+      - ./config.json:/app/config.json
+      - ./commands_config.json:/app/commands_config.json
+      - ./motd.json:/app/motd.json
+
+      # Data persistence (survives container restarts)
       - ./data:/app/data
-      - ./state/mesh-master.log:/app/mesh-master.log
-      - ./state/messages.log:/app/messages.log
-      - ./state/messages_archive.json:/app/messages_archive.json
-      - ./state/script.log:/app/script.log
-      - ./state/mesh_mailboxes.json:/app/mesh_mailboxes.json
-      - ./state/mesh_mail.db:/app/mesh_mail.db
+
+      # Logs
+      - ./mesh-master.log:/app/mesh-master.log
+      - ./messages.log:/app/messages.log
+      - ./messages_archive.json:/app/messages_archive.json
+      - ./script.log:/app/script.log
+
+      # Mail database
+      - ./mesh_mail.db:/app/mesh_mail.db
+
+      # For USB serial (uncomment if using serial connection)
+      # - /dev/serial/by-id:/dev/serial/by-id:ro
+      # - /dev:/dev
+
+    # For WiFi connection - no special volumes needed
+    # Just set use_wifi: true in config.json
+
     restart: unless-stopped
+
+    # Optional: Serial device health check (modify for your device)
+    # healthcheck:
+    #   test: ["CMD", "ls", "/dev/serial/by-id/usb-YOUR-DEVICE-HERE"]
+    #   interval: 30s
+    #   retries: 3
+    #   timeout: 5s
 ```
 
-If you rely on USB serial, also bind `/dev/serial/by-id` (read-only) and `/dev` as needed, and set `MESH_INTERFACE`/`serial_port` accordingly.
+**Step 4: Start Mesh Master**
+```bash
+docker compose up -d  # Start in background
+docker compose logs -f  # View logs
+```
 
-Create the `state` directory (and `touch` the files listed above) before the first run so Docker can mount them successfully.
+**Step 5: Access Dashboard**
+Open browser: `http://localhost:5000/dashboard`
+
+### Docker Commands Cheat Sheet
+
+```bash
+# Start Mesh Master
+docker compose up -d
+
+# View logs (real-time)
+docker compose logs -f
+
+# Stop Mesh Master
+docker compose down
+
+# Restart after config changes
+docker compose restart
+
+# Update to latest code
+git pull origin main
+docker compose build
+docker compose up -d
+
+# Enter container shell (for debugging)
+docker compose exec mesh-master bash
+
+# View resource usage
+docker stats mesh-master
+
+# Clean up old images
+docker system prune -a
+```
+
+### Serial Connection (USB)
+
+If using USB serial (RAK4631, etc.), uncomment these lines in `docker-compose.yml`:
+
+```yaml
+volumes:
+  - /dev/serial/by-id:/dev/serial/by-id:ro
+  - /dev:/dev
+```
+
+Find your device path:
+```bash
+ls -la /dev/serial/by-id/
+```
+
+Update `config.json`:
+```json
+{
+  "use_wifi": false,
+  "serial_port": "/dev/serial/by-id/usb-RAKwireless_...",
+  "serial_baud": 38400
+}
+```
+
+### WiFi Connection (Easier!)
+
+No special Docker setup needed - just configure `config.json`:
+
+```json
+{
+  "use_wifi": true,
+  "wifi_host": "192.168.1.100",  # Your Meshtastic device IP
+  "wifi_port": 4403
+}
+```
+
+### Troubleshooting Docker
+
+**Container won't start:**
+```bash
+docker compose logs  # Check error messages
+```
+
+**Permission denied for serial:**
+```bash
+# Add your user to dialout group (Linux)
+sudo usermod -a -G dialout $USER
+# Log out and back in
+
+# On some systems, set privileged: true in compose file
+```
+
+**Dashboard not accessible:**
+```bash
+# Check if container is running
+docker ps
+
+# Check port binding
+docker port mesh-master
+
+# Try accessing from host
+curl http://localhost:5000/ready
+```
+
+**Want to rebuild after code changes:**
+```bash
+docker compose build --no-cache
+docker compose up -d
+```
 
 ---
 

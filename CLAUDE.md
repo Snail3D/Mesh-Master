@@ -260,9 +260,28 @@ If Mesh Master sees multiple networks (e.g., YourNet + LongFast), it bridges the
 - `logs_max_entries` - Max log entries per user
 - `reports_max_entries` - Max report entries
 
+**Auto-Update System:**
+- `auto_update_enabled` - Enable automatic updates (default: false)
+- `auto_update_check_interval_hours` - How often to check GitHub (default: 24.0)
+
+**Dashboard:**
+- `admin_password` - Dashboard login password (CHANGE THIS!)
+
 ### Feature Flags ([feature_flags.json](feature_flags.json))
 - Command enable/disable toggles
 - Message mode: `broadcast`, `dm`, or `both`
+
+### Setup Files
+
+**config.json.example** - Template configuration
+- Safe defaults for all settings
+- Placeholder values for credentials
+- Auto-copied by setup.sh on first clone
+
+**setup.sh** - Automatic configuration setup
+- Creates config.json from template if missing
+- Preserves existing config.json
+- Works on Windows (Git Bash), macOS, Linux
 
 ---
 
@@ -327,15 +346,30 @@ If Mesh Master sees multiple networks (e.g., YourNet + LongFast), it bridges the
    - All commands by category
    - Collapsible sections
    - Command descriptions
+   - Desktop shortcuts button (creates Start/Stop icons)
 
 6. **GitHub Version Control**
    - Current branch/version
    - Switch branches
    - Update from remote
+   - Manual update check button
 
-7. **Configuration Editor**
+7. **Auto-Update System**
+   - Background worker checks GitHub main branch
+   - Configurable check interval (default: 24 hours)
+   - Dashboard toggle to enable/disable
+   - Automatically pulls and restarts when updates found
+
+8. **Configuration Editor**
    - Edit settings by category
    - Inline help tooltips
+
+9. **Desktop Shortcuts**
+   - Create branded Start/Stop icons on desktop
+   - Cross-platform (Windows .lnk, macOS .app, Linux .desktop)
+   - Start: Kills old instances, opens browser to dashboard
+   - Stop: Kills all Mesh Master processes and zombies
+   - Icons match dashboard aesthetic (#3c92ff accent)
 
 **Health Endpoints:**
 - `GET /ready` - Radio link status (200 = up, 503 = down)
@@ -349,10 +383,25 @@ If Mesh Master sees multiple networks (e.g., YourNet + LongFast), it bridges the
 
 ## Development Workflow
 
+### First-Time Setup
+```bash
+# Clone the repository
+git clone https://github.com/Snail3D/Mesh-Master.git
+cd Mesh-Master
+
+# Run setup script to create config.json
+./setup.sh
+
+# Edit config.json with your settings
+nano config.json  # or vim, code, etc.
+
+# IMPORTANT: Change admin_password, add API keys, configure serial/WiFi
+```
+
 ### Running Locally
 ```bash
 cd /home/snailpi/Programs/mesh-ai
-source .venv/bin/activate
+source .venv/bin/activate  # if using venv
 NO_BROWSER=1 python mesh-master.py
 ```
 
@@ -435,13 +484,62 @@ rm data/user_ai_settings.json
 
 ## Security & Privacy
 
+### ⚠️ CRITICAL: Security Documentation
+
+**BEFORE MAKING ANY CHANGES**, read these files:
+- **[SECURITY_INSTRUCTIONS.md](SECURITY_INSTRUCTIONS.md)** - Complete security guidelines for developers and AI assistants
+- **[CLAUDE.md](CLAUDE.md)** - This file - project context and architecture
+
+### Protected Files (NEVER COMMIT)
+
+The following files contain sensitive data and **must never** be committed to git:
+
+**Credentials & Configuration:**
+- `config.json` - Contains `admin_password`, Tailscale keys, API keys
+- `*.pem`, `*.key`, `*_rsa`, `*_ed25519` - SSH keys and deploy keys
+
+**User Data & Privacy:**
+- `data/logs/` - Private user logs
+- `data/mail_security.json` - Mailboxes, messages, PIN hashes
+- `data/saved_contexts.json` - Private conversations
+- `data/user_ai_settings.json` - User preferences
+- `data/user_access.json` - Access control data
+
+**Offline Content (Personal):**
+- `data/offline_wiki/` - Cached Wikipedia articles (search history)
+- `data/offline_crawl/` - Cached web pages (browsing history)
+
+**System Files:**
+- `*.log` - Application logs (may contain message content)
+- `*.db` - Databases (may contain user data)
+- `*.backup` - Backup files
+
+### Security Incidents Reference
+
+**2025-10-19: Credential Exposure** - `config.json` was accidentally committed containing dashboard password and Tailscale auth key. Resolved with `git filter-repo` history purge.
+
+**Action taken:**
+- Purged config.json from entire git history
+- Purged all personal data files
+- Created SECURITY_INSTRUCTIONS.md
+- Added comprehensive .gitignore
+- Force-pushed to GitHub
+
+**If credentials are exposed:**
+1. STOP - Do not commit anything else
+2. Read SECURITY_INSTRUCTIONS.md
+3. Change all exposed credentials immediately
+4. Use `git filter-repo` to purge from history
+5. Force push to GitHub
+6. Rotate all exposed keys/passwords
+
 ### Message Content Redaction
 All debug/info logs redact message content (show `[X chars]` instead of full text).
 
 ### PIN Protection
 - Mesh Mail: Optional PIN for mailboxes
 - Brute-force throttling (exponential backoff)
-- Stored in `data/mail_security.json`
+- Stored in `data/mail_security.json` (gitignored)
 
 ### URL Content Filter
 - Blocks adult and warez sites from `/web` crawling and search results
@@ -450,14 +548,10 @@ All debug/info logs redact message content (show `[X chars]` instead of full tex
 ### Relay Privacy
 - `/optout` - Disable receiving relays
 - `/optin` - Re-enable relays
-- Preferences persist in `data/relay_optout.json`
+- Preferences persist in `data/relay_optout.json` (gitignored)
 
 ### Git Ignore
-All sensitive data gitignored:
-- `data/` (logs, reports, settings)
-- `*.log`
-- `*.db`
-- `config.json` (if contains secrets)
+All sensitive data gitignored (see .gitignore for complete list)
 
 ---
 
