@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient matching dashboard -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#05070b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f1620;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3c92ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#569cd6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded rectangle -->
+  <rect width="512" height="512" rx="100" fill="url(#bgGrad)"/>
+
+  <!-- Mesh network nodes (hexagonal pattern) -->
+  <g fill="url(#accentGrad)" opacity="0.3">
+    <circle cx="256" cy="150" r="30"/>
+    <circle cx="180" cy="240" r="25"/>
+    <circle cx="332" cy="240" r="25"/>
+    <circle cx="150" cy="350" r="20"/>
+    <circle cx="256" cy="370" r="20"/>
+    <circle cx="362" cy="350" r="20"/>
+  </g>
+
+  <!-- Connection lines -->
+  <g stroke="url(#accentGrad)" stroke-width="8" opacity="0.4" stroke-linecap="round">
+    <line x1="256" y1="150" x2="180" y2="240"/>
+    <line x1="256" y1="150" x2="332" y2="240"/>
+    <line x1="180" y1="240" x2="150" y2="350"/>
+    <line x1="180" y1="240" x2="256" y2="370"/>
+    <line x1="332" y1="240" x2="256" y2="370"/>
+    <line x1="332" y1="240" x2="362" y2="350"/>
+  </g>
+
+  <!-- Central large node (active) -->
+  <circle cx="256" cy="256" r="60" fill="url(#accentGrad)"/>
+  <circle cx="256" cy="256" r="45" fill="#05070b" opacity="0.6"/>
+  <circle cx="256" cy="256" r="30" fill="url(#accentGrad)"/>
+
+  <!-- Signal waves (radio transmission) -->
+  <g stroke="#3c92ff" stroke-width="6" fill="none" opacity="0.6">
+    <path d="M 200 220 Q 200 200 220 200" stroke-linecap="round"/>
+    <path d="M 180 200 Q 180 170 200 170" stroke-linecap="round"/>
+    <path d="M 312 220 Q 312 200 292 200" stroke-linecap="round"/>
+    <path d="M 332 200 Q 332 170 312 170" stroke-linecap="round"/>
+  </g>
+
+  <!-- "MM" text (Mesh Master) -->
+  <text x="256" y="280" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#d7deed" text-anchor="middle">MM</text>
+</svg>
