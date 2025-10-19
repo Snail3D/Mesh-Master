@@ -26,18 +26,52 @@ echo.
 
 REM Verify we're in the Mesh Master project directory
 if not exist "%PROJECT_DIR%\mesh-master.py" (
-    echo ERROR: mesh-master.py not found!
+    echo WARNING: Mesh-Master not found in current directory
     echo.
-    echo This script must be run from the Mesh Master project directory.
+    echo Would you like to download Mesh-Master to %USERPROFILE%\Mesh-Master?
     echo.
-    echo Please navigate to your Mesh-Master folder and try again:
-    echo   cd C:\path\to\Mesh-Master
-    echo   scripts\windows\install_service.bat
+    set /p DOWNLOAD_CHOICE="Download? (Y/n): "
+
+    if /i "%DOWNLOAD_CHOICE%"=="n" (
+        echo.
+        echo Please clone Mesh-Master manually:
+        echo   git clone https://github.com/Snail3D/Mesh-Master.git
+        echo   cd Mesh-Master
+        echo   scripts\windows\install_service.bat
+        pause
+        exit /b 1
+    )
+
+    REM Check if git is installed
+    where git >nul 2>&1
+    if %errorLevel% neq 0 (
+        echo ERROR: git is not installed
+        echo.
+        echo Please install Git for Windows from: https://git-scm.com/download/win
+        pause
+        exit /b 1
+    )
+
+    REM Check if directory already exists
+    if exist "%USERPROFILE%\Mesh-Master" (
+        echo ERROR: %USERPROFILE%\Mesh-Master already exists
+        echo Please remove it first or clone manually to a different location
+        pause
+        exit /b 1
+    )
+
+    echo Cloning Mesh-Master repository...
+    git clone https://github.com/Snail3D/Mesh-Master.git "%USERPROFILE%\Mesh-Master"
+
+    if %errorLevel% neq 0 (
+        echo ERROR: Failed to clone repository
+        pause
+        exit /b 1
+    )
+
+    echo [OK] Downloaded Mesh-Master to %USERPROFILE%\Mesh-Master
+    set PROJECT_DIR=%USERPROFILE%\Mesh-Master
     echo.
-    echo Or right-click the script and "Run as administrator"
-    echo from within the Mesh-Master folder.
-    pause
-    exit /b 1
 )
 
 REM Additional verification - check for key files
