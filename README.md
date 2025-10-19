@@ -11,6 +11,8 @@
 
 ## 🚀 Quick Install (One Command)
 
+Copy, paste, press Enter — you're done!
+
 **macOS:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/macos/install_service.sh | bash
@@ -26,14 +28,14 @@ curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/lin
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/install_service.bat" -OutFile "$env:TEMP\install_mesh.bat"; & "$env:TEMP\install_mesh.bat"
 ```
 
-These scripts will:
-- ✅ Automatically find or download Mesh Master
-- ✅ Install as a system service (auto-start on boot)
-- ✅ Set up auto-restart on crashes
-- ✅ Configure dashboard access
-- ✅ No manual setup required!
+**What happens:**
+- ✅ Finds or downloads Mesh Master automatically
+- ✅ Installs Python dependencies
+- ✅ Creates system service (auto-start on boot, auto-restart on crashes)
+- ✅ Opens dashboard in your browser
+- ✅ **Zero configuration needed** — just plug in your Meshtastic device!
 
-**Dashboard:** Open `http://localhost:5001/dashboard` after installation
+**Next step:** Configure your radio connection at `http://localhost:5001/dashboard`
 
 ### 🗑️ Quick Uninstall (One Command)
 
@@ -52,11 +54,7 @@ curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/lin
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/uninstall_service.bat" -OutFile "$env:TEMP\uninstall_mesh.bat"; & "$env:TEMP\uninstall_mesh.bat"
 ```
 
-This will:
-- 🛑 Stop the service
-- ❌ Disable auto-start
-- 🗑️ Remove all service files
-- ✅ Clean uninstall - no files left behind
+Completely removes Mesh Master service — no leftovers.
 
 ---
 
@@ -651,6 +649,10 @@ The search performs keyword matching across message content and sender names (co
 ---
 
 ## Installation Guide
+
+> **⚡ Want the fastest way?** Use the [One-Command Install](#-quick-install-one-command) at the top of this page.
+
+The sections below are for manual installation or advanced setup.
 
 Choose your platform:
 - [Raspberry Pi](#raspberry-pi-installation) (Recommended for field deployment)
