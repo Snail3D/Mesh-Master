@@ -12934,10 +12934,27 @@ def _process_update_confirmation(sender_key: str, message: str) -> PendingReply:
 
         clean_log("✅ Successfully pulled latest changes from GitHub", show_always=True, rate_limit=False)
 
-        # Schedule restart
+        # Schedule restart (cross-platform)
         clean_log("🔄 Restarting service in 2 seconds...", show_always=True, rate_limit=False)
+
+        # Detect platform and use appropriate restart method
+        import platform
+        if platform.system() == "Darwin":  # macOS
+            # Try launchctl restart (if running as launch agent), then fallback to kill
+            restart_cmd = """
+sleep 2
+if launchctl list | grep -q com.meshmaster; then
+    launchctl kickstart -k gui/$(id -u)/com.meshmaster
+else
+    pkill -f mesh-master.py
+fi
+"""
+        else:  # Linux or other
+            # Try systemd first, fallback to pkill
+            restart_cmd = "sleep 2 && sudo systemctl restart mesh-ai 2>/dev/null || pkill -f mesh-master.py"
+
         subprocess.Popen(
-            ["/bin/bash", "-c", "sleep 2 && sudo systemctl restart mesh-ai 2>/dev/null || pkill -f mesh-master.py"],
+            ["/bin/bash", "-c", restart_cmd],
             start_new_session=True
         )
 
@@ -18402,12 +18419,27 @@ def dashboard_update_apply():
         # Get project directory dynamically (works on any machine)
         project_dir = os.path.dirname(os.path.abspath(__file__))
 
-        # Create update script that will run after Python exits
+        # Create update script that will run after Python exits (cross-platform)
         update_script = """#!/bin/bash
 cd {project_dir}
 git fetch --all --tags
 git checkout {version}
-sudo systemctl restart mesh-ai 2>/dev/null || echo "Note: Not running as systemd service"
+
+# Detect platform and restart appropriately
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS: Try launchctl restart, fallback to kill
+    if launchctl list | grep -q com.meshmaster; then
+        launchctl kickstart -k gui/$(id -u)/com.meshmaster
+    else
+        pkill -f mesh-master.py
+    fi
+else
+    # Linux: Try systemd restart, fallback to kill
+    if sudo systemctl restart mesh-ai 2>/dev/null; then
+        exit 0
+    fi
+    pkill -f mesh-master.py
+fi
 """.format(project_dir=project_dir, version=version)
 
         script_path = "/tmp/mesh_update.sh"
