@@ -242,3 +242,8 @@ config.json
 deploy_key*
 id_rsa*
 id_ed25519*
+
+# Statistics and state files (may contain user data)
+stats_persistence.json
+mesh-master.py.backup
+*.backup
