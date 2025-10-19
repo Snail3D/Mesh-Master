@@ -18219,15 +18219,15 @@ def dashboard_create_desktop_shortcuts():
         )
 
         if result.returncode == 0:
-            clean_log("✅ Desktop shortcuts created", show_always=True, rate_limit=False)
+            clean_log("✅ Desktop shortcut created", show_always=True, rate_limit=False)
             return jsonify({
                 "success": True,
-                "message": "Desktop shortcuts created! Check your desktop for 'Start Mesh Master' and 'Stop Mesh Master' icons.",
+                "message": "Desktop shortcut created! Check your desktop for the 'Mesh Master' launcher.",
                 "output": result.stdout
             })
         else:
             error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-            clean_log(f"❌ Desktop shortcuts failed: {error_msg}", show_always=True, rate_limit=False)
+            clean_log(f"❌ Desktop shortcut failed: {error_msg}", show_always=True, rate_limit=False)
             return jsonify({"success": False, "error": error_msg}), 500
 
     except subprocess.TimeoutExpired:
@@ -22610,9 +22610,9 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
         </div>
         <div class="passphrase-card">
-          <label>🖥️ Desktop Shortcuts<span class="help-icon" data-explainer="Create branded Start/Stop icons on your desktop. Works on Windows, macOS, and Linux. Icons kill old instances and open dashboard automatically." data-explainer-placement="right">?</span></label>
-          <button type="button" id="createShortcutsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📌 Create Desktop Shortcuts</button>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Creates Start/Stop shortcuts with Mesh Master branding on your desktop.</p>
+          <label>🖥️ Desktop Shortcut<span class="help-icon" data-explainer="Create a branded Mesh Master launcher on your desktop. Works on Windows, macOS, and Linux. Automatically kills old instances, starts fresh, and opens dashboard." data-explainer-placement="right">?</span></label>
+          <button type="button" id="createShortcutsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📌 Create Desktop Shortcut</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Creates a single 'Mesh Master' launcher that restarts cleanly and opens the dashboard.</p>
         </div>
         <div class="passphrase-card">
           <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
@@ -26192,7 +26192,7 @@ def dashboard():
       if (!btn) return;
 
       btn.disabled = true;
-      btn.textContent = '⏳ Creating shortcuts...';
+      btn.textContent = '⏳ Creating shortcut...';
 
       try {
         const response = await fetch('/dashboard/desktop/shortcuts', {
@@ -26202,15 +26202,15 @@ def dashboard():
         const data = await response.json();
 
         if (data.success) {
-          alert(`✅ Desktop Shortcuts Created!\n\n${data.message}\n\nLook for these on your desktop:\n• Start Mesh Master\n• Stop Mesh Master`);
+          alert(`✅ Desktop Shortcut Created!\n\n${data.message}\n\nLook for this on your desktop:\n• Mesh Master\n\nWhat it does:\n• Kills any old/zombie processes\n• Starts fresh Mesh Master instance\n• Opens dashboard in browser`);
         } else {
-          alert(`❌ Failed to create shortcuts: ${data.error || 'Unknown error'}`);
+          alert(`❌ Failed to create shortcut: ${data.error || 'Unknown error'}`);
         }
       } catch (err) {
         alert(`❌ Shortcut creation failed: ${err.message}`);
       } finally {
         btn.disabled = false;
-        btn.textContent = '📌 Create Desktop Shortcuts';
+        btn.textContent = '📌 Create Desktop Shortcut';
       }
     }
 

@@ -36,9 +36,9 @@ def create_start_script():
     system = platform.system()
 
     if system == "Windows":
-        script_path = project_dir / "start-mesh-master.bat"
+        script_path = project_dir / "mesh-master.bat"
         content = f"""@echo off
-REM Mesh Master Start Script - Windows
+REM Mesh Master Launcher - Windows
 echo ========================================
 echo   Starting Mesh Master
 echo ========================================
@@ -79,9 +79,9 @@ echo.
 pause
 """
     else:  # macOS and Linux
-        script_path = project_dir / "start-mesh-master.sh"
+        script_path = project_dir / "mesh-master.sh"
         content = f"""#!/bin/bash
-# Mesh Master Start Script - Unix/macOS
+# Mesh Master Launcher - Unix/macOS
 
 echo "========================================"
 echo "  Starting Mesh Master"
@@ -298,19 +298,17 @@ Categories=Network;Utility;
     return desktop_file
 
 def create_desktop_shortcuts():
-    """Main function to create all shortcuts"""
+    """Main function to create single Mesh Master shortcut"""
     system = platform.system()
     project_dir = get_project_dir()
 
-    print(f"Creating Mesh Master desktop shortcuts for {system}...")
+    print(f"Creating Mesh Master desktop shortcut for {system}...")
     print(f"Project directory: {project_dir}")
 
-    # Create scripts
+    # Create single start script (kills old instances automatically)
     start_script = create_start_script()
-    stop_script = create_stop_script()
 
-    print(f"✓ Created start script: {start_script}")
-    print(f"✓ Created stop script: {stop_script}")
+    print(f"✓ Created launcher script: {start_script}")
 
     # Icon paths
     svg_icon = str(project_dir / "static" / "mesh-master-icon.svg")
@@ -320,9 +318,8 @@ def create_desktop_shortcuts():
             # Try ICO first, fall back to SVG (Windows 10+ supports SVG in some contexts)
             ico_path = project_dir / "static" / "mesh-master-icon.ico"
             icon_file = str(ico_path) if ico_path.exists() else svg_icon
-            create_windows_shortcut(start_script, "Start Mesh Master", icon_file)
-            create_windows_shortcut(stop_script, "Stop Mesh Master", icon_file)
-            print("✓ Created Windows shortcuts on Desktop")
+            create_windows_shortcut(start_script, "Mesh Master", icon_file)
+            print("✓ Created Windows shortcut on Desktop")
             if not ico_path.exists():
                 print("  ℹ️  Using SVG icon (for best results, generate .ico file)")
 
@@ -330,9 +327,8 @@ def create_desktop_shortcuts():
             # Try ICNS first, fall back to SVG
             icns_path = project_dir / "static" / "mesh-master-icon.icns"
             icon_file = str(icns_path) if icns_path.exists() else svg_icon
-            create_macos_app(start_script, "Start Mesh Master", icon_file)
-            create_macos_app(stop_script, "Stop Mesh Master", icon_file)
-            print("✓ Created macOS apps on Desktop")
+            create_macos_app(start_script, "Mesh Master", icon_file)
+            print("✓ Created macOS app on Desktop")
             if not icns_path.exists():
                 print("  ℹ️  Using SVG icon (for best results, generate .icns file)")
 
@@ -340,33 +336,31 @@ def create_desktop_shortcuts():
             # Linux desktop entries support SVG natively
             create_linux_desktop_entry(
                 start_script,
-                "Start Mesh Master",
+                "Mesh Master",
                 svg_icon,
-                "Start Mesh Master and open dashboard"
+                "Kill old instances and restart Mesh Master with dashboard"
             )
-            create_linux_desktop_entry(
-                stop_script,
-                "Stop Mesh Master",
-                svg_icon,
-                "Stop all Mesh Master instances"
-            )
-            print("✓ Created Linux desktop entries")
+            print("✓ Created Linux desktop entry")
             print("  ✓ Using SVG icon (native Linux support)")
 
         print("")
         print("========================================")
-        print("  Desktop Shortcuts Created!")
+        print("  Desktop Shortcut Created!")
         print("========================================")
         print("")
-        print("Look for these on your desktop:")
-        print("  • Start Mesh Master")
-        print("  • Stop Mesh Master")
+        print("Look for this on your desktop:")
+        print("  • Mesh Master")
+        print("")
+        print("What it does:")
+        print("  • Kills any old/zombie Mesh Master processes")
+        print("  • Starts fresh Mesh Master instance")
+        print("  • Opens dashboard in browser")
         print("")
 
         return True
 
     except Exception as e:
-        print(f"✗ Error creating shortcuts: {e}")
+        print(f"✗ Error creating shortcut: {e}")
         return False
 
 if __name__ == "__main__":
