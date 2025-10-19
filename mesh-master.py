@@ -8351,7 +8351,9 @@ COMMAND_ALIASES: Dict[str, Dict[str, Any]] = {
 }
 
 COMMAND_SUMMARIES: Dict[str, str] = {
-    # Note: /about and /donate are intentionally excluded (hardcoded, always enabled, hidden)
+    # Note: /about and /donate are hardcoded and always enabled (cannot be disabled)
+    "/about": "Shows current version, credits, and project links.",
+    "/donate": "Support Mesh Master development with a donation.",
     "/help": "Lists top commands with short usage notes.",
     "/menu": "Displays a compact menu of frequently used commands.",
     "/onboard": "Interactive tour of MESH-MASTER features for new users.",
