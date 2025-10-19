@@ -23022,7 +23022,7 @@ def dashboard():
   <div class="app-shell" id="appShell" data-initial-metrics="__METRICS__">
     <header class="app-header">
       <div class="brand" style="text-align: center; width: 100%;">
-        <span class="brand-title" style="font-size: 2.5em; font-weight: bold; letter-spacing: 0.1em;">MESH-MASTER</span>
+        <img src="/static/mesh-master-banner.png" alt="Mesh Master" style="max-height: 60px; width: auto; display: block; margin: 0 auto; mix-blend-mode: screen;">
       </div>
       <div class="header-actions">
         <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.1.1</span>
