@@ -2694,8 +2694,8 @@ CONFIG_HIDDEN_KEYS = {
 CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
     "admin_password": "Dashboard password",
     "admin_password_hint": "Password hint",
-    "auto_update_enabled": "Auto-update enabled",
-    "auto_update_check_interval_hours": "Update check interval (hours)",
+    "auto_update_enabled": "Auto-update notifications",
+    "auto_update_check_interval_hours": "Check interval (hours)",
     "debug": "Debug logging",
     "clean_logs": "Clean log output",
     "language_selection": "Default language",
@@ -2806,8 +2806,8 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
 CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "admin_password": "Password required to access the dashboard. Change this from the default 'password' for security.",
     "admin_password_hint": "Helpful hint shown on the login page to remind you of the password.",
-    "auto_update_enabled": "Automatically check for and install new versions from GitHub. Updates are installed when available and the service restarts automatically.",
-    "auto_update_check_interval_hours": "How often to check for updates (in hours). Default is 24 hours. Requires auto_update_enabled to be true.",
+    "auto_update_enabled": "Automatically check for new versions from GitHub and notify whitelisted admins via DM when updates are available. Respects quiet hours. Admins can use /update to install.",
+    "auto_update_check_interval_hours": "How often to check for updates (in hours). Default is 24 hours. Requires auto_update_enabled to be true. Notifications sent outside quiet hours only.",
     "debug": "Enable verbose troubleshooting logs. Turns off noise filtering so raw protobuf chatter is visible.",
     "clean_logs": "Filters noisy protobuf messages and adds emoji markers for easier scanning in the activity stream.",
     "language_selection": "Sets the default language for canned replies, menus, and status messages.",
@@ -8368,6 +8368,7 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/offline": "Delivers offline wiki and knowledge base snippets.",
     "/stop": "Stops any in-flight AI reply and silences the queue.",
     "/exit": "Shuts down Mesh-Master after saving state (admin only).",
+    "/telegram": "Shows Telegram bot setup instructions with bot info (admin only). Users can DM 'telegram <message>' to forward messages to admin.",
     "/hop": "Shows the current LoRa hop limit setting (admin only).",
     "/hops": "Sets the LoRa hop limit (0-7, admin only). Usage: /hops <0-7>",
     "/unban": "Remove a user from the permanent ban list (admin only). Usage: /unban <shortname>",
@@ -14582,6 +14583,69 @@ Reply Y to update or N to cancel."""
 
     return PendingReply(confirm_msg, "/update confirm")
 
+  elif cmd == "/telegram":
+    # Admin command to show Telegram bot setup instructions
+    if sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "❌ This command is admin-only.")
+
+    # Get Telegram bot info
+    bot_token = telegram_config.get("token", "").strip() if telegram_config else ""
+    bot_username = ""
+
+    if bot_token and telegram_app:
+      try:
+        # Extract bot username from token (format: TOKEN:USERNAME or just use API)
+        import requests
+        response = requests.get(f"https://api.telegram.org/bot{bot_token}/getMe", timeout=10)
+        if response.status_code == 200:
+          bot_data = response.json()
+          if bot_data.get("ok"):
+            bot_username = bot_data.get("result", {}).get("username", "")
+      except Exception as e:
+        clean_log(f"Failed to get bot username: {e}", show_always=True, rate_limit=False)
+
+    if not bot_token:
+      help_msg = """📱 Telegram Bot Setup
+
+⚠️ No bot configured yet.
+
+📖 Setup Guide:
+https://core.telegram.org/bots/tutorial
+
+Dashboard → Telegram Bot panel
+Add your bot token and chat ID."""
+      return _cmd_reply(cmd, help_msg)
+
+    if bot_username:
+      help_msg = f"""📱 Telegram Bot Setup
+
+🤖 Your Bot: @{bot_username}
+
+1️⃣ Open Telegram app
+2️⃣ Search: @{bot_username}
+3️⃣ Start chat & send /start
+4️⃣ Dashboard → Telegram → Add your Chat ID
+
+📖 Full Guide:
+https://core.telegram.org/bots/tutorial
+
+💡 DM Forwarding:
+Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward their message + username to your Telegram bot."""
+    else:
+      help_msg = f"""📱 Telegram Bot Setup
+
+🤖 Bot Token: {bot_token[:10]}...
+
+⚠️ Bot username not found. Check your token in Dashboard → Telegram Bot.
+
+📖 Setup Guide:
+https://core.telegram.org/bots/tutorial
+
+💡 DM Forwarding:
+Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward their message + username to your Telegram bot."""
+
+    return _cmd_reply(cmd, help_msg)
+
   elif cmd == "/meshtastic":
     if not is_ai_enabled():
       return _cmd_reply(cmd, AI_DISABLED_MESSAGE)
@@ -16544,6 +16608,38 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   # Quick DM-level control commands: stop/resume/blacklist/unblock
   sender_key = _safe_sender_key(sender_id)
   lower = text.lower().strip()
+
+  # Special handling: DM messages starting with "telegram" or "/telegram" forward to Telegram with username
+  if is_direct and (lower.startswith("telegram ") or lower.startswith("/telegram ")):
+    # Extract message after "telegram" or "/telegram"
+    if lower.startswith("/telegram "):
+      user_message = text[10:].strip()  # Skip "/telegram "
+    else:
+      user_message = text[9:].strip()   # Skip "telegram "
+
+    if user_message:
+      # Get sender's long name (username)
+      sender_name = "Unknown User"
+      try:
+        from pubsub import pub as p_sub
+        node_info = interface.nodes.get(sender_id)
+        if node_info and hasattr(node_info, 'user') and node_info.user:
+          sender_name = node_info.user.long_name or node_info.user.short_name or sender_name
+      except Exception as e:
+        clean_log(f"Failed to get sender name: {e}", show_always=True, rate_limit=False)
+
+      # Forward to Telegram with username
+      telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}"
+      try:
+        send_to_telegram(telegram_msg)
+        clean_log(f"📱 Forwarded DM to Telegram from {sender_name}", show_always=True, rate_limit=False)
+        return _cmd_reply("telegram", f"✅ Message forwarded to Telegram admin.\n\nFrom: {sender_name}\nMessage: {user_message[:50]}{'...' if len(user_message) > 50 else ''}")
+      except Exception as e:
+        clean_log(f"❌ Failed to forward to Telegram: {e}", show_always=True, rate_limit=False)
+        return _cmd_reply("telegram", "❌ Failed to forward message to Telegram. Bot may not be configured.")
+    else:
+      return _cmd_reply("telegram", "Usage: telegram <your message>\n\nThis will forward your message to the admin's Telegram bot.")
+
   if is_direct and sender_key:
     # Handle pending reboot confirmations
     # Handle onboarding flow
@@ -18525,10 +18621,13 @@ def dashboard_create_desktop_shortcuts():
 
 
 def auto_update_worker():
-    """Background worker that checks for and applies updates from GitHub main branch."""
+    """Background worker that checks for updates from GitHub and notifies admins via DM."""
     global LAST_UPDATE_CHECK_TIME, AUTO_UPDATE_ENABLED
 
-    clean_log("Auto-update worker started", "📦", show_always=True, rate_limit=False)
+    clean_log("Auto-update checker started", "📦", show_always=True, rate_limit=False)
+
+    # Track which version we've already notified about to avoid spam
+    last_notified_version = None
 
     while True:
         try:
@@ -18548,62 +18647,67 @@ def auto_update_worker():
 
             clean_log("🔍 Auto-update: Checking for updates from GitHub...", show_always=True, rate_limit=False)
 
-            # Get project directory dynamically
-            project_dir = os.path.dirname(os.path.abspath(__file__))
+            # Check if we're in quiet hours
+            if config.get("mail_notify_quiet_hours_enabled", False):
+                now = datetime.datetime.now()
+                quiet_start = config.get("mail_quiet_start_hour", 20)
+                quiet_end = config.get("mail_quiet_end_hour", 8)
+                current_hour = now.hour
 
-            # Fetch latest from GitHub
-            import subprocess
-            result = subprocess.run(
-                ["git", "fetch", "origin", "main"],
-                cwd=project_dir,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+                in_quiet_hours = False
+                if quiet_start > quiet_end:
+                    # Quiet hours span midnight (e.g., 20:00 to 08:00)
+                    in_quiet_hours = current_hour >= quiet_start or current_hour < quiet_end
+                else:
+                    # Quiet hours within same day
+                    in_quiet_hours = quiet_start <= current_hour < quiet_end
 
-            if result.returncode != 0:
-                clean_log(f"❌ Auto-update: Git fetch failed: {result.stderr.strip()}", show_always=True, rate_limit=False)
-                continue
+                if in_quiet_hours:
+                    clean_log(f"🔇 Auto-update: In quiet hours ({quiet_start}:00-{quiet_end}:00), skipping notification", show_always=True, rate_limit=False)
+                    continue
 
-            # Check if we're behind origin/main
-            result = subprocess.run(
-                ["git", "rev-list", "--count", "HEAD..origin/main"],
-                cwd=project_dir,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+            # Check for updates
+            update_available, latest_version, commits_behind = _check_for_updates()
 
-            if result.returncode != 0:
-                clean_log(f"❌ Auto-update: Could not check version: {result.stderr.strip()}", show_always=True, rate_limit=False)
-                continue
-
-            commits_behind = int(result.stdout.strip() or "0")
-
-            if commits_behind == 0:
+            if not update_available:
                 clean_log("✅ Auto-update: Already up to date", show_always=True, rate_limit=False)
+                last_notified_version = None  # Reset so we notify about next update
                 continue
 
-            clean_log(f"📦 Auto-update: {commits_behind} new commit(s) available. Updating...", show_always=True, rate_limit=False)
-
-            # Pull latest changes
-            result = subprocess.run(
-                ["git", "pull", "origin", "main"],
-                cwd=project_dir,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-
-            if result.returncode != 0:
-                clean_log(f"❌ Auto-update: Git pull failed: {result.stderr.strip()}", show_always=True, rate_limit=False)
+            # Don't spam if we already notified about this version
+            if latest_version == last_notified_version:
                 continue
 
-            clean_log("✅ Auto-update: Successfully pulled latest changes from GitHub", show_always=True, rate_limit=False)
+            clean_log(f"📦 Auto-update: {commits_behind} new commit(s) available ({latest_version}). Notifying admins...", show_always=True, rate_limit=False)
 
-            # Restart the service
-            clean_log("🔄 Auto-update: Restarting service...", show_always=True, rate_limit=False)
-            subprocess.Popen(["/bin/bash", "-c", "sleep 2 && sudo systemctl restart mesh-ai 2>/dev/null || pkill -f mesh-master.py"], start_new_session=True)
+            # Get current version
+            current_version = _get_current_version()
+
+            # Notify all whitelisted admins via DM
+            notification_msg = f"""🆕 Update Available!
+
+Current: {current_version}
+Latest: {latest_version}
+Commits behind: {commits_behind}
+
+Use /update to upgrade.
+
+📱 Dashboard: http://localhost:5001/dashboard"""
+
+            notified_count = 0
+            for admin_key in AUTHORIZED_ADMINS:
+                try:
+                    _send_dm_to_user(admin_key, notification_msg)
+                    notified_count += 1
+                    clean_log(f"✅ Notified admin {admin_key[:8]}...", show_always=True, rate_limit=False)
+                except Exception as e:
+                    clean_log(f"⚠️ Failed to notify admin {admin_key[:8]}...: {e}", show_always=True, rate_limit=False)
+
+            if notified_count > 0:
+                clean_log(f"📨 Auto-update: Notified {notified_count} admin(s) about {latest_version}", show_always=True, rate_limit=False)
+                last_notified_version = latest_version
+            else:
+                clean_log("⚠️ Auto-update: No admins to notify", show_always=True, rate_limit=False)
 
         except Exception as exc:
             clean_log(f"❌ Auto-update worker error: {exc}", show_always=True, rate_limit=False)
@@ -21253,6 +21357,24 @@ def dashboard():
     .ops-panel {
       gap: 14px;
     }
+    .ops-panel .panel-body {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .ops-panel .toggle-row,
+    .ops-panel .mode-toggle {
+      grid-column: span 2;
+    }
+    @media (max-width: 1200px) {
+      .ops-panel .panel-body {
+        grid-template-columns: 1fr;
+      }
+      .ops-panel .toggle-row,
+      .ops-panel .mode-toggle {
+        grid-column: span 1;
+      }
+    }
     .config-panel {
       display: flex;
       flex-direction: column;
@@ -21425,10 +21547,10 @@ def dashboard():
       border-radius: 6px;
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11.5px;
       line-height: 1.3;
-      padding: 6px 8px;
-      min-height: 32px;
+      padding: 5px 7px;
+      min-height: 28px;
     }
     .config-row.config-row-stack {
       flex-direction: column;
@@ -21487,6 +21609,8 @@ def dashboard():
     }
     .config-bool-option input[type="radio"] {
       accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
     }
     .config-table {
       border: 1px solid var(--border-light);
@@ -21499,8 +21623,8 @@ def dashboard():
     .config-row {
       display: flex;
       align-items: flex-start;
-      gap: 12px;
-      padding: 10px 12px;
+      gap: 10px;
+      padding: 6px 10px;
       border-bottom: 1px solid rgba(60, 65, 80, 0.4);
     }
     .config-row:last-child {
@@ -21510,7 +21634,7 @@ def dashboard():
       display: flex;
       flex-direction: column;
       gap: 2px;
-      min-width: 180px;
+      min-width: 140px;
       flex-shrink: 1;
     }
     @media (max-width: 768px) {
@@ -21730,13 +21854,13 @@ def dashboard():
       width: 100%;
       background: rgba(17, 19, 25, 0.9);
       border: 1px solid rgba(86, 156, 214, 0.35);
-      border-radius: 8px;
+      border-radius: 6px;
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 12.5px;
-      padding: 8px 10px;
+      font-size: 12px;
+      padding: 6px 8px;
       resize: vertical;
-      min-height: 48px;
+      min-height: 32px;
     }
     .config-input:focus {
       border-color: var(--accent);
@@ -22858,6 +22982,7 @@ def dashboard():
         <div style="padding: 0 0 12px 0; border-bottom: 1px solid var(--border);">
           <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
         </div>
+        <div class="panel-body">
         <div class="toggle-row">
           <label class="switch">
             <input type="checkbox" id="aiToggle">
@@ -22969,6 +23094,7 @@ def dashboard():
           <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
           <button type="button" id="systemRebootBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🔄 Reboot Server</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Restarts the entire mesh-master server. Admin only.</p>
+        </div>
         </div>
 
         <div class="command-groups" id="commandGroups"></div>
