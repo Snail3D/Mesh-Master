@@ -12801,6 +12801,9 @@ def _process_wipe_confirmation(sender_id: Any, message: str, is_direct: bool, ch
     if action == "mailbox":
         if not mailbox:
             return PendingReply("Mailbox not specified. Try again with `/wipe mailbox <name>`.", "/wipe confirm")
+        # Double-check mailbox still exists before wiping
+        if not MAIL_MANAGER.store.mailbox_exists(mailbox):
+            return PendingReply(f"📪 Mailbox '{mailbox}' no longer exists. Nothing to wipe.", "/wipe confirm")
         clean_log(f"Mailbox wipe confirmed for '{mailbox}'", "🧹")
         return MAIL_MANAGER.handle_wipe(mailbox, actor_key=sender_key, is_admin=is_admin)
 
@@ -12846,10 +12849,14 @@ def _process_wipe_confirmation(sender_id: Any, message: str, is_direct: bool, ch
             return PendingReply("Mailbox required for `/wipe all`. Use `/wipe all <mailbox>`.", "/wipe confirm")
         lines: List[str] = []
         clean_log(f"Full wipe confirmed for '{mailbox}'", "🧹")
-        mail_reply = MAIL_MANAGER.handle_wipe(mailbox, actor_key=sender_key, is_admin=is_admin)
-        if isinstance(mail_reply, PendingReply):
-            if mail_reply.text:
-                lines.append(mail_reply.text)
+        # Try to wipe mailbox if it exists
+        if MAIL_MANAGER.store.mailbox_exists(mailbox):
+            mail_reply = MAIL_MANAGER.handle_wipe(mailbox, actor_key=sender_key, is_admin=is_admin)
+            if isinstance(mail_reply, PendingReply):
+                if mail_reply.text:
+                    lines.append(mail_reply.text)
+        else:
+            lines.append(f"📪 Mailbox '{mailbox}' doesn't exist (skipped).")
         removed = _clear_direct_history(sender_id) if is_direct else 0
         if removed > 0:
             lines.append(f"🧹 Cleared {removed} messages from our DM history.")
