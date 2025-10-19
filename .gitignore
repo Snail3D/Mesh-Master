@@ -230,3 +230,6 @@ CLAUDE.md
 tailscale.state
 *.ts.net
 Mesh-Master/
+
+# Configuration file (may contain secrets like Tailscale auth keys)
+config.json
