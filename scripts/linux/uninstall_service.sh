@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+# Mesh Master Linux/Debian Systemd Service Uninstallation Script
+
+set -e
+
+# Verify we're NOT on macOS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "❌ This script is for Linux/Debian only"
+    echo "For macOS, use: ./scripts/macos/uninstall_service.sh"
+    exit 1
+fi
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo ""
+echo "=========================================="
+echo "  Mesh Master Linux Service Uninstaller"
+echo "=========================================="
+echo ""
+
+# Check if running with sudo/root
+if [[ $EUID -ne 0 ]]; then
+    echo -e "${YELLOW}⚠️  This script needs sudo privileges${NC}"
+    echo ""
+    echo "Please run with sudo:"
+    echo -e "${YELLOW}sudo ./scripts/linux/uninstall_service.sh${NC}"
+    exit 1
+fi
+
+SERVICE_FILE="/etc/systemd/system/mesh-ai.service"
+
+# Check if service is installed
+if [[ ! -f "$SERVICE_FILE" ]]; then
+    echo -e "${YELLOW}⚠️  Mesh Master service is not installed${NC}"
+    echo ""
+    echo "Service file not found: $SERVICE_FILE"
+    exit 0
+fi
+
+echo "Found service file: $SERVICE_FILE"
+echo ""
+
+# Stop the service if running
+echo "Stopping mesh-ai service..."
+systemctl stop mesh-ai 2>/dev/null || true
+
+# Disable the service
+echo "Disabling mesh-ai service..."
+systemctl disable mesh-ai 2>/dev/null || true
+
+# Remove service file
+echo "Removing service file..."
+rm -f "$SERVICE_FILE"
+
+# Reload systemd
+echo "Reloading systemd daemon..."
+systemctl daemon-reload
+
+echo ""
+echo -e "${GREEN}✅ Mesh Master service uninstalled successfully${NC}"
+echo ""
+echo "The service has been stopped, disabled, and removed."
+echo ""
+echo "To reinstall, run:"
+echo "  sudo ./scripts/linux/install_service.sh"
+echo ""
