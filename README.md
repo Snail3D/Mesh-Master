@@ -430,7 +430,7 @@ Both send "hello there" to the node with shortname "snmo"
 When a relay fails (recipient offline), messages are automatically queued:
 - **Storage:** Up to 10 messages per user
 - **Expiry:** 24 hours from queue time
-- **Retry:** 3 delivery attempts when recipient comes online
+- **Retry:** 3 delivery attempts when recipient comes online (listens for heartbeats)
 - **Notification:** Recipient gets all queued messages when they reconnect
 
 **Privacy Controls:**
