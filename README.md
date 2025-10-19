@@ -5,7 +5,7 @@
 > **Disclaimer**
 > This project is an independent community effort and is **not associated** with the official Meshtastic project. Always maintain backup communication paths for real emergencies.
 
-![Mesh Master 2.0 hero](docs/mesh-master-2.0-hero.svg)
+![Mesh Master Banner](docs/mesh-master-banner.png)
 
 ---
 
