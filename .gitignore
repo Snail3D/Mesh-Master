@@ -222,9 +222,8 @@ tests/*_test_*.log
 data/relay_optout.json
 data/telegram_config.json
 
-# Claude Code documentation
+# Claude Code documentation (lowercase variant only - CLAUDE.md is now tracked)
 claude.md
-CLAUDE.md
 
 # Tailscale configuration (contains network info)
 tailscale.state
