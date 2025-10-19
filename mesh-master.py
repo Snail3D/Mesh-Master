@@ -18195,6 +18195,45 @@ sudo systemctl restart mesh-ai 2>/dev/null || echo "Note: Not running as systemd
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@app.route("/dashboard/desktop/shortcuts", methods=["POST"])
+@require_auth
+def dashboard_create_desktop_shortcuts():
+    """Create branded desktop shortcuts for starting/stopping Mesh Master"""
+    try:
+        import subprocess
+
+        # Get project directory
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(project_dir, "scripts", "desktop", "create_shortcuts.py")
+
+        # Run the shortcut creator script
+        result = subprocess.run(
+            [sys.executable, script_path],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode == 0:
+            clean_log("✅ Desktop shortcuts created", show_always=True, rate_limit=False)
+            return jsonify({
+                "success": True,
+                "message": "Desktop shortcuts created! Check your desktop for 'Start Mesh Master' and 'Stop Mesh Master' icons.",
+                "output": result.stdout
+            })
+        else:
+            error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+            clean_log(f"❌ Desktop shortcuts failed: {error_msg}", show_always=True, rate_limit=False)
+            return jsonify({"success": False, "error": error_msg}), 500
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Shortcut creation timed out"}), 500
+    except Exception as exc:
+        clean_log(f"❌ Desktop shortcut creation failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 def auto_update_worker():
     """Background worker that checks for and applies updates from GitHub main branch."""
     global LAST_UPDATE_CHECK_TIME, AUTO_UPDATE_ENABLED
@@ -22567,6 +22606,11 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
         </div>
         <div class="passphrase-card">
+          <label>🖥️ Desktop Shortcuts<span class="help-icon" data-explainer="Create branded Start/Stop icons on your desktop. Works on Windows, macOS, and Linux. Icons kill old instances and open dashboard automatically." data-explainer-placement="right">?</span></label>
+          <button type="button" id="createShortcutsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📌 Create Desktop Shortcuts</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Creates Start/Stop shortcuts with Mesh Master branding on your desktop.</p>
+        </div>
+        <div class="passphrase-card">
           <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
           <button type="button" id="systemRebootBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🔄 Reboot Server</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Restarts the entire mesh-master server. Admin only.</p>
@@ -26139,6 +26183,33 @@ def dashboard():
       }
     }
 
+    async function onCreateDesktopShortcuts() {
+      const btn = $("createShortcutsBtn");
+      if (!btn) return;
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Creating shortcuts...';
+
+      try {
+        const response = await fetch('/dashboard/desktop/shortcuts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Desktop Shortcuts Created!\n\n${data.message}\n\nLook for these on your desktop:\n• Start Mesh Master\n• Stop Mesh Master`);
+        } else {
+          alert(`❌ Failed to create shortcuts: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`❌ Shortcut creation failed: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📌 Create Desktop Shortcuts';
+      }
+    }
+
     async function onSystemReboot() {
       if (!confirm('⚠️ SYSTEM REBOOT\n\nThis will restart the entire mesh-master server.\n\nAre you sure you want to reboot?')) {
         return;
@@ -26942,6 +27013,10 @@ def dashboard():
       const updateApplyBtn = $("updateApplyBtn");
       if (updateApplyBtn) {
         updateApplyBtn.addEventListener('click', onUpdateApply);
+      }
+      const createShortcutsBtn = $("createShortcutsBtn");
+      if (createShortcutsBtn) {
+        createShortcutsBtn.addEventListener('click', onCreateDesktopShortcuts);
       }
       const rebootBtn = $("systemRebootBtn");
       if (rebootBtn) {
