@@ -2495,6 +2495,8 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
             "keys": [
                 "admin_password",
                 "admin_password_hint",
+                "auto_update_enabled",
+                "auto_update_check_interval_hours",
                 "debug",
                 "clean_logs",
                 "start_on_boot",
@@ -2692,6 +2694,8 @@ CONFIG_HIDDEN_KEYS = {
 CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
     "admin_password": "Dashboard password",
     "admin_password_hint": "Password hint",
+    "auto_update_enabled": "Auto-update enabled",
+    "auto_update_check_interval_hours": "Update check interval (hours)",
     "debug": "Debug logging",
     "clean_logs": "Clean log output",
     "language_selection": "Default language",
@@ -2802,6 +2806,8 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
 CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "admin_password": "Password required to access the dashboard. Change this from the default 'password' for security.",
     "admin_password_hint": "Helpful hint shown on the login page to remind you of the password.",
+    "auto_update_enabled": "Automatically check for and install new versions from GitHub. Updates are installed when available and the service restarts automatically.",
+    "auto_update_check_interval_hours": "How often to check for updates (in hours). Default is 24 hours. Requires auto_update_enabled to be true.",
     "debug": "Enable verbose troubleshooting logs. Turns off noise filtering so raw protobuf chatter is visible.",
     "clean_logs": "Filters noisy protobuf messages and adds emoji markers for easier scanning in the activity stream.",
     "language_selection": "Sets the default language for canned replies, menus, and status messages.",
@@ -3621,6 +3627,11 @@ except FileNotFoundError:
 ADMIN_PASSWORD = str(config.get("admin_password", "password") or "password")
 ADMIN_PASSWORD_NORM = ADMIN_PASSWORD.strip().casefold()
 ADMIN_PASSWORD_HINT = str(config.get("admin_password_hint", "password") or "password")
+
+# Auto-update settings
+AUTO_UPDATE_ENABLED = bool(config.get("auto_update_enabled", False))
+AUTO_UPDATE_CHECK_INTERVAL_HOURS = float(config.get("auto_update_check_interval_hours", 24.0))
+LAST_UPDATE_CHECK_TIME = 0.0  # Track when we last checked for updates
 
 
 def _register_admin_display(sender_key: str, sender_id: Any = None, *, label: Optional[str] = None) -> None:
@@ -18184,6 +18195,92 @@ sudo systemctl restart mesh-ai 2>/dev/null || echo "Note: Not running as systemd
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+def auto_update_worker():
+    """Background worker that checks for and applies updates from GitHub main branch."""
+    global LAST_UPDATE_CHECK_TIME, AUTO_UPDATE_ENABLED
+
+    clean_log("Auto-update worker started", "📦", show_always=True, rate_limit=False)
+
+    while True:
+        try:
+            time.sleep(60)  # Check every minute to see if it's time
+
+            if not AUTO_UPDATE_ENABLED:
+                continue
+
+            current_time = time.time()
+            interval_seconds = AUTO_UPDATE_CHECK_INTERVAL_HOURS * 3600
+
+            # Check if enough time has passed
+            if (current_time - LAST_UPDATE_CHECK_TIME) < interval_seconds:
+                continue
+
+            LAST_UPDATE_CHECK_TIME = current_time
+
+            clean_log("🔍 Auto-update: Checking for updates from GitHub...", show_always=True, rate_limit=False)
+
+            # Get project directory dynamically
+            project_dir = os.path.dirname(os.path.abspath(__file__))
+
+            # Fetch latest from GitHub
+            import subprocess
+            result = subprocess.run(
+                ["git", "fetch", "origin", "main"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode != 0:
+                clean_log(f"❌ Auto-update: Git fetch failed: {result.stderr.strip()}", show_always=True, rate_limit=False)
+                continue
+
+            # Check if we're behind origin/main
+            result = subprocess.run(
+                ["git", "rev-list", "--count", "HEAD..origin/main"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode != 0:
+                clean_log(f"❌ Auto-update: Could not check version: {result.stderr.strip()}", show_always=True, rate_limit=False)
+                continue
+
+            commits_behind = int(result.stdout.strip() or "0")
+
+            if commits_behind == 0:
+                clean_log("✅ Auto-update: Already up to date", show_always=True, rate_limit=False)
+                continue
+
+            clean_log(f"📦 Auto-update: {commits_behind} new commit(s) available. Updating...", show_always=True, rate_limit=False)
+
+            # Pull latest changes
+            result = subprocess.run(
+                ["git", "pull", "origin", "main"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode != 0:
+                clean_log(f"❌ Auto-update: Git pull failed: {result.stderr.strip()}", show_always=True, rate_limit=False)
+                continue
+
+            clean_log("✅ Auto-update: Successfully pulled latest changes from GitHub", show_always=True, rate_limit=False)
+
+            # Restart the service
+            clean_log("🔄 Auto-update: Restarting service...", show_always=True, rate_limit=False)
+            subprocess.Popen(["/bin/bash", "-c", "sleep 2 && sudo systemctl restart mesh-ai 2>/dev/null || pkill -f mesh-master.py"], start_new_session=True)
+
+        except Exception as exc:
+            clean_log(f"❌ Auto-update worker error: {exc}", show_always=True, rate_limit=False)
+            time.sleep(300)  # Wait 5 minutes before retrying on error
+
+
 @app.route("/logs_stream")
 def logs_stream():
   def generate():
@@ -27801,6 +27898,18 @@ def update_dashboard_config():
             globals()['ADMIN_PASSWORD_HINT'] = str(new_value or "password")
         except Exception:
             pass
+    if key == 'auto_update_enabled':
+        try:
+            globals()['AUTO_UPDATE_ENABLED'] = bool(new_value)
+            clean_log(f"Auto-update {'enabled' if new_value else 'disabled'}", "📦", show_always=True, rate_limit=False)
+        except Exception:
+            pass
+    if key == 'auto_update_check_interval_hours':
+        try:
+            globals()['AUTO_UPDATE_CHECK_INTERVAL_HOURS'] = float(new_value or 24.0)
+            clean_log(f"Auto-update check interval set to {new_value} hours", "📦", show_always=True, rate_limit=False)
+        except Exception:
+            pass
     if key == 'cooldown_enabled':
         try:
             globals()['COOLDOWN_ENABLED'] = bool(new_value)
@@ -29887,6 +29996,9 @@ def main():
     # Heartbeat thread for visibility
     threading.Thread(target=heartbeat_worker, args=(30,), daemon=True).start()
     threading.Thread(target=location_cleanup_worker, daemon=True).start()
+    # Auto-update worker (if enabled)
+    if AUTO_UPDATE_ENABLED:
+        threading.Thread(target=auto_update_worker, daemon=True).start()
     # Offline wiki background fetcher
     if OFFLINE_WIKI_ENABLED and OFFLINE_WIKI_STORE is not None and OFFLINE_WIKI_AUTOSAVE_FROM_WIKI:
         try:
