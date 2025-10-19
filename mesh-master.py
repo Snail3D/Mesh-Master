@@ -22610,8 +22610,8 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
         </div>
         <div class="passphrase-card">
-          <label>🖥️ Desktop Shortcut<span class="help-icon" data-explainer="Create a branded Mesh Master launcher on your desktop. Works on Windows, macOS, and Linux. Automatically kills old instances, starts fresh, and opens dashboard." data-explainer-placement="right">?</span></label>
-          <button type="button" id="createShortcutsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📌 Create Desktop Shortcut</button>
+          <label>🖥️ Mesh Master<span class="help-icon" data-explainer="Create a branded Mesh Master launcher on your desktop. Works on Windows, macOS, and Linux. Automatically kills old instances, starts fresh, and opens dashboard." data-explainer-placement="right">?</span></label>
+          <button type="button" id="createShortcutsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📌 Create Launcher</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Creates a single 'Mesh Master' launcher that restarts cleanly and opens the dashboard.</p>
         </div>
         <div class="passphrase-card">
@@ -26192,7 +26192,7 @@ def dashboard():
       if (!btn) return;
 
       btn.disabled = true;
-      btn.textContent = '⏳ Creating shortcut...';
+      btn.textContent = '⏳ Creating...';
 
       try {
         const response = await fetch('/dashboard/desktop/shortcuts', {
@@ -26202,15 +26202,15 @@ def dashboard():
         const data = await response.json();
 
         if (data.success) {
-          alert(`✅ Desktop Shortcut Created!\n\n${data.message}\n\nLook for this on your desktop:\n• Mesh Master\n\nWhat it does:\n• Kills any old/zombie processes\n• Starts fresh Mesh Master instance\n• Opens dashboard in browser`);
+          alert(`✅ Launcher Created!\n\n${data.message}\n\nLook for this on your desktop:\n• Mesh Master\n\nWhat it does:\n• Kills any old/zombie processes\n• Starts fresh Mesh Master instance\n• Opens dashboard in browser`);
         } else {
-          alert(`❌ Failed to create shortcut: ${data.error || 'Unknown error'}`);
+          alert(`❌ Failed to create launcher: ${data.error || 'Unknown error'}`);
         }
       } catch (err) {
-        alert(`❌ Shortcut creation failed: ${err.message}`);
+        alert(`❌ Launcher creation failed: ${err.message}`);
       } finally {
         btn.disabled = false;
-        btn.textContent = '📌 Create Desktop Shortcut';
+        btn.textContent = '📌 Create Launcher';
       }
     }
 
