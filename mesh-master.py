@@ -16618,17 +16618,10 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       user_message = text[9:].strip()   # Skip "telegram "
 
     if user_message:
-      # Get sender's long name (username)
-      sender_name = "Unknown User"
-      try:
-        from pubsub import pub as p_sub
-        node_info = interface.nodes.get(sender_id)
-        if node_info and hasattr(node_info, 'user') and node_info.user:
-          sender_name = node_info.user.long_name or node_info.user.short_name or sender_name
-      except Exception as e:
-        clean_log(f"Failed to get sender name: {e}", show_always=True, rate_limit=False)
+      # Get sender's shortname using existing helper function
+      sender_name = get_node_shortname(sender_id)
 
-      # Forward to Telegram with username
+      # Forward to Telegram with shortname
       telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}"
       try:
         send_to_telegram(telegram_msg)
