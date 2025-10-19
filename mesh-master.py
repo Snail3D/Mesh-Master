@@ -18658,32 +18658,106 @@ def dashboard_create_desktop_shortcuts():
 @app.route("/dashboard/service/install", methods=["POST"])
 @require_auth
 def dashboard_install_service():
-    """Install Mesh Master as a system service"""
+    """Install Mesh Master as a system service AND create desktop shortcuts"""
     try:
         import subprocess
         import platform
 
         # Get project directory
         project_dir = os.path.dirname(os.path.abspath(__file__))
-
-        # Determine platform and script path
         system = platform.system()
 
+        # Step 1: Install system service
         if system == "Darwin":  # macOS
-            script_path = os.path.join(project_dir, "scripts", "macos", "install_service.sh")
-            cmd = ["/bin/bash", script_path]
+            service_script = os.path.join(project_dir, "scripts", "macos", "install_service.sh")
+            service_cmd = ["/bin/bash", service_script]
         elif system == "Linux":
-            script_path = os.path.join(project_dir, "scripts", "linux", "install_service.sh")
-            cmd = ["sudo", "/bin/bash", script_path]
+            service_script = os.path.join(project_dir, "scripts", "linux", "install_service.sh")
+            service_cmd = ["sudo", "/bin/bash", service_script]
         elif system == "Windows":
-            script_path = os.path.join(project_dir, "scripts", "windows", "install_service.bat")
-            cmd = [script_path]
+            service_script = os.path.join(project_dir, "scripts", "windows", "install_service.bat")
+            service_cmd = [service_script]
         else:
             return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
 
         clean_log(f"🔧 Installing service on {system}...", show_always=True, rate_limit=False)
 
         # Run the install script
+        service_result = subprocess.run(
+            service_cmd,
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        if service_result.returncode != 0:
+            error_msg = service_result.stderr.strip() if service_result.stderr else service_result.stdout.strip()
+            clean_log(f"❌ Service installation failed: {error_msg}", show_always=True, rate_limit=False)
+            return jsonify({"success": False, "error": error_msg, "output": service_result.stdout}), 500
+
+        # Step 2: Create desktop shortcuts
+        clean_log(f"🖥️ Creating desktop shortcuts...", show_always=True, rate_limit=False)
+        shortcut_script = os.path.join(project_dir, "scripts", "desktop", "create_shortcuts.py")
+
+        shortcut_result = subprocess.run(
+            [sys.executable, shortcut_script],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        # Desktop shortcuts are optional - don't fail if they don't work
+        if shortcut_result.returncode == 0:
+            clean_log(f"✅ Desktop shortcuts created", show_always=True, rate_limit=False)
+            shortcuts_msg = " Desktop shortcuts created on your desktop."
+        else:
+            clean_log(f"⚠️ Desktop shortcuts failed (optional): {shortcut_result.stderr}", show_always=True, rate_limit=False)
+            shortcuts_msg = " (Desktop shortcuts skipped - you can create them manually later)"
+
+        clean_log(f"✅ Installation complete on {system}", show_always=True, rate_limit=False)
+        return jsonify({
+            "success": True,
+            "message": f"Service installed! Mesh Master will auto-start on boot and restart on crashes.{shortcuts_msg}",
+            "platform": system
+        })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Service installation timed out (60s limit)"}), 500
+    except Exception as exc:
+        clean_log(f"❌ Service installation failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/dashboard/service/uninstall", methods=["POST"])
+@require_auth
+def dashboard_uninstall_service():
+    """Uninstall Mesh Master system service"""
+    try:
+        import subprocess
+        import platform
+
+        # Get project directory
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        system = platform.system()
+
+        # Determine platform and script path
+        if system == "Darwin":  # macOS
+            uninstall_script = os.path.join(project_dir, "scripts", "macos", "uninstall_service.sh")
+            cmd = ["/bin/bash", uninstall_script]
+        elif system == "Linux":
+            uninstall_script = os.path.join(project_dir, "scripts", "linux", "uninstall_service.sh")
+            cmd = ["sudo", "/bin/bash", uninstall_script]
+        elif system == "Windows":
+            uninstall_script = os.path.join(project_dir, "scripts", "windows", "uninstall_service.bat")
+            cmd = [uninstall_script]
+        else:
+            return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
+
+        clean_log(f"🗑️ Uninstalling service on {system}...", show_always=True, rate_limit=False)
+
+        # Run the uninstall script
         result = subprocess.run(
             cmd,
             cwd=project_dir,
@@ -18693,22 +18767,21 @@ def dashboard_install_service():
         )
 
         if result.returncode == 0:
-            clean_log(f"✅ Service installed successfully on {system}", show_always=True, rate_limit=False)
+            clean_log(f"✅ Service uninstalled successfully on {system}", show_always=True, rate_limit=False)
             return jsonify({
                 "success": True,
-                "message": f"Service installed! Mesh Master will now start automatically on boot and restart on crashes.",
-                "output": result.stdout,
+                "message": f"Service uninstalled! Mesh Master will no longer auto-start on boot.",
                 "platform": system
             })
         else:
             error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
-            clean_log(f"❌ Service installation failed: {error_msg}", show_always=True, rate_limit=False)
+            clean_log(f"❌ Service uninstallation failed: {error_msg}", show_always=True, rate_limit=False)
             return jsonify({"success": False, "error": error_msg, "output": result.stdout}), 500
 
     except subprocess.TimeoutExpired:
-        return jsonify({"success": False, "error": "Service installation timed out (60s limit)"}), 500
+        return jsonify({"success": False, "error": "Service uninstallation timed out (60s limit)"}), 500
     except Exception as exc:
-        clean_log(f"❌ Service installation failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Service uninstallation failed: {exc}", show_always=True, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -23189,10 +23262,11 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
         </div>
         <div class="passphrase-card">
-          <label>🖥️ Desktop Launcher & Service<span class="help-icon" data-explainer="Create desktop shortcuts and install Mesh Master as a system service for automatic startup and restart." data-explainer-placement="right">?</span></label>
-          <button type="button" id="installServiceBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">🚀 Install as System Service</button>
+          <label>🖥️ Desktop Launcher & Service<span class="help-icon" data-explainer="One-click install creates desktop shortcuts and system service for automatic startup/restart. Platform auto-detected (macOS/Linux/Windows)." data-explainer-placement="right">?</span></label>
+          <button type="button" id="installServiceBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">🚀 Install Service + Desktop Shortcuts</button>
+          <button type="button" id="uninstallServiceBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🗑️ Uninstall Service</button>
           <button type="button" id="showSetupInstructionsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📋 Show Manual Setup Commands</button>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Platform-specific commands for desktop launcher and auto-restart service.</p>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Installs system service + creates Start/Stop desktop icons. Platform detected automatically.</p>
         </div>
         <div class="passphrase-card">
           <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
@@ -26935,13 +27009,13 @@ def dashboard():
       const btn = $("installServiceBtn");
       if (!btn) return;
 
-      if (!confirm('🚀 INSTALL SYSTEM SERVICE\n\nThis will:\n• Install Mesh Master as a system service\n• Enable auto-start on boot\n• Enable auto-restart on crashes\n\nContinue?')) {
+      if (!confirm('🚀 INSTALL SYSTEM SERVICE + DESKTOP SHORTCUTS\n\nThis will:\n• Install Mesh Master as a system service\n• Create desktop shortcuts (Start/Stop icons)\n• Enable auto-start on boot\n• Enable auto-restart on crashes\n\nPlatform will be auto-detected.\n\nContinue?')) {
         return;
       }
 
       const originalText = btn.textContent;
       btn.disabled = true;
-      btn.textContent = '⏳ Installing service...';
+      btn.textContent = '⏳ Installing...';
 
       try {
         const response = await fetch('/dashboard/service/install', {
@@ -26951,19 +27025,57 @@ def dashboard():
         const data = await response.json();
 
         if (data.success) {
-          alert(`✅ Service Installed Successfully!\n\n${data.message}\n\nPlatform: ${data.platform}\n\nMesh Master will now:\n• Start automatically on boot\n• Restart automatically after crashes\n• Restart automatically after /update command`);
-          btn.textContent = '✅ Service Installed!';
+          alert(`✅ Installation Complete!\n\n${data.message}\n\nPlatform: ${data.platform}\n\nMesh Master will now:\n• Start automatically on boot\n• Restart automatically after crashes\n• Have Start/Stop desktop shortcuts`);
+          btn.textContent = '✅ Installed!';
           setTimeout(() => {
             btn.textContent = originalText;
             btn.disabled = false;
           }, 3000);
         } else {
-          alert(`❌ Service Installation Failed\n\n${data.error}\n\nYou may need to run the install script manually. Click "Show Manual Setup Commands" for instructions.`);
+          alert(`❌ Installation Failed\n\n${data.error}\n\nYou may need to run the install script manually. Click "Show Manual Setup Commands" for instructions.`);
           btn.textContent = originalText;
           btn.disabled = false;
         }
       } catch (err) {
-        alert(`❌ Service installation request failed: ${err.message}`);
+        alert(`❌ Installation request failed: ${err.message}`);
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    async function onUninstallService() {
+      const btn = $("uninstallServiceBtn");
+      if (!btn) return;
+
+      if (!confirm('🗑️ UNINSTALL SYSTEM SERVICE\n\nThis will:\n• Stop the Mesh Master service\n• Disable auto-start on boot\n• Remove service files\n\nYour data and config will NOT be deleted.\nDesktop shortcuts will remain (delete manually if desired).\n\nContinue?')) {
+        return;
+      }
+
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Uninstalling...';
+
+      try {
+        const response = await fetch('/dashboard/service/uninstall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Service Uninstalled!\n\n${data.message}\n\nPlatform: ${data.platform}\n\nMesh Master will no longer auto-start on boot.\nYou can still run it manually.`);
+          btn.textContent = '✅ Uninstalled!';
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+          }, 3000);
+        } else {
+          alert(`❌ Uninstallation Failed\n\n${data.error}\n\nYou may need to run the uninstall script manually.`);
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert(`❌ Uninstallation request failed: ${err.message}`);
         btn.textContent = originalText;
         btn.disabled = false;
       }
@@ -27800,6 +27912,10 @@ def dashboard():
       const installServiceBtn = $("installServiceBtn");
       if (installServiceBtn) {
         installServiceBtn.addEventListener('click', onInstallService);
+      }
+      const uninstallServiceBtn = $("uninstallServiceBtn");
+      if (uninstallServiceBtn) {
+        uninstallServiceBtn.addEventListener('click', onUninstallService);
       }
       const showSetupBtn = $("showSetupInstructionsBtn");
       if (showSetupBtn) {
