@@ -2,10 +2,38 @@
 
 **MESH MASTER 2.0** is the next evolution of the Mesh-AI project: a resilient AI copilot for Meshtastic LoRa meshes that remembers conversations, coordinates teams, and keeps the network moving even when the wider internet is gone. Version 2.0 introduces context-aware AI help, offline relay queuing, enhanced privacy controls, URL content filtering, and fuzzy search—all while maintaining the Mesh Mail hub, network bridge relay system, llama-powered games for morale and training, rich offline knowledge, and a comprehensive web command center.
 
-> **Disclaimer**  
+> **Disclaimer**
 > This project is an independent community effort and is **not associated** with the official Meshtastic project. Always maintain backup communication paths for real emergencies.
 
 ![Mesh Master 2.0 hero](docs/mesh-master-2.0-hero.svg)
+
+---
+
+## 🚀 Quick Install (One Command)
+
+**macOS:**
+```bash
+curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/macos/install_service.sh | bash
+```
+
+**Linux/Raspberry Pi:**
+```bash
+curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/linux/install_service.sh | sudo bash
+```
+
+**Windows:** (Run as Administrator in PowerShell)
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/install_service.bat" -OutFile "$env:TEMP\install_mesh.bat"; & "$env:TEMP\install_mesh.bat"
+```
+
+These scripts will:
+- ✅ Automatically find or download Mesh Master
+- ✅ Install as a system service (auto-start on boot)
+- ✅ Set up auto-restart on crashes
+- ✅ Configure dashboard access
+- ✅ No manual setup required!
+
+**Dashboard:** Open `http://localhost:5001/dashboard` after installation
 
 ---
 

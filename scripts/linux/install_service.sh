@@ -24,40 +24,55 @@ echo "  Mesh Master Linux Service Installer"
 echo "=========================================="
 echo ""
 
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_DIR="$( cd "$SCRIPT_DIR/../.." && pwd )"
+# Try to find Mesh-Master directory automatically
+PROJECT_DIR=""
 
-echo "Project directory: $PROJECT_DIR"
-echo ""
+# Method 1: Check if script is inside Mesh-Master directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" 2>/dev/null && pwd )"
+if [[ -n "$SCRIPT_DIR" ]]; then
+    POTENTIAL_DIR="$( cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd )"
+    if [[ -f "$POTENTIAL_DIR/mesh-master.py" ]]; then
+        PROJECT_DIR="$POTENTIAL_DIR"
+    fi
+fi
 
-# Verify we're in the Mesh Master project directory
-if [[ ! -f "$PROJECT_DIR/mesh-master.py" ]]; then
-    echo -e "${RED}❌ Error: mesh-master.py not found!${NC}"
+# Method 2: Check current directory
+if [[ -z "$PROJECT_DIR" ]] && [[ -f "$PWD/mesh-master.py" ]]; then
+    PROJECT_DIR="$PWD"
+fi
+
+# Method 3: Search common locations
+if [[ -z "$PROJECT_DIR" ]]; then
+    for dir in "$HOME/Mesh-Master" "$HOME/Programs/mesh-ai" "/opt/Mesh-Master" "/usr/local/Mesh-Master"; do
+        if [[ -f "$dir/mesh-master.py" ]]; then
+            PROJECT_DIR="$dir"
+            break
+        fi
+    done
+fi
+
+# Method 4: Try to find anywhere in home directory (may take a moment)
+if [[ -z "$PROJECT_DIR" ]]; then
+    echo "Searching for Mesh-Master installation..."
+    FOUND_DIR=$(find "$HOME" -name "mesh-master.py" -type f 2>/dev/null | head -1)
+    if [[ -n "$FOUND_DIR" ]]; then
+        PROJECT_DIR="$(dirname "$FOUND_DIR")"
+    fi
+fi
+
+# If still not found, give up with helpful message
+if [[ -z "$PROJECT_DIR" ]] || [[ ! -f "$PROJECT_DIR/mesh-master.py" ]]; then
+    echo -e "${RED}❌ Could not find Mesh-Master installation${NC}"
     echo ""
-    echo "This script must be run from the Mesh Master project directory."
+    echo "Please clone Mesh-Master first, then run this script again:"
     echo ""
-    echo "Please navigate to your Mesh-Master folder and try again:"
-    echo -e "${YELLOW}cd ~/Mesh-Master${NC}"
-    echo -e "${YELLOW}./scripts/linux/install_service.sh${NC}"
-    echo ""
-    echo "Or run with bash:"
-    echo -e "${YELLOW}bash scripts/linux/install_service.sh${NC}"
+    echo -e "${YELLOW}git clone https://github.com/Snail3D/Mesh-Master.git${NC}"
+    echo -e "${YELLOW}cd Mesh-Master${NC}"
+    echo -e "${YELLOW}sudo bash scripts/linux/install_service.sh${NC}"
     exit 1
 fi
 
-# Additional verification - check for key files
-if [[ ! -f "$PROJECT_DIR/config.json" ]] && [[ ! -f "$PROJECT_DIR/config.json.example" ]]; then
-    echo -e "${RED}❌ Error: This doesn't look like a Mesh Master directory${NC}"
-    echo ""
-    echo "Expected to find config.json or config.json.example"
-    echo "Current directory: $PROJECT_DIR"
-    echo ""
-    echo "Please make sure you're in the Mesh-Master project folder."
-    exit 1
-fi
-
-echo -e "${GREEN}✓${NC} Found Mesh Master installation"
+echo -e "${GREEN}✓${NC} Found Mesh Master at: $PROJECT_DIR"
 echo ""
 
 # Check if systemd is available
