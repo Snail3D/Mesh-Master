@@ -55,15 +55,40 @@ launchctl unload "$PLIST_PATH" 2>/dev/null || true
 echo "Removing plist file..."
 rm "$PLIST_PATH"
 
+# Remove desktop shortcuts
+echo "Removing desktop shortcuts..."
+DESKTOP="$HOME/Desktop"
+removed_count=0
+
+if [[ -d "$DESKTOP/Start Mesh Master.app" ]]; then
+    rm -rf "$DESKTOP/Start Mesh Master.app"
+    ((removed_count++))
+fi
+
+if [[ -d "$DESKTOP/Stop Mesh Master.app" ]]; then
+    rm -rf "$DESKTOP/Stop Mesh Master.app"
+    ((removed_count++))
+fi
+
+if [[ $removed_count -gt 0 ]]; then
+    echo -e "${GREEN}✓${NC} Removed $removed_count desktop shortcut(s)"
+else
+    echo -e "${YELLOW}⚠️${NC} No desktop shortcuts found"
+fi
+
 echo ""
 echo -e "${GREEN}=========================================="
 echo "  ✅ Mesh Master Service Uninstalled"
 echo "==========================================${NC}"
 echo ""
-echo "The service has been removed."
-echo "Mesh Master will no longer start automatically."
+echo "The service has been removed:"
+echo "  • Service stopped and disabled"
+echo "  • Auto-start on boot disabled"
+echo "  • Desktop shortcuts removed"
+echo ""
+echo "Your data and config files are preserved."
 echo ""
 echo "To run manually:"
-echo "  cd /path/to/mesh-ai"
+echo "  cd /path/to/Mesh-Master"
 echo "  python3 mesh-master.py"
 echo ""
