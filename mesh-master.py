@@ -17623,12 +17623,15 @@ def api_version():
 
     # Try to fetch latest tag from GitHub
     try:
+        # Get project directory dynamically
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+
         result = subprocess.run(
             ['git', 'describe', '--tags', '--abbrev=0'],
             capture_output=True,
             text=True,
             timeout=5,
-            cwd='/home/snailpi/Programs/mesh-ai'
+            cwd=project_dir
         )
         if result.returncode == 0 and result.stdout.strip():
             version = result.stdout.strip()
@@ -22371,6 +22374,7 @@ def dashboard():
         <span class="brand-title" style="font-size: 2.5em; font-weight: bold; letter-spacing: 0.1em;">MESH-MASTER</span>
       </div>
       <div class="header-actions">
+        <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.1.1</span>
         <span id="metricsTimestamp" class="panel-subtitle">Waiting for metrics…</span>
         <div style="display: flex; gap: 12px;">
           <a class="header-meta-link" href="/logs/verbose" target="_blank" rel="noreferrer">verbose logs</a>
@@ -26710,6 +26714,22 @@ def dashboard():
       });
     }
 
+    async function loadVersion() {
+      const versionEl = $("versionDisplay");
+      if (!versionEl) return;
+
+      try {
+        const res = await fetch('/api/version', { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.version) {
+          versionEl.textContent = data.version;
+        }
+      } catch (err) {
+        console.error("Failed to load version:", err);
+      }
+    }
+
     async function loadMetrics() {
       const statusEl = $("metricsStatus");
       try {
@@ -27032,6 +27052,7 @@ def dashboard():
           $("autoOnboardStatus").textContent = e.target.checked ? 'Enabled' : 'Disabled';
         });
       }
+      loadVersion();
       loadMetrics();
       setInterval(loadMetrics, METRICS_POLL_MS);
       initRadioPanel();
