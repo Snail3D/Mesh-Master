@@ -27,7 +27,7 @@
 - **Interactive Onboarding** — New users receive a guided 9-step tour via `/onboard` (or `/onboarding`, `/onboardme`) covering the main menu, mesh mail, logs & reports, games, AI assistance, and helpful tools. Fully customizable welcome messages through the dashboard.
 - **Private Logs & Public Reports** — `/log` creates private entries visible only to the author; `/report` creates public entries searchable by everyone via `/find`. **NEW:** Fuzzy matching with "Did you mean" suggestions for misspelled names. Command aliases: `/readlog`, `/readlogs`, `/checklog`, `/checklogs` (logs) and `/readreport`, `/readreports`, `/checkreport`, `/checkreports` (reports).
 - **Enhanced Privacy & Security** — Message content redacted in all debug/info logs (shows `[X chars]` instead of full text). URL filter blocks adult and warez sites from crawling and search results with humorous error message. Security audit trail with Telegram alerts for sensitive changes. All sensitive user data gitignored.
-- **Enhanced Dashboard** — Real-time activity feed (20-line mobile-optimized view), per-channel metrics with 30-day charts, relay tracking, radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector. Accessible remotely via Tailscale or locally at `http://<your-ip>:5000/dashboard`.
+- **Enhanced Dashboard** — Real-time activity feed (20-line mobile-optimized view), per-channel metrics with 30-day charts, relay tracking, radio configuration controls (node names, roles, modem presets, frequency slots), Ollama model management, collapsible command categories, and GitHub version selector. Accessible remotely via Tailscale or locally at `http://<your-ip>:5001/dashboard`.
 - **Data Persistence** — All user data (logs, reports, mail, settings, game states, relay preferences) now protected by `.gitignore` and persists across git updates and system reboots.
 - **Mesh Mail** — PIN-protected inboxes, multi-user notifications, and one-shot llama summaries keep longer messages flowing across the mesh.
 - **Game Hub** — Chess & Checkers duels, Blackjack, Yahtzee rounds, Tic-Tac-Toe, Hangman, Wordle, Word Ladder, Adventure stories, Cipher drills, Bingo, Morse, Rock–Paper–Scissors, Coinflip, Quiz Battle, **Mesh Master Quiz** (`/masterquiz` - 50 comprehensive questions), **Meshtastic Quiz** (`/meshtasticquiz` - 50 detailed questions), and more—all DM-friendly and multilingual.
@@ -310,7 +310,7 @@ KEY FEATURES:
 - Real-time dashboard with metrics
 
 QUICK REFERENCE:
-- Dashboard: http://localhost:5000/dashboard
+- Dashboard: http://localhost:5001/dashboard
 - Logs: tail -f mesh-master.log
 - Service: sudo systemctl status mesh-ai
 - Git repo: https://github.com/Snail3D/Mesh-Master
@@ -730,7 +730,7 @@ python mesh-master.py
 # 🟢 Connection successful! Running until error or Ctrl+C.
 ```
 
-Open dashboard: `http://raspberrypi.local:5000/dashboard`
+Open dashboard: `http://raspberrypi.local:5001/dashboard`
 
 #### Step 7: Set Up as System Service (Optional but Recommended)
 
@@ -849,7 +849,7 @@ source .venv/bin/activate
 # Run
 python mesh-master.py
 
-# Access dashboard at: http://localhost:5000/dashboard
+# Access dashboard at: http://localhost:5001/dashboard
 ```
 
 #### Step 7: Run at Startup (Optional)
@@ -1001,7 +1001,7 @@ Windows WiFi example:
 # Run Mesh Master
 python mesh-master.py
 
-# Access dashboard at: http://localhost:5000/dashboard
+# Access dashboard at: http://localhost:5001/dashboard
 ```
 
 #### Step 8: Run at Startup (Optional)
@@ -1035,8 +1035,8 @@ python mesh-master.py
 ### 1. Access the Dashboard
 
 Open your browser and go to:
-- **Local:** `http://localhost:5000/dashboard`
-- **From another device:** `http://YOUR_IP:5000/dashboard`
+- **Local:** `http://localhost:5001/dashboard`
+- **From another device:** `http://YOUR_IP:5001/dashboard`
 
 ### 2. Test Basic Commands
 
@@ -1106,9 +1106,9 @@ curl http://localhost:11434/api/version
 ### Dashboard Not Loading
 
 1. Check Mesh Master is running: Look for "Starting MESH-MASTER server..."
-2. Try: `http://127.0.0.1:5000/dashboard`
+2. Try: `http://127.0.0.1:5001/dashboard`
 3. Check firewall allows port 5000
-4. View raw logs: `http://localhost:5000/logs/raw`
+4. View raw logs: `http://localhost:5001/logs/raw`
 
 ### Permission Denied (Linux/Mac)
 
@@ -1198,7 +1198,7 @@ services:
     container_name: mesh-master
     privileged: true  # Required for serial device access
     ports:
-      - "5000:5000"  # Dashboard access
+      - "5000:5001"  # Dashboard access
     volumes:
       # Configuration (IMPORTANT: Edit config.json before running)
       - ./config.json:/app/config.json
@@ -1241,7 +1241,7 @@ docker compose logs -f  # View logs
 ```
 
 **Step 5: Access Dashboard**
-Open browser: `http://localhost:5000/dashboard`
+Open browser: `http://localhost:5001/dashboard`
 
 ### Docker Commands Cheat Sheet
 
@@ -1334,7 +1334,7 @@ docker ps
 docker port mesh-master
 
 # Try accessing from host
-curl http://localhost:5000/ready
+curl http://localhost:5001/ready
 ```
 
 **Want to rebuild after code changes:**
@@ -1364,7 +1364,7 @@ All commands are case-insensitive. Special commands buffer ~3 seconds before res
 
 ## Dashboard & Monitoring
 
-Access the dashboard at `http://localhost:5000/dashboard` or `http://<your-ip>:5000/dashboard` (mobile-accessible on same network) for:
+Access the dashboard at `http://localhost:5001/dashboard` or `http://<your-ip>:5001/dashboard` (mobile-accessible on same network) for:
 
 - **Real-time Activity Feed** — Icon-based log stream with emoji categorization (📨 incoming, 📖 Bible, 🎮 Game, 🤖 AI, 🔐 Admin, etc.). Toggle between summary and verbose modes. **NEW:** Optimized 20-line view for mobile devices with auto-scroll detection.
 - **Radio Configuration** — Set node names (long/short), device role (CLIENT, ROUTER, REPEATER), modem preset (spreading factor), and frequency slot—all dynamically pulled from current Meshtastic firmware.

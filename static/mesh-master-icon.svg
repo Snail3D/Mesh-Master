@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background gradient matching dashboard -->
+  <!-- Darker background gradient -->
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#05070b;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0f1620;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#000000;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0a0d14;stop-opacity:1" />
     </linearGradient>
     <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3c92ff;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#569cd6;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#2a7acc;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4080cc;stop-opacity:1" />
     </linearGradient>
   </defs>
 
@@ -37,11 +37,11 @@
 
   <!-- Central large node (active) -->
   <circle cx="256" cy="256" r="60" fill="url(#accentGrad)"/>
-  <circle cx="256" cy="256" r="45" fill="#05070b" opacity="0.6"/>
+  <circle cx="256" cy="256" r="45" fill="#000000" opacity="0.7"/>
   <circle cx="256" cy="256" r="30" fill="url(#accentGrad)"/>
 
   <!-- Signal waves (radio transmission) -->
-  <g stroke="#3c92ff" stroke-width="6" fill="none" opacity="0.6">
+  <g stroke="#2a7acc" stroke-width="6" fill="none" opacity="0.7">
     <path d="M 200 220 Q 200 200 220 200" stroke-linecap="round"/>
     <path d="M 180 200 Q 180 170 200 170" stroke-linecap="round"/>
     <path d="M 312 220 Q 312 200 292 200" stroke-linecap="round"/>
@@ -49,5 +49,5 @@
   </g>
 
   <!-- "MM" text (Mesh Master) -->
-  <text x="256" y="280" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#d7deed" text-anchor="middle">MM</text>
+  <text x="256" y="280" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#b8c5d6" text-anchor="middle">MM</text>
 </svg>
