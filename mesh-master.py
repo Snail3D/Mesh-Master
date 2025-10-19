@@ -18088,11 +18088,14 @@ def dashboard_update_check():
     try:
         import subprocess
 
+        # Get project directory dynamically (works on any machine)
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+
         # Get current version from git
         try:
             result = subprocess.run(
                 ["git", "describe", "--tags", "--abbrev=0"],
-                cwd="/home/snailpi/Programs/mesh-ai",
+                cwd=project_dir,
                 capture_output=True,
                 text=True,
                 timeout=10
@@ -18104,7 +18107,7 @@ def dashboard_update_check():
         # Fetch available tags from GitHub
         result = subprocess.run(
             ["git", "ls-remote", "--tags", "origin"],
-            cwd="/home/snailpi/Programs/mesh-ai",
+            cwd=project_dir,
             capture_output=True,
             text=True,
             timeout=15
@@ -18154,13 +18157,16 @@ def dashboard_update_apply():
 
         clean_log(f"📦 Update requested to version: {version}", show_always=True, rate_limit=False)
 
+        # Get project directory dynamically (works on any machine)
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+
         # Create update script that will run after Python exits
         update_script = """#!/bin/bash
-cd /home/snailpi/Programs/mesh-ai
+cd {project_dir}
 git fetch --all --tags
 git checkout {version}
-sudo systemctl restart mesh-ai
-""".format(version=version)
+sudo systemctl restart mesh-ai 2>/dev/null || echo "Note: Not running as systemd service"
+""".format(project_dir=project_dir, version=version)
 
         script_path = "/tmp/mesh_update.sh"
         with open(script_path, "w") as f:
