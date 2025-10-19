@@ -634,7 +634,7 @@ All sensitive data gitignored (see .gitignore for complete list)
 
 ### Queue Limits
 - Async response queue: 25 items (prevents memory overflow)
-- Relay queue: 100 items (burst handling)
+- Relay queue: 500 items (high-capacity burst handling)
 - Offline queue: 10 messages/user (storage limit)
 
 ### Cache TTLs
