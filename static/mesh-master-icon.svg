@@ -1,53 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Darker background gradient -->
+  <!-- Clean, minimal dark theme with double M -->
   <defs>
+    <!-- Very dark background gradient -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#000000;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0a0d14;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0a0e17;stop-opacity:1" />
     </linearGradient>
-    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2a7acc;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#4080cc;stop-opacity:1" />
+
+    <!-- Cool blue accent for the M letters -->
+    <linearGradient id="mGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e88e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#42a5f5;stop-opacity:1" />
     </linearGradient>
+
+    <!-- Glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <!-- Background rounded rectangle -->
-  <rect width="512" height="512" rx="100" fill="url(#bgGrad)"/>
+  <!-- Dark background with rounded corners -->
+  <rect width="512" height="512" rx="90" fill="url(#bgGrad)"/>
 
-  <!-- Mesh network nodes (hexagonal pattern) -->
-  <g fill="url(#accentGrad)" opacity="0.3">
-    <circle cx="256" cy="150" r="30"/>
-    <circle cx="180" cy="240" r="25"/>
-    <circle cx="332" cy="240" r="25"/>
-    <circle cx="150" cy="350" r="20"/>
-    <circle cx="256" cy="370" r="20"/>
-    <circle cx="362" cy="350" r="20"/>
+  <!-- Subtle border glow -->
+  <rect x="8" y="8" width="496" height="496" rx="82" fill="none" stroke="url(#mGrad)" stroke-width="2" opacity="0.3"/>
+
+  <!-- Double M - Bold, clean, modern -->
+  <g filter="url(#glow)">
+    <!-- First M -->
+    <path d="M 100 340 L 100 172 L 145 240 L 190 172 L 190 340 L 160 340 L 160 240 L 145 265 L 130 240 L 130 340 Z"
+          fill="url(#mGrad)"
+          stroke="url(#mGrad)"
+          stroke-width="2"/>
+
+    <!-- Second M -->
+    <path d="M 322 340 L 322 172 L 367 240 L 412 172 L 412 340 L 382 340 L 382 240 L 367 265 L 352 240 L 352 340 Z"
+          fill="url(#mGrad)"
+          stroke="url(#mGrad)"
+          stroke-width="2"/>
   </g>
 
-  <!-- Connection lines -->
-  <g stroke="url(#accentGrad)" stroke-width="8" opacity="0.4" stroke-linecap="round">
-    <line x1="256" y1="150" x2="180" y2="240"/>
-    <line x1="256" y1="150" x2="332" y2="240"/>
-    <line x1="180" y1="240" x2="150" y2="350"/>
-    <line x1="180" y1="240" x2="256" y2="370"/>
-    <line x1="332" y1="240" x2="256" y2="370"/>
-    <line x1="332" y1="240" x2="362" y2="350"/>
-  </g>
+  <!-- Subtle connection line between the Ms -->
+  <line x1="210" y1="256" x2="302" y2="256"
+        stroke="url(#mGrad)"
+        stroke-width="3"
+        stroke-linecap="round"
+        opacity="0.4"/>
 
-  <!-- Central large node (active) -->
-  <circle cx="256" cy="256" r="60" fill="url(#accentGrad)"/>
-  <circle cx="256" cy="256" r="45" fill="#000000" opacity="0.7"/>
-  <circle cx="256" cy="256" r="30" fill="url(#accentGrad)"/>
-
-  <!-- Signal waves (radio transmission) -->
-  <g stroke="#2a7acc" stroke-width="6" fill="none" opacity="0.7">
-    <path d="M 200 220 Q 200 200 220 200" stroke-linecap="round"/>
-    <path d="M 180 200 Q 180 170 200 170" stroke-linecap="round"/>
-    <path d="M 312 220 Q 312 200 292 200" stroke-linecap="round"/>
-    <path d="M 332 200 Q 332 170 312 170" stroke-linecap="round"/>
-  </g>
-
-  <!-- "MM" text (Mesh Master) -->
-  <text x="256" y="280" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#b8c5d6" text-anchor="middle">MM</text>
+  <!-- Small decorative dots -->
+  <circle cx="256" cy="256" r="6" fill="url(#mGrad)" opacity="0.8"/>
+  <circle cx="240" cy="256" r="3" fill="url(#mGrad)" opacity="0.5"/>
+  <circle cx="272" cy="256" r="3" fill="url(#mGrad)" opacity="0.5"/>
 </svg>
