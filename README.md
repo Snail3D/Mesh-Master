@@ -516,6 +516,9 @@ cd ~
 git clone https://github.com/Snail3D/Mesh-Master.git
 cd Mesh-Master
 
+# Run setup script (creates config.json from template)
+./setup.sh
+
 # Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
@@ -524,6 +527,11 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+**What the setup script does:**
+- Creates `config.json` from `config.json.example` if it doesn't exist
+- Preserves your existing config.json if already set up
+- Includes latest settings like `auto_update_enabled`
 
 #### Step 4: Connect Your Meshtastic Device
 
@@ -544,8 +552,10 @@ ls -la /dev/serial/by-id/
 
 #### Step 5: Configure Mesh Master
 
+The setup script created `config.json` from the template. Now customize it:
+
 ```bash
-# Edit config.json
+# Edit config.json (already created by setup.sh)
 nano config.json
 
 # Update these key settings:
@@ -641,6 +651,9 @@ ollama pull llama3.2:1b
 cd ~/Documents
 git clone https://github.com/Snail3D/Mesh-Master.git
 cd Mesh-Master
+
+# Run setup script (creates config.json from template)
+./setup.sh
 
 # Create virtual environment
 python3 -m venv .venv
@@ -780,6 +793,14 @@ cd C:\Users\YourName\Documents
 # Clone repository
 git clone https://github.com/Snail3D/Mesh-Master.git
 cd Mesh-Master
+
+# Run setup script (creates config.json from template)
+# On Windows, use Git Bash or run this manually:
+# copy config.json.example config.json
+
+bash setup.sh
+# OR if bash isn't available:
+# copy config.json.example config.json
 
 # Create virtual environment
 python -m venv .venv
