@@ -14,8 +14,14 @@ pkill -f "mesh-master.py" 2>/dev/null || true
 # Kill zombies
 ps aux | grep "[m]esh-master.py" | awk '{print $2}' | xargs kill -9 2>/dev/null || true
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Change to project directory
-cd "/home/snailpi/Programs/mesh-ai"
+cd "$SCRIPT_DIR"
+
+# Set PYTHONPATH for utilities
+export PYTHONPATH="$SCRIPT_DIR/scripts/utilities:$PYTHONPATH"
 
 # Activate virtual environment if it exists
 if [ -f .venv/bin/activate ]; then
@@ -24,7 +30,7 @@ fi
 
 # Start Mesh Master in background
 echo "Starting Mesh Master..."
-nohup python3 mesh-master.py > /dev/null 2>&1 &
+nohup python3 mesh-master.py > mesh-master.log 2>&1 &
 
 # Wait for server to start
 sleep 5
