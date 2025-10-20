@@ -123,8 +123,14 @@ fi
 
 if [[ ! -d ".venv" ]]; then
     echo "Creating virtual environment..."
-    $PYTHON_CMD -m venv .venv
-    echo -e "${GREEN}✓${NC} Virtual environment created"
+    if [[ "$OS" == "Raspberry Pi" ]]; then
+        # Create venv with system packages access on Pi
+        $PYTHON_CMD -m venv --system-site-packages .venv
+        echo -e "${GREEN}✓${NC} Virtual environment created (with system packages access)"
+    else
+        $PYTHON_CMD -m venv .venv
+        echo -e "${GREEN}✓${NC} Virtual environment created"
+    fi
 fi
 echo ""
 
