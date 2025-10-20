@@ -12233,8 +12233,9 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
 
     # Redact text if responding to a sensitive prompt
     logged_text = "xxxxx" if is_pending_response else text
+    display_text = logged_text  # Separate display text for logs/feed
 
-    # Privacy: obfuscate based on message type
+    # Privacy: obfuscate DISPLAY text only (keep full message for AI context)
     if not is_pending_response and isinstance(text, str):
         if text.startswith('/'):
             # Obfuscate mail/log/report commands for privacy
@@ -12242,20 +12243,20 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
             if command_parts:
                 cmd = command_parts[0].lstrip('/').lower()
                 if cmd in ['m', 'mail']:
-                    logged_text = "✉️ mail sent"
+                    display_text = "✉️ mail sent"
                 elif cmd in ['c', 'check', 'checkmail']:
-                    logged_text = "📬 mail checked"
+                    display_text = "📬 mail checked"
                 elif cmd == 'log':
-                    logged_text = "📝 log created"
+                    display_text = "📝 log created"
                 elif cmd == 'logs':
-                    logged_text = "📋 logs viewed"
+                    display_text = "📋 logs viewed"
                 elif cmd == 'report':
-                    logged_text = "📄 report filed"
+                    display_text = "📄 report filed"
                 elif cmd == 'find':
-                    logged_text = "🔎 search performed"
+                    display_text = "🔎 search performed"
         elif direct:
-            # DM messages: show "dm received" without content for privacy
-            logged_text = "📨 dm received"
+            # DM messages: show "dm received" for display only (keep full text for AI context)
+            display_text = "📨 dm received"
 
     # Flag messages that originate from the AI so they can be included in history
     is_ai_msg = bool(is_ai)
@@ -12268,11 +12269,23 @@ def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, 
     except Exception:
         is_ai_msg = is_ai_msg
 
+    # Encrypt full message content for security (AI will decrypt when building context)
+    encrypted_message = logged_text
+    if stored_node_id and isinstance(stored_node_id, (int, str)):
+        try:
+            radio_id = str(stored_node_id)
+            encrypted_message = _encrypt_context_data(logged_text, radio_id)
+        except Exception as e:
+            # If encryption fails, store plaintext (backward compatibility)
+            dprint(f"Message encryption failed: {e}")
+            encrypted_message = logged_text
+
     entry = {
         "timestamp": timestamp,
         "node": display_id,
         "node_id": stored_node_id,
-        "message": logged_text,
+        "message": encrypted_message,  # Encrypted full message for AI context
+        "display_text": display_text,  # Redacted text for logs/feed (never encrypted)
         "emergency": is_emergency,
         "reply_to": reply_to,
         "direct": direct,
@@ -13275,7 +13288,19 @@ def build_ollama_history(sender_id=None, is_direct=False, channel_idx=None, thre
           who = get_node_shortname(nid)
         except Exception:
           who = str(m.get('node', nid))
-      text = str(m.get('message', ''))
+
+      # Decrypt message for AI context
+      encrypted_text = str(m.get('message', ''))
+      text = encrypted_text
+      if nid and encrypted_text:
+        try:
+          radio_id = str(nid)
+          text = _decrypt_context_data(encrypted_text, radio_id)
+        except Exception as e:
+          # If decryption fails, use encrypted text as-is (backward compatibility)
+          dprint(f"Message decryption failed for {nid}: {e}")
+          text = encrypted_text
+
       line = f"{who}: {text}"
       out_lines.append(line)
     
