@@ -139,20 +139,34 @@ echo -e "${GREEN}✓${NC} Virtual environment activated"
 echo ""
 
 # Upgrade pip
-echo "Upgrading pip..."
-pip install --upgrade pip -q
-echo -e "${GREEN}✓${NC} pip upgraded"
+echo "Upgrading pip (this may take a minute on Raspberry Pi)..."
+pip install --upgrade pip --no-cache-dir
+if [[ $? -eq 0 ]]; then
+    echo -e "${GREEN}✓${NC} pip upgraded"
+else
+    echo -e "${YELLOW}⚠️${NC}  pip upgrade failed (continuing anyway)"
+fi
 echo ""
 
 # Install dependencies
 echo "Installing Python dependencies..."
-echo "(This may take a few minutes...)"
+if [[ "$OS" == "Raspberry Pi" ]]; then
+    echo "(This may take 5-10 minutes on Raspberry Pi - please be patient)"
+else
+    echo "(This may take a few minutes...)"
+fi
 echo ""
 
 # Install base requirements
 if [[ -f "requirements.txt" ]]; then
-    pip install -r requirements.txt -q
-    echo -e "${GREEN}✓${NC} Installed requirements.txt"
+    echo "Installing from requirements.txt..."
+    pip install -r requirements.txt --no-cache-dir
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✓${NC} Installed requirements.txt"
+    else
+        echo -e "${RED}❌ Failed to install requirements${NC}"
+        exit 1
+    fi
 else
     echo -e "${RED}❌ requirements.txt not found${NC}"
     exit 1
@@ -160,8 +174,12 @@ fi
 
 # Install additional required packages not in requirements.txt
 echo "Installing additional dependencies..."
-pip install cryptography python-telegram-bot bcrypt -q
-echo -e "${GREEN}✓${NC} Installed cryptography, telegram, bcrypt"
+pip install cryptography python-telegram-bot bcrypt --no-cache-dir
+if [[ $? -eq 0 ]]; then
+    echo -e "${GREEN}✓${NC} Installed cryptography, telegram, bcrypt"
+else
+    echo -e "${YELLOW}⚠️${NC}  Some additional packages may have failed"
+fi
 echo ""
 
 # Create config.json from example if it doesn't exist
