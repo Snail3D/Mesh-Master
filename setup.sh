@@ -138,6 +138,16 @@ fi
 echo -e "${GREEN}✓${NC} Virtual environment activated"
 echo ""
 
+# On Raspberry Pi, install system packages to avoid slow builds
+if [[ "$OS" == "Raspberry Pi" ]]; then
+    echo "Installing system packages for faster Pi installation..."
+    echo "(This provides pre-compiled binaries instead of building from source)"
+    sudo apt-get update -qq
+    sudo apt-get install -y python3-pip python3-cryptography python3-bcrypt libatlas-base-dev 2>&1 | grep -v "already"
+    echo -e "${GREEN}✓${NC} System packages installed"
+    echo ""
+fi
+
 # Upgrade pip
 echo "Upgrading pip (this may take a minute on Raspberry Pi)..."
 pip install --upgrade pip --no-cache-dir
@@ -160,7 +170,15 @@ echo ""
 # Install base requirements
 if [[ -f "requirements.txt" ]]; then
     echo "Installing from requirements.txt..."
-    pip install -r requirements.txt --no-cache-dir
+
+    # On Raspberry Pi, use system packages where possible to avoid compilation
+    if [[ "$OS" == "Raspberry Pi" ]]; then
+        echo "(Using --system-site-packages to leverage pre-built system packages)"
+        pip install -r requirements.txt --no-cache-dir --prefer-binary
+    else
+        pip install -r requirements.txt --no-cache-dir
+    fi
+
     if [[ $? -eq 0 ]]; then
         echo -e "${GREEN}✓${NC} Installed requirements.txt"
     else
@@ -174,11 +192,18 @@ fi
 
 # Install additional required packages not in requirements.txt
 echo "Installing additional dependencies..."
-pip install cryptography python-telegram-bot bcrypt --no-cache-dir
-if [[ $? -eq 0 ]]; then
-    echo -e "${GREEN}✓${NC} Installed cryptography, telegram, bcrypt"
+if [[ "$OS" == "Raspberry Pi" ]]; then
+    # Skip packages already installed via apt
+    echo "(Skipping cryptography and bcrypt - using system packages)"
+    pip install python-telegram-bot --no-cache-dir --prefer-binary
 else
-    echo -e "${YELLOW}⚠️${NC}  Some additional packages may have failed"
+    pip install cryptography python-telegram-bot bcrypt --no-cache-dir
+fi
+
+if [[ $? -eq 0 ]]; then
+    echo -e "${GREEN}✓${NC} Installed additional dependencies"
+else
+    echo -e "${YELLOW}⚠️${NC}  Some additional packages may have failed (likely OK if using system packages)"
 fi
 echo ""
 
