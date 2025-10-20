@@ -113,6 +113,37 @@ fi
 echo -e "${GREEN}✓${NC} Found Mesh Master at: $PROJECT_DIR"
 echo ""
 
+# Run setup.sh if config.json doesn't exist
+if [[ ! -f "$PROJECT_DIR/config.json" ]]; then
+    echo "Running initial setup..."
+    cd "$PROJECT_DIR"
+    if [[ -f "./setup.sh" ]]; then
+        bash ./setup.sh
+        echo -e "${GREEN}✓${NC} Setup complete"
+    fi
+fi
+
+# Install Python dependencies if requirements.txt exists
+if [[ -f "$PROJECT_DIR/requirements.txt" ]]; then
+    echo "Checking Python dependencies..."
+
+    # Find Python
+    PYTHON_CMD=$(which python3)
+
+    # Check if we should use venv
+    if [[ -f "$PROJECT_DIR/.venv/bin/pip" ]]; then
+        echo "Installing dependencies in virtual environment..."
+        "$PROJECT_DIR/.venv/bin/pip" install -q -r "$PROJECT_DIR/requirements.txt"
+    else
+        echo "Installing dependencies with system Python..."
+        "$PYTHON_CMD" -m pip install -q -r "$PROJECT_DIR/requirements.txt" --user 2>/dev/null || \
+        "$PYTHON_CMD" -m pip install -q -r "$PROJECT_DIR/requirements.txt"
+    fi
+    echo -e "${GREEN}✓${NC} Dependencies installed"
+fi
+
+echo ""
+
 # Check if systemd is available
 if ! command -v systemctl &> /dev/null; then
     echo -e "${RED}❌ Error: systemd not found${NC}"

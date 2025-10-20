@@ -91,6 +91,32 @@ if not exist "%PROJECT_DIR%\config.json" (
 echo [OK] Found Mesh Master installation
 echo.
 
+REM Run setup.bat if config.json doesn't exist
+if not exist "%PROJECT_DIR%\config.json" (
+    echo Running initial setup...
+    cd /d "%PROJECT_DIR%"
+    if exist "setup.sh" (
+        bash setup.sh
+        echo [OK] Setup complete
+    )
+)
+
+REM Install Python dependencies if requirements.txt exists
+if exist "%PROJECT_DIR%\requirements.txt" (
+    echo Checking Python dependencies...
+
+    REM Check if virtual environment exists
+    if exist "%PROJECT_DIR%\.venv\Scripts\pip.exe" (
+        echo Installing dependencies in virtual environment...
+        "%PROJECT_DIR%\.venv\Scripts\pip.exe" install -q -r "%PROJECT_DIR%\requirements.txt"
+    ) else (
+        echo Installing dependencies with system Python...
+        python -m pip install -q -r "%PROJECT_DIR%\requirements.txt" --user
+    )
+    echo [OK] Dependencies installed
+    echo.
+)
+
 REM Check if NSSM is installed
 where nssm >nul 2>&1
 if %errorLevel% neq 0 (

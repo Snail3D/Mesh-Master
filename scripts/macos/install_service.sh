@@ -121,6 +121,33 @@ echo ""
 # Create logs directory if it doesn't exist
 mkdir -p "$PROJECT_DIR/logs"
 
+# Run setup.sh if config.json doesn't exist
+if [[ ! -f "$PROJECT_DIR/config.json" ]]; then
+    echo "Running initial setup..."
+    cd "$PROJECT_DIR"
+    if [[ -f "./setup.sh" ]]; then
+        bash ./setup.sh
+        echo -e "${GREEN}✓${NC} Setup complete"
+    fi
+fi
+
+# Install Python dependencies if requirements.txt exists
+if [[ -f "$PROJECT_DIR/requirements.txt" ]]; then
+    echo "Checking Python dependencies..."
+
+    # Check if we should use venv
+    if [[ -f "$PROJECT_DIR/.venv/bin/pip" ]]; then
+        echo "Installing dependencies in virtual environment..."
+        "$PROJECT_DIR/.venv/bin/pip" install -q -r "$PROJECT_DIR/requirements.txt"
+    else
+        echo "Installing dependencies with system Python..."
+        "$PYTHON_PATH" -m pip install -q -r "$PROJECT_DIR/requirements.txt" --user
+    fi
+    echo -e "${GREEN}✓${NC} Dependencies installed"
+fi
+
+echo ""
+
 # LaunchAgent directory
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 PLIST_NAME="com.meshmaster.plist"
