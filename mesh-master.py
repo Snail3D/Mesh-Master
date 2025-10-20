@@ -23262,16 +23262,14 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
         </div>
         <div class="passphrase-card">
-          <label>🖥️ Desktop Launcher & Service<span class="help-icon" data-explainer="One-click install creates desktop shortcuts and system service for automatic startup/restart. Platform auto-detected (macOS/Linux/Windows)." data-explainer-placement="right">?</span></label>
-          <button type="button" id="installServiceBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">🚀 Install Service + Desktop Shortcuts</button>
-          <button type="button" id="uninstallServiceBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🗑️ Uninstall Service</button>
-          <button type="button" id="showSetupInstructionsBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">📋 Show Manual Setup Commands</button>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Installs system service + creates Start/Stop desktop icons. Platform detected automatically.</p>
+          <label>🚀 Install System Service<span class="help-icon" data-explainer="One-click install: Creates system service with auto-start on boot, auto-restart on crashes, and desktop shortcuts. Platform auto-detected (macOS/Linux/Windows)." data-explainer-placement="right">?</span></label>
+          <button type="button" id="installServiceBtn" class="config-save-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px;">🚀 Install Service (Auto-Start + Auto-Restart + Shortcuts)</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #4CAF50;">Automatically installs service, enables auto-start on boot, auto-restart on crashes, and creates desktop Start/Stop icons.</p>
         </div>
         <div class="passphrase-card">
-          <label>⚠️ System Controls<span class="help-icon" data-explainer="Admin-only controls for managing the server. Use with caution as these will interrupt service." data-explainer-placement="right">?</span></label>
-          <button type="button" id="systemRebootBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px;">🔄 Reboot Server</button>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Restarts the entire mesh-master server. Admin only.</p>
+          <label>🗑️ Uninstall Everything<span class="help-icon" data-explainer="Completely removes Mesh Master service, disables auto-start, and removes desktop shortcuts. Your data and config are preserved." data-explainer-placement="right">?</span></label>
+          <button type="button" id="uninstallServiceBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px;">🗑️ Uninstall Service + Remove Shortcuts</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Stops service, disables auto-start, removes all service files and desktop shortcuts. Data and config preserved.</p>
         </div>
         </div>
 
@@ -27916,20 +27914,6 @@ def dashboard():
       const uninstallServiceBtn = $("uninstallServiceBtn");
       if (uninstallServiceBtn) {
         uninstallServiceBtn.addEventListener('click', onUninstallService);
-      }
-      const showSetupBtn = $("showSetupInstructionsBtn");
-      if (showSetupBtn) {
-        showSetupBtn.addEventListener('click', showSetupInstructions);
-      }
-      const closeSetupModal = $("closeSetupModal");
-      if (closeSetupModal) {
-        closeSetupModal.addEventListener('click', () => {
-          $("setupInstructionsModal").style.display = "none";
-        });
-      }
-      const rebootBtn = $("systemRebootBtn");
-      if (rebootBtn) {
-        rebootBtn.addEventListener('click', onSystemReboot);
       }
       const onboardSaveBtn = $("onboardSaveBtn");
       if (onboardSaveBtn) {
