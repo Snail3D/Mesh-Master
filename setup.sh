@@ -239,6 +239,15 @@ if [[ -f "requirements.txt" ]]; then
 
                 if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
                     cp -r meshtastic "$SITE_PACKAGES/" && echo "    ✓ Copied to $SITE_PACKAGES"
+
+                    # Link system packages into venv so meshtastic can find them
+                    echo "  Linking system packages to venv..."
+                    for pkg in google protobuf pubsub serial; do
+                        SYSTEM_PKG=$(python3 -c "import sys; print([p for p in sys.path if 'dist-packages' in p][0])" 2>/dev/null)
+                        if [ -n "$SYSTEM_PKG" ] && [ -d "$SYSTEM_PKG/$pkg" ]; then
+                            ln -sf "$SYSTEM_PKG/$pkg" "$SITE_PACKAGES/" 2>/dev/null && echo "    ✓ Linked $pkg"
+                        fi
+                    done
                 else
                     echo "    ✗ Could not find site-packages at: $SITE_PACKAGES"
                     echo "    Debug: MESH_DIR=$MESH_DIR"
