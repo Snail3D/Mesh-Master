@@ -275,10 +275,10 @@ if [[ -f "requirements.txt" ]]; then
                     done
 
                     # Also link .so files (compiled extensions) that are needed
-                    for so_file in "$DIST_PACKAGES"/_cffi_backend*.so; do
-                        if [ -f "$so_file" ]; then
-                            ln -sf "$so_file" "$SITE_PACKAGES/" && echo "    ✓ Linked $(basename $so_file)"
-                        fi
+                    echo "  Linking compiled extensions (.so files)..."
+                    # Link all .so files from dist-packages
+                    find "$DIST_PACKAGES" -maxdepth 1 -name "*.so" -type f | while read so_file; do
+                        ln -sf "$so_file" "$SITE_PACKAGES/" && echo "    ✓ Linked $(basename $so_file)"
                     done
 
                     # Also check /usr/local
