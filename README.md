@@ -11,36 +11,37 @@
 
 ## 🚀 Quick Install (One Command)
 
-**Universal installer works on macOS, Linux, Raspberry Pi, and Windows (Git Bash):**
+**Universal installer - works on macOS, Linux, Raspberry Pi, and Windows (Git Bash):**
 
 ```bash
 rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd Mesh-Master && ./setup.sh
 ```
 
-**What this does:**
-- Removes any existing Mesh-Master directory (clean start)
-- Clones the latest version from GitHub
-- Runs the universal setup script
+**That's it! One command does everything:**
 
-**What happens:**
-- ✅ Detects your operating system automatically
-- ✅ Creates Python virtual environment
-- ✅ Installs all required dependencies
-- ✅ Configures port 5001 (avoids macOS conflicts)
-- ✅ Creates config.json from template
-- ✅ Checks for Ollama AI engine
-- ✅ Gives you platform-specific next steps
+✅ **Auto-detects your platform** (macOS, Linux, Raspberry Pi, Windows)
+✅ **Installs Python 3** (if missing - prompts first)
+✅ **Installs Ollama AI** (if missing - prompts first)
+✅ **Downloads llama3.2:1b model** (~1.3GB - prompts first)
+✅ **Installs all dependencies** (including meshtastic, cryptography, telegram)
+✅ **Creates desktop shortcut** with dark MM icon
+✅ **Optimized for Raspberry Pi** (uses pre-compiled system packages)
+✅ **Configures port 5001** (avoids macOS AirPlay conflict)
+✅ **Creates config.json** with default password: `password`
 
-**What it does NOT do:**
-- ❌ Does not create a system service (manual setup required)
-- ❌ Does not start Mesh Master automatically
-- ❌ You must edit config.json and set your admin password
+**After setup completes:**
 
-**Quick start after setup:**
-```bash
-./mesh-master.sh                    # Start Mesh Master
-# Open: http://localhost:5001/dashboard
-```
+1. **Double-click** the **Mesh Master** icon on your desktop
+   OR run: `./mesh-master.sh`
+
+2. **Open dashboard:** http://localhost:5001/dashboard
+   **Login password:** `password` (change it in dashboard settings!)
+
+**Platform-specific notes:**
+- **Raspberry Pi:** Takes 5-10 minutes (uses system packages to avoid compilation)
+- **macOS:** Requires Homebrew for auto-install features
+- **Windows:** Python and Ollama must be installed manually (script will guide you)
+- **Linux:** Fully automatic with sudo access
 
 ---
 
