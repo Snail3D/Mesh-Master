@@ -1,6 +1,6 @@
 {
-  "admin_password": "CHANGE_ME",
-  "admin_password_hint": "Your password hint",
+  "admin_password": "password",
+  "admin_password_hint": "default is 'password'",
   "ai_chill_mode": false,
   "ai_chill_queue_limit": 10,
   "ai_node_name": "Mesh Master",
