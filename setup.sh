@@ -201,24 +201,28 @@ if [[ -f "requirements.txt" ]]; then
         echo ""
 
         # Only install meshtastic and packages not available via apt
-        echo "Installing remaining packages via pip..."
-        echo "Installing meshtastic..."
-        pip install meshtastic --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} meshtastic" || echo -e "  ${YELLOW}⚠️${NC} meshtastic failed"
+        echo "Installing remaining packages via pip (using piwheels for pre-built binaries)..."
 
+        # Simple pure-Python packages (should be fast)
         echo "Installing pubsub..."
-        pip install pubsub --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} pubsub" || echo -e "  ${YELLOW}⚠️${NC} pubsub failed"
+        pip install pubsub --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} pubsub" || echo -e "  ${YELLOW}⚠️${NC} pubsub failed"
 
         echo "Installing unidecode..."
-        pip install unidecode --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} unidecode" || echo -e "  ${YELLOW}⚠️${NC} unidecode failed"
-
-        echo "Installing reportlab..."
-        pip install reportlab --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} reportlab" || echo -e "  ${YELLOW}⚠️${NC} reportlab failed"
+        pip install unidecode --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} unidecode" || echo -e "  ${YELLOW}⚠️${NC} unidecode failed"
 
         echo "Installing python-chess..."
-        pip install python-chess --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} python-chess" || echo -e "  ${YELLOW}⚠️${NC} python-chess failed"
+        pip install python-chess --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} python-chess" || echo -e "  ${YELLOW}⚠️${NC} python-chess failed"
 
         echo "Installing pytest..."
-        pip install pytest --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} pytest" || echo -e "  ${YELLOW}⚠️${NC} pytest failed"
+        pip install pytest --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} pytest" || echo -e "  ${YELLOW}⚠️${NC} pytest failed"
+
+        # Meshtastic (may have dependencies, use piwheels)
+        echo "Installing meshtastic (this may take 1-2 minutes on Pi)..."
+        pip install meshtastic --no-cache-dir --prefer-binary --index-url https://www.piwheels.org/simple --extra-index-url https://pypi.org/simple && echo -e "  ${GREEN}✓${NC} meshtastic" || echo -e "  ${YELLOW}⚠️${NC} meshtastic failed"
+
+        # Reportlab (may take longer, has native code)
+        echo "Installing reportlab..."
+        pip install reportlab --no-cache-dir --prefer-binary --index-url https://www.piwheels.org/simple --extra-index-url https://pypi.org/simple && echo -e "  ${GREEN}✓${NC} reportlab" || echo -e "  ${YELLOW}⚠️${NC} reportlab failed"
 
         echo ""
         echo -e "${GREEN}✓${NC} Finished installing requirements"
