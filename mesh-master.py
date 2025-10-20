@@ -2388,6 +2388,12 @@ except ImportError:
     TCPInterface = None
 
 try:
+    from meshtastic.ble_interface import BLEInterface
+    BLE_INTERFACE_AVAILABLE = True
+except ImportError:
+    BLE_INTERFACE_AVAILABLE = False
+
+try:
     from meshtastic.mesh_interface import MeshInterface
     MESH_INTERFACE_AVAILABLE = True
 except ImportError:
@@ -7005,6 +7011,8 @@ try:
     WIFI_PORT = int(config.get("wifi_port", 4403))
 except (ValueError, TypeError):
     WIFI_PORT = 4403
+USE_BLUETOOTH = bool(config.get("use_bluetooth", False))
+BLUETOOTH_DEVICE = config.get("bluetooth_device") or None
 USE_MESH_INTERFACE = bool(config.get("use_mesh_interface", False))
 
 AUTO_REFRESH_ENABLED = bool(config.get("auto_refresh_enabled", False))
@@ -30403,8 +30411,9 @@ def connect_interface():
 
     Resolution order:
       1. Wi‑Fi TCP bridge
-      2. Local MeshInterface()
-      3. USB SerialInterface (explicit path or auto‑detect)
+      2. Bluetooth Low Energy
+      3. Local MeshInterface()
+      4. USB SerialInterface (explicit path or auto‑detect)
     """
     global connection_status, last_error_message
     try:
@@ -30414,7 +30423,29 @@ def connect_interface():
             connection_status, last_error_message = "Connected", ""
             return TCPInterface(hostname=WIFI_HOST, portNumber=WIFI_PORT)
 
-        # 2️⃣  Local mesh interface ---------------------------------------
+        # 2️⃣  Bluetooth Low Energy ----------------------------------------
+        if USE_BLUETOOTH and BLUETOOTH_DEVICE and BLE_INTERFACE_AVAILABLE:
+            print(f"BLEInterface → {BLUETOOTH_DEVICE}")
+            try:
+                connection_status, last_error_message = "Connected", ""
+                return BLEInterface(address=BLUETOOTH_DEVICE)
+            except Exception as exc:
+                connection_status = "Disconnected"
+                last_error_message = f"BLE connection failed: {exc}"
+                clean_log(
+                    f"Bluetooth connection to {BLUETOOTH_DEVICE} failed: {exc}",
+                    "⚠️",
+                    show_always=True,
+                )
+                # Fall through to other methods
+        elif USE_BLUETOOTH and not BLE_INTERFACE_AVAILABLE:
+            clean_log(
+                "Bluetooth requested but BLEInterface not available - install python3-bleak",
+                "⚠️",
+                show_always=True,
+            )
+
+        # 3️⃣  Local mesh interface ---------------------------------------
         if USE_MESH_INTERFACE and MESH_INTERFACE_AVAILABLE:
             print("MeshInterface() for direct‑radio mode")
             mesh_candidate = None
@@ -30441,7 +30472,7 @@ def connect_interface():
                     with suppress(Exception):
                         mesh_candidate.close()
 
-        # 3️⃣  USB serial --------------------------------------------------
+        # 4️⃣  USB serial --------------------------------------------------
         # If a serial path is provided, retry opening it with backoff
         if SERIAL_PORT:
             max_attempts = 10
