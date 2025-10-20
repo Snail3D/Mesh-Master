@@ -202,9 +202,11 @@ if [[ -f "requirements.txt" ]]; then
         # Install common Python packages from apt to avoid pip compilation issues
         echo "Installing system packages..."
 
-        # Try to install each package individually in case some are already installed
-        for pkg in python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate; do
-            if dpkg -l | grep -q "^ii.*$pkg"; then
+        # Install all required system packages (including all meshtastic dependencies)
+        SYSTEM_PKGS="python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate python3-serial python3-yaml python3-pypubsub python3-packaging"
+
+        for pkg in $SYSTEM_PKGS; do
+            if dpkg -l 2>/dev/null | grep -q "^ii.*$pkg"; then
                 echo "  $pkg already installed"
             else
                 echo "  Installing $pkg..."
@@ -261,8 +263,10 @@ if [[ -f "requirements.txt" ]]; then
                     # Standard Debian/Raspbian location for python3 packages
                     DIST_PACKAGES="/usr/lib/python3/dist-packages"
 
-                    # Link packages directly from known location
-                    for pkg in google protobuf pubsub serial pypubsub tabulate; do
+                    # Link all required packages for meshtastic
+                    REQUIRED_PKGS="google protobuf pubsub pypubsub serial tabulate yaml requests packaging"
+
+                    for pkg in $REQUIRED_PKGS; do
                         if [ -d "$DIST_PACKAGES/$pkg" ]; then
                             ln -sf "$DIST_PACKAGES/$pkg" "$SITE_PACKAGES/" && echo "    ✓ Linked $pkg"
                         elif [ -f "$DIST_PACKAGES/${pkg}.py" ]; then
@@ -272,7 +276,7 @@ if [[ -f "requirements.txt" ]]; then
 
                     # Also check /usr/local
                     if [ -d "/usr/local/lib/python3.11/dist-packages" ]; then
-                        for pkg in google protobuf pubsub serial pypubsub tabulate; do
+                        for pkg in $REQUIRED_PKGS; do
                             if [ -d "/usr/local/lib/python3.11/dist-packages/$pkg" ]; then
                                 ln -sf "/usr/local/lib/python3.11/dist-packages/$pkg" "$SITE_PACKAGES/" && echo "    ✓ Linked $pkg (from /usr/local)"
                             elif [ -f "/usr/local/lib/python3.11/dist-packages/${pkg}.py" ]; then
