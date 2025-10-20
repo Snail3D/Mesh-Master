@@ -203,7 +203,7 @@ if [[ -f "requirements.txt" ]]; then
         echo "Installing system packages..."
 
         # Install all required system packages (including all meshtastic AND mesh-master.py dependencies)
-        SYSTEM_PKGS="python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate python3-serial python3-yaml python3-pypubsub python3-packaging python3-urllib3 python3-certifi python3-charset-normalizer python3-idna python3-six python3-dotenv python3-dateutil python3-werkzeug python3-jinja2 python3-click python3-itsdangerous python3-markupsafe python3-blinker"
+        SYSTEM_PKGS="python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate python3-serial python3-yaml python3-pypubsub python3-packaging python3-urllib3 python3-certifi python3-charset-normalizer python3-idna python3-six python3-dotenv python3-dateutil python3-werkzeug python3-jinja2 python3-click python3-itsdangerous python3-markupsafe python3-blinker python3-cffi python3-pycparser python3-unidecode python3-bcrypt"
 
         for pkg in $SYSTEM_PKGS; do
             if dpkg -l 2>/dev/null | grep -q "^ii.*$pkg"; then
@@ -264,7 +264,7 @@ if [[ -f "requirements.txt" ]]; then
                     DIST_PACKAGES="/usr/lib/python3/dist-packages"
 
                     # Link all required packages for meshtastic AND mesh-master.py
-                    REQUIRED_PKGS="google protobuf pubsub pypubsub serial tabulate yaml requests packaging urllib3 certifi charset_normalizer idna six dotenv dateutil flask werkzeug jinja2 click itsdangerous markupsafe blinker"
+                    REQUIRED_PKGS="google protobuf pubsub pypubsub serial tabulate yaml requests packaging urllib3 certifi charset_normalizer idna six dotenv dateutil flask werkzeug jinja2 click itsdangerous markupsafe blinker cryptography cffi pycparser PIL tornado unidecode bcrypt"
 
                     for pkg in $REQUIRED_PKGS; do
                         if [ -d "$DIST_PACKAGES/$pkg" ]; then
