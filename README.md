@@ -14,8 +14,13 @@
 **Universal installer works on macOS, Linux, Raspberry Pi, and Windows (Git Bash):**
 
 ```bash
-git clone https://github.com/Snail3D/Mesh-Master.git && cd Mesh-Master && ./setup.sh
+rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd Mesh-Master && ./setup.sh
 ```
+
+**What this does:**
+- Removes any existing Mesh-Master directory (clean start)
+- Clones the latest version from GitHub
+- Runs the universal setup script
 
 **What happens:**
 - ✅ Detects your operating system automatically
