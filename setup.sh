@@ -208,14 +208,22 @@ if [[ -f "requirements.txt" ]]; then
         mkdir -p /tmp/meshmaster_wheels
 
         # Download wheels directly - no pip index needed
-        curl -sL -o /tmp/meshmaster_wheels/pyserial.whl "https://files.pythonhosted.org/packages/py3/p/pyserial/pyserial-3.5-py2.py3-none-any.whl"
-        curl -sL -o /tmp/meshmaster_wheels/dotmap.whl "https://files.pythonhosted.org/packages/py3/d/dotmap/dotmap-1.3.30-py3-none-any.whl"
-        curl -sL -o /tmp/meshmaster_wheels/tabulate.whl "https://files.pythonhosted.org/packages/py3/t/tabulate/tabulate-0.9.0-py3-none-any.whl"
-        curl -sL -o /tmp/meshmaster_wheels/pypubsub.whl "https://files.pythonhosted.org/packages/py3/P/Pypubsub/Pypubsub-4.0.3-py3-none-any.whl"
-        curl -sL -o /tmp/meshmaster_wheels/meshtastic.whl "https://files.pythonhosted.org/packages/py3/m/meshtastic/meshtastic-2.3.3-py3-none-any.whl"
+        echo "    Downloading pyserial..."
+        curl -sL -o /tmp/meshmaster_wheels/pyserial.whl "https://files.pythonhosted.org/packages/py3/p/pyserial/pyserial-3.5-py2.py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
+        echo "    Downloading dotmap..."
+        curl -sL -o /tmp/meshmaster_wheels/dotmap.whl "https://files.pythonhosted.org/packages/py3/d/dotmap/dotmap-1.3.30-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
+        echo "    Downloading tabulate..."
+        curl -sL -o /tmp/meshmaster_wheels/tabulate.whl "https://files.pythonhosted.org/packages/py3/t/tabulate/tabulate-0.9.0-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
+        echo "    Downloading pypubsub..."
+        curl -sL -o /tmp/meshmaster_wheels/pypubsub.whl "https://files.pythonhosted.org/packages/py3/P/Pypubsub/Pypubsub-4.0.3-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
+        echo "    Downloading meshtastic..."
+        curl -sL -o /tmp/meshmaster_wheels/meshtastic.whl "https://files.pythonhosted.org/packages/py3/m/meshtastic/meshtastic-2.3.3-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
+
+        echo "  Checking downloaded files..."
+        ls -lh /tmp/meshmaster_wheels/
 
         echo "  Installing from downloaded wheels..."
-        .venv/bin/pip install --no-cache-dir --no-index /tmp/meshmaster_wheels/*.whl 2>&1 | grep -E "Successfully installed|ERROR" || echo -e "  ${GREEN}✓${NC} Packages installed"
+        .venv/bin/pip install --no-cache-dir --no-index /tmp/meshmaster_wheels/*.whl
 
         rm -rf /tmp/meshmaster_wheels
 
