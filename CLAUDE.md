@@ -314,7 +314,7 @@ If Mesh Master sees multiple networks (e.g., SnailNet + LongFast), it bridges th
 
 ## Web Dashboard
 
-**URL:** `http://localhost:5000/dashboard` (or `http://<ip>:5000/dashboard`)
+**URL:** `http://localhost:5001/dashboard` (or `http://<ip>:5001/dashboard`)
 
 **Panels:**
 1. **Activity Feed** - Real-time log stream with emoji categories
@@ -432,7 +432,7 @@ sudo journalctl -u mesh-ai -f
 - `messages.log` - Message history
 - `messages_archive.json` - Persistent message archive
 - `script.log` - Script execution log
-- Dashboard: `http://localhost:5000/logs`
+- Dashboard: `http://localhost:5001/logs`
 
 ---
 
@@ -448,7 +448,7 @@ sudo journalctl -u mesh-ai -f
 ### Change AI Model
 ```bash
 # Via dashboard
-http://localhost:5000/dashboard → Ollama Model Management
+http://localhost:5001/dashboard → Ollama Model Management
 
 # Via config.json
 "ollama_model": "llama3.2:1b"  # or wizard-math:7b, etc.
@@ -576,10 +576,10 @@ All sensitive data gitignored (see .gitignore for complete list)
 4. Check logs: Search for "relay" in `mesh-master.log`
 
 ### Dashboard Not Loading
-1. Check Flask port: `netstat -tulpn | grep 5000`
-2. Check firewall: `sudo ufw allow 5000`
+1. Check Flask port: `netstat -tulpn | grep 5001`
+2. Check firewall: `sudo ufw allow 5001`
 3. Check logs: `tail -f mesh-master.log | grep -i flask`
-4. Try raw logs: `http://localhost:5000/logs/raw`
+4. Try raw logs: `http://localhost:5001/logs/raw`
 
 ### High Memory Usage
 1. Check message archive size: `ls -lh messages_archive.json`
