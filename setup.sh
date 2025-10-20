@@ -221,10 +221,32 @@ else
     echo ""
 fi
 
+# Create desktop shortcut with icon
+echo "Creating desktop shortcut..."
+if [[ -f "scripts/desktop/create_shortcuts.py" ]]; then
+    $PYTHON_CMD scripts/desktop/create_shortcuts.py 2>/dev/null
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✓${NC} Desktop shortcut created with MM icon"
+    else
+        echo -e "${YELLOW}⚠️${NC}  Desktop shortcut creation failed (optional)"
+    fi
+else
+    echo -e "${YELLOW}⚠️${NC}  Desktop shortcut script not found (optional)"
+fi
+echo ""
+
 echo ""
 echo "=========================================="
 echo -e "  ${GREEN}✅ Setup Complete!${NC}"
 echo "=========================================="
+echo ""
+echo "✨ Desktop shortcut created! Look for:"
+echo "   📱 Mesh Master (with blue MM icon)"
+echo ""
+echo "What the shortcut does:"
+echo "  • Kills any old/zombie instances"
+echo "  • Starts fresh Mesh Master"
+echo "  • Opens dashboard automatically"
 echo ""
 echo "Next steps:"
 echo ""
@@ -238,12 +260,8 @@ echo ""
 echo "   IMPORTANT: Change admin_password from default!"
 echo ""
 echo "2. Start Mesh Master:"
-if [[ "$OS" == "Windows (Git Bash)" ]]; then
-    echo "   ./mesh-master.sh      (in Git Bash)"
-    echo "   OR double-click: start-mesh-master.bat"
-else
-    echo "   ./mesh-master.sh"
-fi
+echo "   Double-click the Mesh Master icon on your desktop"
+echo "   OR run: ./mesh-master.sh"
 echo ""
 echo "3. Access dashboard:"
 echo "   http://localhost:5001/dashboard"
@@ -251,15 +269,21 @@ echo ""
 echo "Platform-specific notes:"
 if [[ "$OS" == "macOS" ]]; then
     echo "  • Port 5001 is used to avoid macOS AirPlay conflict"
+    echo "  • Desktop shortcut is a .app bundle"
     echo "  • Add Meshtastic device to dialout group if needed"
 elif [[ "$OS" == "Raspberry Pi" ]]; then
     echo "  • Add user to dialout group: sudo usermod -a -G dialout \$USER"
     echo "  • Reboot after adding to group"
     echo "  • Recommended model: llama3.2:1b (lightweight)"
+    echo "  • Desktop shortcut is a .desktop file"
+elif [[ "$OS" == "Linux" ]]; then
+    echo "  • Desktop shortcut is a .desktop file"
+    echo "  • May need to mark as trusted/executable"
 elif [[ "$OS" == "Windows (Git Bash)" ]]; then
     echo "  • Python must be in PATH"
     echo "  • Use COM ports for serial (e.g., COM3)"
     echo "  • Check Device Manager for Meshtastic port"
+    echo "  • Desktop shortcut is a .lnk file"
 fi
 echo ""
 echo "For help, see: README.md"
