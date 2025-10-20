@@ -11,31 +11,52 @@
 
 ## 🚀 Quick Install (One Command)
 
-Copy, paste, press Enter — you're done!
+**Universal installer works on macOS, Linux, Raspberry Pi, and Windows (Git Bash):**
+
+```bash
+git clone https://github.com/Snail3D/Mesh-Master.git && cd Mesh-Master && ./setup.sh
+```
+
+**What happens:**
+- ✅ Detects your operating system automatically
+- ✅ Creates Python virtual environment
+- ✅ Installs all required dependencies
+- ✅ Configures port 5001 (avoids macOS conflicts)
+- ✅ Creates config.json from template
+- ✅ Checks for Ollama AI engine
+- ✅ Gives you platform-specific next steps
+
+**What it does NOT do:**
+- ❌ Does not create a system service (manual setup required)
+- ❌ Does not start Mesh Master automatically
+- ❌ You must edit config.json and set your admin password
+
+**Quick start after setup:**
+```bash
+./mesh-master.sh                    # Start Mesh Master
+# Open: http://localhost:5001/dashboard
+```
+
+---
+
+### 🔧 Advanced: Install as System Service
+
+For auto-start on boot and auto-restart on crashes:
 
 **macOS:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/macos/install_service.sh | bash
+./scripts/macos/install_service.sh
 ```
 
 **Linux/Raspberry Pi:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/linux/install_service.sh | sudo bash
+sudo ./scripts/linux/install_service.sh
 ```
 
-**Windows:** (Run as Administrator in PowerShell)
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/install_service.bat" -OutFile "$env:TEMP\install_mesh.bat"; & "$env:TEMP\install_mesh.bat"
+**Windows:** (Requires NSSM - see script for details)
+```bash
+./scripts/windows/install_service.bat
 ```
-
-**What happens:**
-- ✅ Finds or downloads Mesh Master automatically
-- ✅ Installs Python dependencies
-- ✅ Creates system service (auto-start on boot, auto-restart on crashes)
-- ✅ Opens dashboard in your browser
-- ✅ **Zero configuration needed** — just plug in your Meshtastic device!
-
-**Next step:** Configure your radio connection at `http://localhost:5001/dashboard`
 
 ### 🗑️ Quick Uninstall (One Command)
 
