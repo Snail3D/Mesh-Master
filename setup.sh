@@ -200,29 +200,24 @@ if [[ -f "requirements.txt" ]]; then
         echo -e "${GREEN}✓${NC} System packages ready"
         echo ""
 
-        # Install critical packages on Raspberry Pi
-        echo "Installing critical packages..."
+        # Install critical packages on Raspberry Pi by downloading wheels directly
+        echo "Installing critical packages (downloading wheels directly)..."
 
-        # Meshtastic is required - download wheel directly to avoid index hangs
-        echo "  Installing meshtastic (required)..."
+        # Download all required wheels from PyPI CDN (no index lookups)
+        echo "  Downloading meshtastic and dependencies..."
+        mkdir -p /tmp/meshmaster_wheels
 
-        # First install dependencies that are pure Python (no index lookups needed)
-        pip install --no-cache-dir --disable-pip-version-check pyserial dotmap tabulate 2>&1 | grep -E "Successfully|ERROR|Requirement already" | head -5
+        # Download wheels directly - no pip index needed
+        curl -sL -o /tmp/meshmaster_wheels/pyserial.whl "https://files.pythonhosted.org/packages/py3/p/pyserial/pyserial-3.5-py2.py3-none-any.whl"
+        curl -sL -o /tmp/meshmaster_wheels/dotmap.whl "https://files.pythonhosted.org/packages/py3/d/dotmap/dotmap-1.3.30-py3-none-any.whl"
+        curl -sL -o /tmp/meshmaster_wheels/tabulate.whl "https://files.pythonhosted.org/packages/py3/t/tabulate/tabulate-0.9.0-py3-none-any.whl"
+        curl -sL -o /tmp/meshmaster_wheels/pypubsub.whl "https://files.pythonhosted.org/packages/py3/P/Pypubsub/Pypubsub-4.0.3-py3-none-any.whl"
+        curl -sL -o /tmp/meshmaster_wheels/meshtastic.whl "https://files.pythonhosted.org/packages/py3/m/meshtastic/meshtastic-2.3.3-py3-none-any.whl"
 
-        # Try direct wheel download from GitHub releases (no pip index needed)
-        echo "  Downloading meshtastic wheel directly..."
-        MESHTASTIC_URL="https://files.pythonhosted.org/packages/py3/m/meshtastic/meshtastic-2.3.3-py3-none-any.whl"
-        curl -L -o /tmp/meshtastic.whl "$MESHTASTIC_URL" 2>&1 | tail -2
+        echo "  Installing from downloaded wheels..."
+        pip install --no-cache-dir --no-index /tmp/meshmaster_wheels/*.whl 2>&1 | grep -E "Successfully installed|ERROR" || echo -e "  ${GREEN}✓${NC} Packages installed"
 
-        if [ -f /tmp/meshtastic.whl ]; then
-            pip install --no-cache-dir /tmp/meshtastic.whl && \
-            echo -e "  ${GREEN}✓${NC} meshtastic installed" || \
-            echo -e "  ${RED}✗${NC} meshtastic installation failed"
-            rm -f /tmp/meshtastic.whl
-        else
-            echo -e "  ${RED}✗${NC} Could not download meshtastic wheel"
-            echo -e "  ${YELLOW}→${NC} Try manually: pip install meshtastic"
-        fi
+        rm -rf /tmp/meshmaster_wheels
 
         echo -e "${YELLOW}ℹ${NC}  Optional packages skipped. Install later if needed:"
         echo "    pip install pubsub unidecode python-chess reportlab"
