@@ -202,39 +202,41 @@ if [[ -f "requirements.txt" ]]; then
 
         # Install critical packages on Raspberry Pi
         echo "Installing critical packages for Raspberry Pi..."
-        echo -e "${YELLOW}Note: meshtastic is required but may fail on some Pi configurations${NC}"
-        echo "If installation hangs or fails, you can install manually later."
         echo ""
 
-        # Try a simple direct install with very short timeout
-        echo "Attempting quick meshtastic install (30 second timeout)..."
-        timeout 30 .venv/bin/pip install --quiet meshtastic 2>/dev/null &
-        INSTALL_PID=$!
+        # Install meshtastic from source to avoid pip index hangs
+        echo "Installing meshtastic from GitHub source (avoiding pip index)..."
 
-        # Wait for it with a spinner
-        for i in {1..30}; do
-            if ! kill -0 $INSTALL_PID 2>/dev/null; then
-                break
+        # Save current directory
+        MESH_DIR=$(pwd)
+
+        if [ -d "/tmp/python-meshtastic" ]; then
+            rm -rf /tmp/python-meshtastic
+        fi
+
+        # Clone meshtastic repo
+        echo "  Cloning meshtastic repository..."
+        git clone --depth 1 https://github.com/meshtastic/python.git /tmp/python-meshtastic 2>&1 | tail -3
+
+        if [ -d "/tmp/python-meshtastic" ]; then
+            echo "  Installing meshtastic from source..."
+            cd /tmp/python-meshtastic
+
+            # Install directly from source without pip index
+            "$MESH_DIR/.venv/bin/python3" setup.py install 2>&1 | tail -5
+
+            cd "$MESH_DIR"
+            rm -rf /tmp/python-meshtastic
+
+            # Verify installation
+            if "$MESH_DIR/.venv/bin/python3" -c "import meshtastic" 2>/dev/null; then
+                echo -e "  ${GREEN}✓${NC} meshtastic installed successfully from source"
+            else
+                echo -e "  ${YELLOW}⚠${NC} meshtastic source install completed but import failed"
             fi
-            echo -n "."
-            sleep 1
-        done
-        echo ""
-
-        # Check if it worked
-        if .venv/bin/python3 -c "import meshtastic" 2>/dev/null; then
-            echo -e "${GREEN}✓${NC} meshtastic installed successfully"
         else
-            echo -e "${YELLOW}⚠${NC} meshtastic installation timed out or failed"
-            echo ""
-            echo "Mesh Master requires meshtastic to function."
-            echo "Please install manually on your Pi with:"
-            echo "  cd ~/Mesh-Master"
-            echo "  .venv/bin/pip install meshtastic"
-            echo ""
-            echo "If pip keeps hanging, you may have a network/DNS issue."
-            echo "Try: sudo apt-get install python3-meshtastic"
-            echo ""
+            echo -e "  ${RED}✗${NC} Could not clone meshtastic repository"
+            echo "  You'll need to install manually: .venv/bin/pip install meshtastic"
         fi
 
         echo ""
