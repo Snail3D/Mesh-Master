@@ -96,17 +96,24 @@ pkill -f "mesh-master.py" 2>/dev/null || true
 # Kill zombies
 ps aux | grep "[m]esh-master.py" | awk '{{print $2}}' | xargs kill -9 2>/dev/null || true
 
-# Change to project directory
-cd "{project_dir}"
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
 
-# Activate virtual environment if it exists
-if [ -f .venv/bin/activate ]; then
-    source .venv/bin/activate
+# Change to project directory
+cd "$SCRIPT_DIR"
+
+# Set PYTHONPATH for utilities
+export PYTHONPATH="$SCRIPT_DIR/scripts/utilities:$PYTHONPATH"
+
+# Determine which Python to use (prefer venv)
+PYTHON_EXEC="python3"
+if [ -f .venv/bin/python3 ]; then
+    PYTHON_EXEC=".venv/bin/python3"
 fi
 
 # Start Mesh Master in background
 echo "Starting Mesh Master..."
-nohup python3 mesh-master.py > /dev/null 2>&1 &
+nohup $PYTHON_EXEC mesh-master.py > mesh-master.log 2>&1 &
 
 # Wait for server to start
 sleep 5
