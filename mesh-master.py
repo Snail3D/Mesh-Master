@@ -23318,11 +23318,25 @@ def dashboard():
             <!-- Serial Connection Content -->
             <div id="serialConnectionContent" class="connection-content" style="display: none;">
               <div class="passphrase-card">
-                <label>Serial / USB Connection<span class="help-icon" data-explainer="Connect to Meshtastic radio via USB serial port. Use full device path like /dev/ttyUSB0 or /dev/serial/by-id/..." data-explainer-placement="right">?</span></label>
+                <label>Serial / USB Connection<span class="help-icon" data-explainer="Connect to Meshtastic radio via USB serial port. Click 'Scan Ports' to auto-detect connected devices." data-explainer-placement="right">?</span></label>
+
                 <div style="margin-top: 12px;">
-                  <label for="serialPort" style="display: block; margin-bottom: 4px; font-weight: 500;">Serial Port Path</label>
-                  <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace;">
+                  <button type="button" id="serialScanBtn" class="config-save-btn" style="width: 100%;">🔍 Scan Serial Ports</button>
+                  <div id="serialScanStatus" style="margin-top: 8px; font-size: 12px; color: #888; text-align: center;"></div>
                 </div>
+
+                <div id="serialPortList" style="margin-top: 16px; display: none;">
+                  <div style="margin-bottom: 8px; font-weight: 500; color: #4CAF50;">Available Ports:</div>
+                  <div id="serialPortsContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid #444; border-radius: 4px; background: #1a1a1a;">
+                    <!-- Ports will be populated here -->
+                  </div>
+                </div>
+
+                <div style="margin-top: 16px;">
+                  <label for="serialPort" style="display: block; margin-bottom: 4px; font-weight: 500;">Serial Port Path</label>
+                  <input type="text" id="serialPort" placeholder="/dev/ttyUSB0 or COM3" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace;">
+                </div>
+
                 <div style="margin-top: 12px;">
                   <label for="serialBaud" style="display: block; margin-bottom: 4px; font-weight: 500;">Baud Rate</label>
                   <select id="serialBaud" class="config-select" style="width: 100%;">
@@ -23332,6 +23346,7 @@ def dashboard():
                     <option value="921600">921600</option>
                   </select>
                 </div>
+
                 <button type="button" id="serialSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px;">Save Serial Settings</button>
                 <div id="serialStatus" style="margin-top: 8px; font-size: 12px; text-align: center;"></div>
               </div>
@@ -28727,6 +28742,146 @@ def dashboard():
       pollBatteryStatus(); // Initial call
 
 
+      // =====================================================
+      // SERIAL PORT SCANNER
+      // =====================================================
+      const serialScanBtn = document.getElementById('serialScanBtn');
+      const serialScanStatus = document.getElementById('serialScanStatus');
+      const serialPortList = document.getElementById('serialPortList');
+      const serialPortsContainer = document.getElementById('serialPortsContainer');
+      const serialPortInput = document.getElementById('serialPort');
+      const serialBaudSelect = document.getElementById('serialBaud');
+
+      if (serialScanBtn) {
+        serialScanBtn.addEventListener('click', async () => {
+          serialScanStatus.textContent = '🔍 Scanning for serial ports...';
+          serialScanBtn.disabled = true;
+          serialScanBtn.textContent = '⏳ Scanning...';
+
+          try {
+            const response = await fetch('/dashboard/serial/scan', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'}
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.ports && result.ports.length > 0) {
+              serialScanStatus.innerHTML = `✅ Found ${result.ports.length} serial port(s)`;
+              serialScanStatus.style.color = '#6a9955';
+              serialPortList.style.display = 'block';
+              renderSerialPorts(result.ports);
+            } else if (result.success && result.ports.length === 0) {
+              serialScanStatus.innerHTML = '⚠️ No serial ports found. Connect your radio via USB.';
+              serialScanStatus.style.color = '#d7ba7d';
+              serialPortList.style.display = 'none';
+            } else {
+              serialScanStatus.innerHTML = `❌ Scan failed: ${result.error || 'Unknown error'}`;
+              serialScanStatus.style.color = '#f44747';
+              serialPortList.style.display = 'none';
+            }
+          } catch (error) {
+            serialScanStatus.innerHTML = `❌ Error: ${error.message}`;
+            serialScanStatus.style.color = '#f44747';
+            serialPortList.style.display = 'none';
+          } finally {
+            serialScanBtn.disabled = false;
+            serialScanBtn.textContent = '🔍 Scan Serial Ports';
+          }
+        });
+      }
+
+      // Render serial port list
+      function renderSerialPorts(ports) {
+        serialPortsContainer.innerHTML = '';
+
+        ports.forEach(port => {
+          const portCard = document.createElement('div');
+          portCard.style.cssText = 'padding: 12px; border-bottom: 1px solid #333; cursor: pointer; transition: background 0.2s;';
+          portCard.addEventListener('mouseenter', () => {
+            portCard.style.background = 'rgba(86, 156, 214, 0.1)';
+          });
+          portCard.addEventListener('mouseleave', () => {
+            portCard.style.background = 'transparent';
+          });
+
+          const badge = port.is_meshtastic ?
+            '<span style="background: rgba(76, 175, 80, 0.2); color: #4CAF50; padding: 2px 8px; border-radius: 3px; font-size: 10px; margin-left: 8px;">Likely Meshtastic</span>' : '';
+
+          portCard.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 4px; font-family: monospace;">${port.device}${badge}</div>
+                <div style="font-size: 11px; color: #888;">${port.description}</div>
+                ${port.manufacturer ? '<div style="font-size: 10px; color: #666; margin-top: 2px;">Manufacturer: ' + port.manufacturer + '</div>' : ''}
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="auto-detect-btn config-save-btn" style="padding: 6px 12px; font-size: 11px;">⚡ Auto-Detect</button>
+                <button class="select-port-btn config-save-btn" style="padding: 6px 12px; font-size: 11px;">Select</button>
+              </div>
+            </div>
+          `;
+
+          // Auto-detect button
+          const autoDetectBtn = portCard.querySelector('.auto-detect-btn');
+          autoDetectBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            autoDetectBtn.disabled = true;
+            autoDetectBtn.textContent = '⏳ Testing...';
+
+            try {
+              const response = await fetch('/dashboard/serial/test-baud', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ port: port.device })
+              });
+
+              const result = await response.json();
+
+              if (result.success) {
+                // Fill in the form
+                serialPortInput.value = port.device;
+                serialBaudSelect.value = result.baud_rate;
+
+                if (result.is_default) {
+                  serialScanStatus.innerHTML = `⚠️ ${result.message}`;
+                  serialScanStatus.style.color = '#d7ba7d';
+                } else {
+                  serialScanStatus.innerHTML = `✅ ${result.message}`;
+                  serialScanStatus.style.color = '#6a9955';
+                }
+
+                // Highlight the selected port
+                serialPortInput.style.borderColor = '#4CAF50';
+                setTimeout(() => {
+                  serialPortInput.style.borderColor = '';
+                }, 2000);
+              } else {
+                alert(`Auto-detection failed: ${result.error}`);
+              }
+            } catch (error) {
+              alert(`Error: ${error.message}`);
+            } finally {
+              autoDetectBtn.disabled = false;
+              autoDetectBtn.textContent = '⚡ Auto-Detect';
+            }
+          });
+
+          // Select button (without auto-detect)
+          const selectBtn = portCard.querySelector('.select-port-btn');
+          selectBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            serialPortInput.value = port.device;
+            serialScanStatus.innerHTML = `✅ Port selected: ${port.device}`;
+            serialScanStatus.style.color = '#6a9955';
+          });
+
+          serialPortsContainer.appendChild(portCard);
+        });
+      }
+
+
+
     <div class="tutorial-spotlight"></div>
     <div class="tutorial-card">
       <div class="tutorial-card-header">
@@ -31051,6 +31206,105 @@ def bluetooth_forget():
     except Exception as exc:
         clean_log(f"❌ Failed to delete custom command: {exc}", show_always=True, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+
+@app.route('/dashboard/serial/scan', methods=['POST'])
+@require_auth
+def serial_scan():
+    """Scan for available serial ports."""
+    try:
+        import serial.tools.list_ports
+
+        ports = []
+        for port in serial.tools.list_ports.comports():
+            port_info = {
+                'device': port.device,
+                'description': port.description or 'Unknown Device',
+                'hwid': port.hwid or '',
+                'manufacturer': port.manufacturer or '',
+                'product': port.product or '',
+                'is_meshtastic': False
+            }
+
+            # Try to detect if this is likely a Meshtastic device
+            desc_lower = port_info['description'].lower()
+            hwid_lower = port_info['hwid'].lower()
+            manuf_lower = port_info['manufacturer'].lower() if port_info['manufacturer'] else ''
+
+            meshtastic_patterns = [
+                'meshtastic', 'rak', 'wiscore', 'lilygo', 'heltec',
+                't-beam', 'lora', 'esp32', 'ch340', 'cp210', 'ftdi'
+            ]
+
+            if any(pattern in desc_lower or pattern in hwid_lower or pattern in manuf_lower
+                   for pattern in meshtastic_patterns):
+                port_info['is_meshtastic'] = True
+
+            ports.append(port_info)
+
+        # Sort: Meshtastic devices first, then alphabetically
+        ports.sort(key=lambda p: (not p['is_meshtastic'], p['device']))
+
+        return jsonify({'success': True, 'ports': ports})
+
+    except Exception as exc:
+        clean_log(f"❌ Serial port scan failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+
+
+@app.route('/dashboard/serial/test-baud', methods=['POST'])
+@require_auth
+def serial_test_baud():
+    """Test a serial port at different baud rates to find the working one."""
+    try:
+        import serial
+        import time
+
+        payload = request.get_json(force=True, silent=False) or {}
+        port = payload.get('port')
+
+        if not port:
+            return jsonify({'success': False, 'error': 'Port required'}), 400
+
+        # Common baud rates to test, in order of likelihood
+        baud_rates = [38400, 115200, 57600, 921600, 9600, 19200]
+
+        for baud in baud_rates:
+            try:
+                # Try to open the port
+                ser = serial.Serial(port, baud, timeout=2)
+                time.sleep(0.5)  # Give it a moment to stabilize
+
+                # Try to read some data
+                if ser.in_waiting > 0 or ser.isOpen():
+                    ser.close()
+                    return jsonify({
+                        'success': True,
+                        'baud_rate': baud,
+                        'message': f'Detected working baud rate: {baud}'
+                    })
+
+                ser.close()
+                time.sleep(0.2)
+
+            except Exception:
+                continue
+
+        # If nothing worked, default to 38400 (Meshtastic default)
+        return jsonify({
+            'success': True,
+            'baud_rate': 38400,
+            'message': 'Could not auto-detect, using default 38400',
+            'is_default': True
+        })
+
+    except Exception as exc:
+        clean_log(f"❌ Baud rate detection failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
 
 
 @app.route('/autostart', methods=['GET'])
