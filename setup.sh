@@ -216,9 +216,15 @@ if [[ -f "requirements.txt" ]]; then
         echo "Installing pytest..."
         pip install pytest --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} pytest" || echo -e "  ${YELLOW}⚠️${NC} pytest failed"
 
-        # Meshtastic (may have dependencies, use piwheels)
+        # Meshtastic (may have dependencies, use piwheels with timeout)
         echo "Installing meshtastic (this may take 1-2 minutes on Pi)..."
-        pip install meshtastic --no-cache-dir --prefer-binary --index-url https://www.piwheels.org/simple --extra-index-url https://pypi.org/simple && echo -e "  ${GREEN}✓${NC} meshtastic" || echo -e "  ${YELLOW}⚠️${NC} meshtastic failed"
+        timeout 120 pip install meshtastic --no-cache-dir --prefer-binary --index-url https://www.piwheels.org/simple --extra-index-url https://pypi.org/simple 2>&1 | tail -5
+        if [[ $? -eq 0 ]]; then
+            echo -e "  ${GREEN}✓${NC} meshtastic"
+        else
+            echo -e "  ${YELLOW}⚠️${NC} meshtastic installation timed out or failed"
+            echo -e "  ${YELLOW}ℹ${NC}  You can install it later with: pip install meshtastic"
+        fi
 
         # Reportlab (may take longer, has native code)
         echo "Installing reportlab..."

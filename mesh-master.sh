@@ -23,14 +23,15 @@ cd "$SCRIPT_DIR"
 # Set PYTHONPATH for utilities
 export PYTHONPATH="$SCRIPT_DIR/scripts/utilities:$PYTHONPATH"
 
-# Activate virtual environment if it exists
-if [ -f .venv/bin/activate ]; then
-    source .venv/bin/activate
+# Determine which Python to use (prefer venv)
+PYTHON_EXEC="python3"
+if [ -f .venv/bin/python3 ]; then
+    PYTHON_EXEC=".venv/bin/python3"
 fi
 
 # Start Mesh Master in background
 echo "Starting Mesh Master..."
-nohup python3 mesh-master.py > mesh-master.log 2>&1 &
+nohup $PYTHON_EXEC mesh-master.py > mesh-master.log 2>&1 &
 
 # Wait for server to start
 sleep 5
