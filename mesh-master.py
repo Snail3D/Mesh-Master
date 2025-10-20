@@ -28740,9 +28740,6 @@ def dashboard():
       // Poll battery every 30 seconds
       setInterval(pollBatteryStatus, 30000);
       pollBatteryStatus(); // Initial call
-
-
-      // =====================================================
       // SERIAL PORT SCANNER
       // =====================================================
       const serialScanBtn = document.getElementById('serialScanBtn');
@@ -28884,6 +28881,9 @@ def dashboard():
 
     <div class="tutorial-spotlight"></div>
     <div class="tutorial-card">
+
+
+      // =====================================================
       <div class="tutorial-card-header">
         <div class="tutorial-progress">
           <span id="tutorialStep">1</span> / <span id="tutorialTotal">10</span>
