@@ -183,17 +183,37 @@ if [[ -f "requirements.txt" ]]; then
         echo "Installing packages individually (showing progress)..."
         echo ""
 
+        # Packages known to hang on Pi - install from system packages instead
+        SKIP_PACKAGES=("protobuf")
+
         # Read requirements.txt and install each package
         while IFS= read -r package || [[ -n "$package" ]]; do
             # Skip empty lines and comments
             [[ -z "$package" || "$package" =~ ^#.*$ ]] && continue
 
-            echo "Installing $package..."
-            pip install "$package" --no-cache-dir --prefer-binary -q
-            if [[ $? -eq 0 ]]; then
-                echo -e "  ${GREEN}✓${NC} $package installed"
+            # Extract package name (remove version specifiers)
+            package_name=$(echo "$package" | sed 's/[=<>!].*//')
+
+            # Check if this package should be skipped
+            skip=false
+            for skip_pkg in "${SKIP_PACKAGES[@]}"; do
+                if [[ "$package_name" == "$skip_pkg" ]]; then
+                    skip=true
+                    break
+                fi
+            done
+
+            if [[ "$skip" == true ]]; then
+                echo "Skipping $package_name (using system package instead)..."
+                sudo apt-get install -y python3-$package_name 2>/dev/null && echo -e "  ${GREEN}✓${NC} Installed from apt" || echo -e "  ${YELLOW}⚠️${NC} Not available via apt (OK)"
             else
-                echo -e "  ${YELLOW}⚠️${NC} $package failed (continuing)"
+                echo "Installing $package..."
+                timeout 120 pip install "$package" --no-cache-dir --prefer-binary -q
+                if [[ $? -eq 0 ]]; then
+                    echo -e "  ${GREEN}✓${NC} $package installed"
+                else
+                    echo -e "  ${YELLOW}⚠️${NC} $package failed or timed out (continuing)"
+                fi
             fi
         done < requirements.txt
 
