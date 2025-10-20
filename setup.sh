@@ -149,7 +149,22 @@ if [[ "$OS" == "Raspberry Pi" ]]; then
         echo -e "${GREEN}✓${NC} System packages installed"
     else
         echo -e "${YELLOW}⚠️${NC}  apt-get update failed (possibly malformed sources list)"
-        echo "Continuing with pip installation (may be slower)..."
+        echo "Attempting to fix apt sources..."
+
+        # Try to temporarily disable broken sources
+        if [ -f /etc/apt/sources.list.d/github-cli.list ]; then
+            echo "  Temporarily disabling broken github-cli.list..."
+            sudo mv /etc/apt/sources.list.d/github-cli.list /etc/apt/sources.list.d/github-cli.list.disabled 2>/dev/null
+
+            # Try apt-get update again
+            if sudo apt-get update -qq 2>/dev/null; then
+                echo -e "${GREEN}✓${NC} apt sources fixed"
+            else
+                echo "  Still having issues, continuing anyway..."
+            fi
+        else
+            echo "Continuing with pip installation (may be slower)..."
+        fi
     fi
     echo ""
 fi
