@@ -13254,8 +13254,11 @@ def build_ollama_history(sender_id=None, is_direct=False, channel_idx=None, thre
           except Exception:
             continue
     if not candidates:
-      return ""
-    
+      clean_log(f"⚠️ No history candidates found for sender_id={sender_id}, is_direct={is_direct}", "🔍", show_always=False)
+      return "", False
+
+    clean_log(f"📝 Found {len(candidates)} history candidates for context", "🔍", show_always=False)
+
   # Limit to last N messages (configurable exchanges) for performance
     # Take from the end (most recent) of the candidates list
     recent_candidates = candidates[-OLLAMA_MAX_MESSAGES:] if len(candidates) > OLLAMA_MAX_MESSAGES else candidates
@@ -13363,7 +13366,7 @@ def send_to_ollama(
     if DEBUG_ENABLED:
         dprint(f"Ollama combined prompt:\n{combined_prompt}")
     else:
-        clean_log(f"Prompt prepared (len={len(user_message)})", "💭")
+        clean_log(f"Prompt prepared (len={len(user_message)}, history={'YES' if combined_history else 'NO'})", "💭")
 
     stream_flag = bool(OLLAMA_STREAM and allow_streaming)
 
