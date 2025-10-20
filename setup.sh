@@ -177,23 +177,35 @@ echo ""
 # Install base requirements
 if [[ -f "requirements.txt" ]]; then
     echo "Installing from requirements.txt..."
-    echo "This will show progress - watch for package names appearing..."
-    echo ""
 
-    # On Raspberry Pi, use system packages where possible to avoid compilation
+    # On Raspberry Pi, install packages one at a time to show progress
     if [[ "$OS" == "Raspberry Pi" ]]; then
-        echo "(Using --prefer-binary to download pre-compiled wheels)"
-        pip install -r requirements.txt --no-cache-dir --prefer-binary --verbose | grep -E "Collecting|Installing|Successfully"
+        echo "Installing packages individually (showing progress)..."
+        echo ""
+
+        # Read requirements.txt and install each package
+        while IFS= read -r package || [[ -n "$package" ]]; do
+            # Skip empty lines and comments
+            [[ -z "$package" || "$package" =~ ^#.*$ ]] && continue
+
+            echo "Installing $package..."
+            pip install "$package" --no-cache-dir --prefer-binary -q
+            if [[ $? -eq 0 ]]; then
+                echo -e "  ${GREEN}✓${NC} $package installed"
+            else
+                echo -e "  ${YELLOW}⚠️${NC} $package failed (continuing)"
+            fi
+        done < requirements.txt
+
+        echo ""
+        echo -e "${GREEN}✓${NC} Finished installing requirements"
     else
         pip install -r requirements.txt --no-cache-dir
-    fi
-
-    if [[ $? -eq 0 ]]; then
-        echo ""
-        echo -e "${GREEN}✓${NC} Installed requirements.txt"
-    else
-        echo ""
-        echo -e "${YELLOW}⚠️${NC}  Some packages may have failed (continuing anyway)"
+        if [[ $? -eq 0 ]]; then
+            echo -e "${GREEN}✓${NC} Installed requirements.txt"
+        else
+            echo -e "${YELLOW}⚠️${NC}  Some packages may have failed"
+        fi
     fi
 else
     echo -e "${RED}❌ requirements.txt not found${NC}"
