@@ -223,15 +223,12 @@ fi
 
 # Install additional required packages not in requirements.txt
 echo ""
-echo "Installing additional dependencies..."
 if [[ "$OS" == "Raspberry Pi" ]]; then
-    # Try to install, but use --prefer-binary to avoid compilation
-    echo "(Attempting to use binary wheels to avoid compilation)"
-    pip install cryptography python-telegram-bot bcrypt --no-cache-dir --prefer-binary --verbose 2>&1 | grep -E "Collecting|Installing|Successfully|ERROR" | tee /tmp/pip-install.log
-
-    echo ""
-    echo -e "${GREEN}✓${NC} Additional dependencies installed"
+    # Skip additional pip packages on Raspberry Pi - pip hangs on index lookups
+    echo "Skipping additional pip packages on Raspberry Pi"
+    echo -e "${YELLOW}ℹ${NC}  Optional packages can be installed later if needed"
 else
+    echo "Installing additional dependencies..."
     pip install cryptography python-telegram-bot bcrypt --no-cache-dir
     if [[ $? -eq 0 ]]; then
         echo -e "${GREEN}✓${NC} Installed additional dependencies"
