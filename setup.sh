@@ -258,25 +258,18 @@ if [[ -f "requirements.txt" ]]; then
                     # Link system packages into venv so meshtastic can find them
                     echo "  Linking system packages to venv..."
 
-                    # Find all system package directories
-                    SYSTEM_PATHS=$(python3 -c "import sys; [print(p) for p in sys.path if 'dist-packages' in p or 'site-packages' in p]" 2>/dev/null)
-
-                    # Try to link each required package from system to venv
+                    # Use system python3 to find packages (not venv python)
                     for pkg_name in google protobuf pubsub serial; do
-                        LINKED=0
-                        while IFS= read -r sys_path; do
-                            if [ -d "$sys_path/$pkg_name" ] || [ -f "$sys_path/${pkg_name}.py" ]; then
-                                if [ -d "$sys_path/$pkg_name" ]; then
-                                    ln -sf "$sys_path/$pkg_name" "$SITE_PACKAGES/" 2>/dev/null && LINKED=1 && echo "    ✓ Linked $pkg_name from $sys_path"
-                                else
-                                    ln -sf "$sys_path/${pkg_name}.py" "$SITE_PACKAGES/" 2>/dev/null && LINKED=1 && echo "    ✓ Linked ${pkg_name}.py from $sys_path"
-                                fi
-                                break
-                            fi
-                        done <<< "$SYSTEM_PATHS"
+                        # Try to import and get the package location using system python
+                        PKG_PATH=$(/usr/bin/python3 -c "import $pkg_name; import os; print(os.path.dirname($pkg_name.__file__))" 2>/dev/null)
 
-                        if [ $LINKED -eq 0 ]; then
-                            echo "    ⚠ Could not find $pkg_name in system packages"
+                        if [ -n "$PKG_PATH" ] && [ -d "$PKG_PATH" ]; then
+                            # Get the package directory name
+                            PKG_DIR=$(basename "$PKG_PATH")
+                            # Link it
+                            ln -sf "$PKG_PATH" "$SITE_PACKAGES/$PKG_DIR" 2>/dev/null && echo "    ✓ Linked $PKG_DIR from $PKG_PATH"
+                        else
+                            echo "    ⚠ Could not find $pkg_name in system (tried /usr/bin/python3)"
                         fi
                     done
                 else
