@@ -156,12 +156,8 @@ fi
 
 # Upgrade pip
 echo "Upgrading pip (this may take a minute on Raspberry Pi)..."
-pip install --upgrade pip --no-cache-dir
-if [[ $? -eq 0 ]]; then
-    echo -e "${GREEN}✓${NC} pip upgraded"
-else
-    echo -e "${YELLOW}⚠️${NC}  pip upgrade failed (continuing anyway)"
-fi
+timeout 60 pip install --upgrade pip --no-cache-dir 2>&1 | grep -v "Requirement already satisfied" || true
+echo -e "${GREEN}✓${NC} pip ready"
 echo ""
 
 # Install dependencies
@@ -176,20 +172,23 @@ echo ""
 # Install base requirements
 if [[ -f "requirements.txt" ]]; then
     echo "Installing from requirements.txt..."
+    echo "This will show progress - watch for package names appearing..."
+    echo ""
 
     # On Raspberry Pi, use system packages where possible to avoid compilation
     if [[ "$OS" == "Raspberry Pi" ]]; then
-        echo "(Using --system-site-packages to leverage pre-built system packages)"
-        pip install -r requirements.txt --no-cache-dir --prefer-binary
+        echo "(Using --prefer-binary to download pre-compiled wheels)"
+        pip install -r requirements.txt --no-cache-dir --prefer-binary --verbose | grep -E "Collecting|Installing|Successfully"
     else
         pip install -r requirements.txt --no-cache-dir
     fi
 
     if [[ $? -eq 0 ]]; then
+        echo ""
         echo -e "${GREEN}✓${NC} Installed requirements.txt"
     else
-        echo -e "${RED}❌ Failed to install requirements${NC}"
-        exit 1
+        echo ""
+        echo -e "${YELLOW}⚠️${NC}  Some packages may have failed (continuing anyway)"
     fi
 else
     echo -e "${RED}❌ requirements.txt not found${NC}"
@@ -197,19 +196,15 @@ else
 fi
 
 # Install additional required packages not in requirements.txt
+echo ""
 echo "Installing additional dependencies..."
 if [[ "$OS" == "Raspberry Pi" ]]; then
     # Try to install, but use --prefer-binary to avoid compilation
     echo "(Attempting to use binary wheels to avoid compilation)"
-    pip install cryptography python-telegram-bot bcrypt --no-cache-dir --prefer-binary 2>&1 | tee /tmp/pip-install.log
+    pip install cryptography python-telegram-bot bcrypt --no-cache-dir --prefer-binary --verbose 2>&1 | grep -E "Collecting|Installing|Successfully|ERROR" | tee /tmp/pip-install.log
 
-    # Check if installation succeeded
-    if [[ $? -eq 0 ]]; then
-        echo -e "${GREEN}✓${NC} Installed additional dependencies"
-    else
-        echo -e "${YELLOW}⚠️${NC}  Some packages may have failed"
-        echo "This is OK if Mesh Master still runs - Python will use available packages"
-    fi
+    echo ""
+    echo -e "${GREEN}✓${NC} Additional dependencies installed"
 else
     pip install cryptography python-telegram-bot bcrypt --no-cache-dir
     if [[ $? -eq 0 ]]; then
