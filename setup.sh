@@ -219,22 +219,28 @@ if [[ -f "requirements.txt" ]]; then
         git clone --depth 1 https://github.com/meshtastic/python.git /tmp/python-meshtastic 2>&1 | tail -3
 
         if [ -d "/tmp/python-meshtastic" ]; then
+            echo "  Installing meshtastic dependencies first..."
+            # Install required dependencies from system packages
+            sudo apt-get install -y python3-protobuf python3-pypubsub python3-serial 2>&1 | tail -2
+
             echo "  Installing meshtastic from local source..."
             cd /tmp/python-meshtastic
 
-            # Use pip to install from local directory (no index needed)
-            "$MESH_DIR/.venv/bin/pip" install --no-deps --no-index --no-build-isolation . 2>&1 | tail -5
+            # Copy the meshtastic module directly to site-packages (avoid build system)
+            if [ -d "meshtastic" ]; then
+                echo "  Copying meshtastic module to venv..."
+                cp -r meshtastic "$MESH_DIR/.venv/lib/python3*/site-packages/" 2>&1 | tail -2
+            fi
 
             cd "$MESH_DIR"
             rm -rf /tmp/python-meshtastic
 
             # Verify installation
             if "$MESH_DIR/.venv/bin/python3" -c "import meshtastic" 2>/dev/null; then
-                echo -e "  ${GREEN}✓${NC} meshtastic installed successfully from source"
+                echo -e "  ${GREEN}✓${NC} meshtastic installed successfully"
             else
-                echo -e "  ${YELLOW}⚠${NC} meshtastic source install completed but import failed"
-                echo "  Checking what was installed..."
-                "$MESH_DIR/.venv/bin/pip" list | grep meshtastic
+                echo -e "  ${YELLOW}⚠${NC} meshtastic installation failed"
+                echo "  Try manual install: cd ~/Mesh-Master && .venv/bin/pip install meshtastic"
             fi
         else
             echo -e "  ${RED}✗${NC} Could not clone meshtastic repository"
