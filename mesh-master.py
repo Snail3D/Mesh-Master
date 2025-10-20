@@ -21091,7 +21091,7 @@ def login_page():
         <form id="loginForm">
             <div class="form-group">
                 <label for="password">Admin Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter admin password" required autofocus>
+                <input type="password" id="password" name="password" placeholder="default is 'password'" required autofocus>
             </div>
             <div class="form-group" style="flex-direction: row; align-items: center; margin-top: 8px;">
                 <input type="checkbox" id="rememberMe" name="rememberMe" style="width: auto; margin-right: 8px;">
