@@ -142,9 +142,15 @@ echo ""
 if [[ "$OS" == "Raspberry Pi" ]]; then
     echo "Installing system packages for faster Pi installation..."
     echo "(This provides pre-compiled binaries instead of building from source)"
-    sudo apt-get update -qq
-    sudo apt-get install -y python3-pip python3-cryptography python3-bcrypt libatlas-base-dev 2>&1 | grep -v "already"
-    echo -e "${GREEN}✓${NC} System packages installed"
+
+    # Try to update apt, but continue if it fails
+    if sudo apt-get update -qq 2>/dev/null; then
+        sudo apt-get install -y python3-pip python3-cryptography python3-bcrypt libatlas-base-dev 2>&1 | grep -v "already"
+        echo -e "${GREEN}✓${NC} System packages installed"
+    else
+        echo -e "${YELLOW}⚠️${NC}  apt-get update failed (possibly malformed sources list)"
+        echo "Continuing with pip installation (may be slower)..."
+    fi
     echo ""
 fi
 
@@ -193,17 +199,24 @@ fi
 # Install additional required packages not in requirements.txt
 echo "Installing additional dependencies..."
 if [[ "$OS" == "Raspberry Pi" ]]; then
-    # Skip packages already installed via apt
-    echo "(Skipping cryptography and bcrypt - using system packages)"
-    pip install python-telegram-bot --no-cache-dir --prefer-binary
+    # Try to install, but use --prefer-binary to avoid compilation
+    echo "(Attempting to use binary wheels to avoid compilation)"
+    pip install cryptography python-telegram-bot bcrypt --no-cache-dir --prefer-binary 2>&1 | tee /tmp/pip-install.log
+
+    # Check if installation succeeded
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✓${NC} Installed additional dependencies"
+    else
+        echo -e "${YELLOW}⚠️${NC}  Some packages may have failed"
+        echo "This is OK if Mesh Master still runs - Python will use available packages"
+    fi
 else
     pip install cryptography python-telegram-bot bcrypt --no-cache-dir
-fi
-
-if [[ $? -eq 0 ]]; then
-    echo -e "${GREEN}✓${NC} Installed additional dependencies"
-else
-    echo -e "${YELLOW}⚠️${NC}  Some additional packages may have failed (likely OK if using system packages)"
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✓${NC} Installed additional dependencies"
+    else
+        echo -e "${YELLOW}⚠️${NC}  Some additional packages may have failed"
+    fi
 fi
 echo ""
 
