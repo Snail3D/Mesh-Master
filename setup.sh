@@ -229,7 +229,13 @@ if [[ -f "requirements.txt" ]]; then
             # Copy the meshtastic module directly to site-packages (avoid build system)
             if [ -d "meshtastic" ]; then
                 echo "  Copying meshtastic module to venv..."
-                cp -r meshtastic "$MESH_DIR/.venv/lib/python3*/site-packages/" 2>&1 | tail -2
+                # Find the actual site-packages directory
+                SITE_PACKAGES=$(find "$MESH_DIR/.venv/lib" -type d -name "site-packages" 2>/dev/null | head -1)
+                if [ -n "$SITE_PACKAGES" ]; then
+                    cp -r meshtastic "$SITE_PACKAGES/" && echo "    ✓ Copied to $SITE_PACKAGES"
+                else
+                    echo "    ✗ Could not find site-packages directory"
+                fi
             fi
 
             cd "$MESH_DIR"
