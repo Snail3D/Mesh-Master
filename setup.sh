@@ -200,42 +200,42 @@ if [[ -f "requirements.txt" ]]; then
         echo -e "${GREEN}✓${NC} System packages ready"
         echo ""
 
-        # Install critical packages on Raspberry Pi by downloading wheels directly
-        echo "Installing critical packages (downloading wheels directly)..."
+        # Install critical packages on Raspberry Pi
+        echo "Installing critical packages for Raspberry Pi..."
+        echo -e "${YELLOW}Note: meshtastic is required but may fail on some Pi configurations${NC}"
+        echo "If installation hangs or fails, you can install manually later."
+        echo ""
 
-        # Download all required wheels from PyPI CDN (no index lookups)
-        echo "  Downloading meshtastic and dependencies..."
-        mkdir -p /tmp/meshmaster_wheels
+        # Try a simple direct install with very short timeout
+        echo "Attempting quick meshtastic install (30 second timeout)..."
+        timeout 30 .venv/bin/pip install --quiet meshtastic 2>/dev/null &
+        INSTALL_PID=$!
 
-        # Download wheels directly - no pip index needed
-        echo "    Downloading pyserial..."
-        curl -sL -o /tmp/meshmaster_wheels/pyserial.whl "https://files.pythonhosted.org/packages/py3/p/pyserial/pyserial-3.5-py2.py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
-        echo "    Downloading dotmap..."
-        curl -sL -o /tmp/meshmaster_wheels/dotmap.whl "https://files.pythonhosted.org/packages/py3/d/dotmap/dotmap-1.3.30-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
-        echo "    Downloading tabulate..."
-        curl -sL -o /tmp/meshmaster_wheels/tabulate.whl "https://files.pythonhosted.org/packages/py3/t/tabulate/tabulate-0.9.0-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
-        echo "    Downloading pypubsub..."
-        curl -sL -o /tmp/meshmaster_wheels/pypubsub.whl "https://files.pythonhosted.org/packages/py3/P/Pypubsub/Pypubsub-4.0.3-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
-        echo "    Downloading meshtastic..."
-        curl -sL -o /tmp/meshmaster_wheels/meshtastic.whl "https://files.pythonhosted.org/packages/py3/m/meshtastic/meshtastic-2.3.3-py3-none-any.whl" && echo "      ✓" || echo "      ✗ failed"
+        # Wait for it with a spinner
+        for i in {1..30}; do
+            if ! kill -0 $INSTALL_PID 2>/dev/null; then
+                break
+            fi
+            echo -n "."
+            sleep 1
+        done
+        echo ""
 
-        echo "  Checking downloaded files..."
-        ls -lh /tmp/meshmaster_wheels/
-
-        echo "  Installing from downloaded wheels..."
-        .venv/bin/pip install --no-cache-dir --no-index /tmp/meshmaster_wheels/*.whl
-
-        rm -rf /tmp/meshmaster_wheels
-
-        # Verify meshtastic was installed
+        # Check if it worked
         if .venv/bin/python3 -c "import meshtastic" 2>/dev/null; then
-            echo -e "  ${GREEN}✓${NC} meshtastic verified working"
+            echo -e "${GREEN}✓${NC} meshtastic installed successfully"
         else
-            echo -e "  ${RED}✗${NC} meshtastic import failed - installation incomplete"
+            echo -e "${YELLOW}⚠${NC} meshtastic installation timed out or failed"
+            echo ""
+            echo "Mesh Master requires meshtastic to function."
+            echo "Please install manually on your Pi with:"
+            echo "  cd ~/Mesh-Master"
+            echo "  .venv/bin/pip install meshtastic"
+            echo ""
+            echo "If pip keeps hanging, you may have a network/DNS issue."
+            echo "Try: sudo apt-get install python3-meshtastic"
+            echo ""
         fi
-
-        echo -e "${YELLOW}ℹ${NC}  Optional packages skipped. Install later if needed:"
-        echo "    pip install pubsub unidecode python-chess reportlab"
 
         echo ""
         echo -e "${GREEN}✓${NC} Finished installing requirements"
