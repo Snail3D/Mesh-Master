@@ -258,31 +258,26 @@ if [[ -f "requirements.txt" ]]; then
                     # Link system packages into venv so meshtastic can find them
                     echo "  Linking system packages to venv..."
 
-                    # Use system python3 to find packages (not venv python)
-                    for pkg_name in google protobuf pubsub serial; do
-                        # Try to import and get the package location using system python (with timeout)
-                        PKG_PATH=$(timeout 5 /usr/bin/python3 -c "import $pkg_name; import os; print(os.path.dirname($pkg_name.__file__))" 2>/dev/null)
+                    # Standard Debian/Raspbian location for python3 packages
+                    DIST_PACKAGES="/usr/lib/python3/dist-packages"
 
-                        if [ -n "$PKG_PATH" ] && [ -d "$PKG_PATH" ]; then
-                            # Get the package directory name
-                            PKG_DIR=$(basename "$PKG_PATH")
-                            # Link it
-                            if ln -sf "$PKG_PATH" "$SITE_PACKAGES/$PKG_DIR" 2>/dev/null; then
-                                echo "    ✓ Linked $PKG_DIR"
-                            else
-                                echo "    ✗ Failed to link $PKG_DIR"
-                            fi
-                        else
-                            # Try alternative package names
-                            if [ "$pkg_name" = "pubsub" ]; then
-                                ALT_PATH=$(timeout 5 /usr/bin/python3 -c "import pypubsub; import os; print(os.path.dirname(pypubsub.__file__))" 2>/dev/null)
-                                if [ -n "$ALT_PATH" ]; then
-                                    ln -sf "$ALT_PATH" "$SITE_PACKAGES/pubsub" 2>/dev/null && echo "    ✓ Linked pubsub (from pypubsub)"
-                                fi
-                            fi
+                    # Link packages directly from known location
+                    for pkg in google protobuf pubsub serial pypubsub; do
+                        if [ -d "$DIST_PACKAGES/$pkg" ]; then
+                            ln -sf "$DIST_PACKAGES/$pkg" "$SITE_PACKAGES/" && echo "    ✓ Linked $pkg"
                         fi
                     done
-                    echo "  Linking complete"
+
+                    # Also check /usr/local
+                    if [ -d "/usr/local/lib/python3.11/dist-packages" ]; then
+                        for pkg in google protobuf pubsub serial pypubsub; do
+                            if [ -d "/usr/local/lib/python3.11/dist-packages/$pkg" ]; then
+                                ln -sf "/usr/local/lib/python3.11/dist-packages/$pkg" "$SITE_PACKAGES/" && echo "    ✓ Linked $pkg (from /usr/local)"
+                            fi
+                        done
+                    fi
+
+                    echo "  ✓ Linking complete"
                 else
                     echo "    ✗ Could not find site-packages at: $SITE_PACKAGES"
                     echo "    Debug: MESH_DIR=$MESH_DIR"
