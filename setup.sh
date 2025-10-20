@@ -154,10 +154,15 @@ if [[ "$OS" == "Raspberry Pi" ]]; then
     echo ""
 fi
 
-# Upgrade pip
-echo "Upgrading pip (this may take a minute on Raspberry Pi)..."
-timeout 60 pip install --upgrade pip --no-cache-dir 2>&1 | grep -v "Requirement already satisfied" || true
-echo -e "${GREEN}✓${NC} pip ready"
+# Upgrade pip (skip on Pi to avoid hangs)
+if [[ "$OS" == "Raspberry Pi" ]]; then
+    echo "Skipping pip upgrade on Raspberry Pi (using existing pip to avoid hangs)..."
+    echo -e "${GREEN}✓${NC} pip ready (using existing version)"
+else
+    echo "Upgrading pip..."
+    pip install --upgrade pip --no-cache-dir
+    echo -e "${GREEN}✓${NC} pip upgraded"
+fi
 echo ""
 
 # Install dependencies
