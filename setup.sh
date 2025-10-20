@@ -260,18 +260,29 @@ if [[ -f "requirements.txt" ]]; then
 
                     # Use system python3 to find packages (not venv python)
                     for pkg_name in google protobuf pubsub serial; do
-                        # Try to import and get the package location using system python
-                        PKG_PATH=$(/usr/bin/python3 -c "import $pkg_name; import os; print(os.path.dirname($pkg_name.__file__))" 2>/dev/null)
+                        # Try to import and get the package location using system python (with timeout)
+                        PKG_PATH=$(timeout 5 /usr/bin/python3 -c "import $pkg_name; import os; print(os.path.dirname($pkg_name.__file__))" 2>/dev/null)
 
                         if [ -n "$PKG_PATH" ] && [ -d "$PKG_PATH" ]; then
                             # Get the package directory name
                             PKG_DIR=$(basename "$PKG_PATH")
                             # Link it
-                            ln -sf "$PKG_PATH" "$SITE_PACKAGES/$PKG_DIR" 2>/dev/null && echo "    ✓ Linked $PKG_DIR from $PKG_PATH"
+                            if ln -sf "$PKG_PATH" "$SITE_PACKAGES/$PKG_DIR" 2>/dev/null; then
+                                echo "    ✓ Linked $PKG_DIR"
+                            else
+                                echo "    ✗ Failed to link $PKG_DIR"
+                            fi
                         else
-                            echo "    ⚠ Could not find $pkg_name in system (tried /usr/bin/python3)"
+                            # Try alternative package names
+                            if [ "$pkg_name" = "pubsub" ]; then
+                                ALT_PATH=$(timeout 5 /usr/bin/python3 -c "import pypubsub; import os; print(os.path.dirname(pypubsub.__file__))" 2>/dev/null)
+                                if [ -n "$ALT_PATH" ]; then
+                                    ln -sf "$ALT_PATH" "$SITE_PACKAGES/pubsub" 2>/dev/null && echo "    ✓ Linked pubsub (from pypubsub)"
+                                fi
+                            fi
                         fi
                     done
+                    echo "  Linking complete"
                 else
                     echo "    ✗ Could not find site-packages at: $SITE_PACKAGES"
                     echo "    Debug: MESH_DIR=$MESH_DIR"
