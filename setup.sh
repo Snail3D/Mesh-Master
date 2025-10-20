@@ -200,11 +200,27 @@ if [[ -f "requirements.txt" ]]; then
         echo -e "${GREEN}✓${NC} System packages ready"
         echo ""
 
-        # Skip pip entirely on Raspberry Pi to avoid index lookup hangs
-        # Core system packages are already installed via apt above
-        echo "Skipping optional pip packages on Raspberry Pi (using system packages only)"
-        echo -e "${YELLOW}ℹ${NC}  Note: Some optional features may require manual package installation:"
-        echo "    pip install meshtastic pubsub unidecode python-chess reportlab"
+        # Install critical packages on Raspberry Pi with aggressive timeouts
+        echo "Installing critical packages (with timeouts to avoid hangs)..."
+
+        # Meshtastic is required for core functionality
+        echo "  Installing meshtastic (required)..."
+        # Try with 30 second timeout, using only piwheels to avoid index lookups
+        timeout 30 pip install --index-url https://www.piwheels.org/simple meshtastic 2>&1 | tail -3 &
+        PID=$!
+        wait $PID 2>/dev/null
+        if [[ $? -eq 0 ]]; then
+            echo -e "  ${GREEN}✓${NC} meshtastic installed"
+        else
+            echo -e "  ${YELLOW}⚠️${NC} meshtastic installation failed/timed out"
+            echo -e "  ${YELLOW}→${NC} Trying alternative method (direct from piwheels)..."
+            # Last resort: try without any index checking
+            pip install --no-index --find-links=https://www.piwheels.org/simple meshtastic 2>&1 | tail -3 || \
+            echo -e "  ${RED}✗${NC} Could not install meshtastic - you may need to install manually"
+        fi
+
+        echo -e "${YELLOW}ℹ${NC}  Optional packages skipped. Install later if needed:"
+        echo "    pip install pubsub unidecode python-chess reportlab"
 
         echo ""
         echo -e "${GREEN}✓${NC} Finished installing requirements"
