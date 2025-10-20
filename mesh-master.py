@@ -28640,44 +28640,43 @@ def dashboard():
       // Poll connection status every 3 seconds to update Bluetooth UI
       async function pollConnectionStatus() {
         try {
-          const response = await fetch('/connection_status');
-          const result = await response.json();
+          // Get connection status
+          const statusResp = await fetch('/connection_status');
+          const statusData = await statusResp.json();
 
-          // Check if we're configured for Bluetooth
-          const configResponse = await fetch('/dashboard/config/snapshot');
-          const configResult = await configResponse.json();
+          // Get config to check if Bluetooth is enabled
+          const configResp = await fetch('/dashboard/config');
+          const configData = await configResp.json();
 
-          if (configResult && configResult.config) {
-            const useBluetoothValue = configResult.config.use_bluetooth;
-            const useBluetooth = useBluetoothValue === true || useBluetoothValue === 'true';
-            const bluetoothDevice = configResult.config.bluetooth_device;
+          const useBluetooth = configData.use_bluetooth === true || configData.use_bluetooth === 'true';
+          const bluetoothDevice = configData.bluetooth_device;
 
-            if (useBluetooth && bluetoothDevice) {
-              // Update Bluetooth status based on actual connection
-              if (result.status === 'Connected') {
-                bluetoothStatusIcon.textContent = '🟢';
-                bluetoothStatusText.textContent = 'Connected';
-                bluetoothStatusText.style.color = '#6a9955';
-                bluetoothConnectedDevice.style.display = 'block';
-                bluetoothConnectedName.textContent = configResult.config.bluetooth_preferred_device || bluetoothDevice;
-                bluetoothConnectedAddress.textContent = bluetoothDevice;
-              } else {
-                bluetoothStatusIcon.textContent = '🔴';
-                bluetoothStatusText.textContent = 'Disconnected';
-                bluetoothStatusText.style.color = '#f44747';
-
-                // Show error if available
-                if (result.error) {
-                  bluetoothStatusText.textContent = `Disconnected (${result.error})`;
-                }
-              }
+          if (useBluetooth && bluetoothDevice) {
+            // Update Bluetooth status based on actual connection
+            if (statusData.status === 'Connected') {
+              bluetoothStatusIcon.textContent = '🟢';
+              bluetoothStatusText.textContent = 'Connected';
+              bluetoothStatusText.style.color = '#6a9955';
+              bluetoothConnectedDevice.style.display = 'block';
+              bluetoothConnectedName.textContent = configData.bluetooth_preferred_device || bluetoothDevice;
+              bluetoothConnectedAddress.textContent = bluetoothDevice;
             } else {
-              // Bluetooth not configured
-              bluetoothStatusIcon.textContent = '⚪';
-              bluetoothStatusText.textContent = 'Not connected';
-              bluetoothStatusText.style.color = '#888';
+              bluetoothStatusIcon.textContent = '🔴';
+              bluetoothStatusText.textContent = 'Disconnected';
+              bluetoothStatusText.style.color = '#f44747';
               bluetoothConnectedDevice.style.display = 'none';
+
+              // Show error if available
+              if (statusData.error) {
+                bluetoothStatusText.textContent = `Disconnected (${statusData.error})`;
+              }
             }
+          } else {
+            // Bluetooth not configured
+            bluetoothStatusIcon.textContent = '⚪';
+            bluetoothStatusText.textContent = 'Not configured';
+            bluetoothStatusText.style.color = '#888';
+            bluetoothConnectedDevice.style.display = 'none';
           }
         } catch (error) {
           console.error('Failed to poll connection status:', error);
