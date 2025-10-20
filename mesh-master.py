@@ -2388,6 +2388,12 @@ except ImportError:
     TCPInterface = None
 
 try:
+    from meshtastic.ble_interface import BLEInterface
+    BLE_INTERFACE_AVAILABLE = True
+except ImportError:
+    BLE_INTERFACE_AVAILABLE = False
+
+try:
     from meshtastic.mesh_interface import MeshInterface
     MESH_INTERFACE_AVAILABLE = True
 except ImportError:
@@ -2518,6 +2524,18 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
                 "use_mesh_interface", "serial_port", "serial_baud",
                 "use_wifi", "wifi_host", "wifi_port",
                 "radio_settings_info",
+            ],
+        },
+    ),
+    (
+        "bluetooth",
+        {
+            "label": "Bluetooth 📡",
+            "keys": [
+                "use_bluetooth",
+                "bluetooth_device",
+                "bluetooth_preferred_device",
+                "bluetooth_auto_pin",
             ],
         },
     ),
@@ -2720,6 +2738,8 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
     "use_wifi": "Use Wi-Fi link",
     "wifi_host": "Wi-Fi host",
     "wifi_port": "Wi-Fi port",
+    "use_bluetooth": "Use Bluetooth",
+    "bluetooth_device": "Bluetooth device",
     "ai_provider": "AI provider",
     "system_prompt": "System prompt",
     "chunk_size": "Chunk size",
@@ -2832,6 +2852,8 @@ CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "use_wifi": "Enable the Wi-Fi socket interface instead of direct serial access.",
     "wifi_host": "Hostname or IP address for the Wi-Fi-connected node.",
     "wifi_port": "TCP port number for the Wi-Fi mesh link.",
+    "use_bluetooth": "Enable Bluetooth Low Energy (BLE) connection to the radio.",
+    "bluetooth_device": "Bluetooth device name or address (e.g., 'meshtastic_1234'). Use 'meshtastic --ble-scan' to discover devices.",
     "ai_provider": "Selects the large language model provider powering AI replies.",
     "system_prompt": "Base instruction prompt prepended to every AI conversation.",
     "chunk_size": "Character count for each streaming chunk returned back to the radio.",
@@ -7005,6 +7027,8 @@ try:
     WIFI_PORT = int(config.get("wifi_port", 4403))
 except (ValueError, TypeError):
     WIFI_PORT = 4403
+USE_BLUETOOTH = bool(config.get("use_bluetooth", False))
+BLUETOOTH_DEVICE = config.get("bluetooth_device") or None
 USE_MESH_INTERFACE = bool(config.get("use_mesh_interface", False))
 
 AUTO_REFRESH_ENABLED = bool(config.get("auto_refresh_enabled", False))
@@ -18099,6 +18123,42 @@ def connection_status_info():
     return jsonify({"status": connection_status, "error": last_error_message})
 
 
+
+@app.route("/dashboard/battery", methods=["GET"])
+def get_battery_status():
+    """Return current radio battery level and power status."""
+    try:
+        if interface and hasattr(interface, 'nodes'):
+            # Get my node info from the nodes dictionary
+            for node_id, node in interface.nodes.items():
+                user = node.get('user', {})
+                if user.get('id') == interface.myInfo.my_node_num:
+                    device_metrics = node.get('deviceMetrics', {})
+                    battery_level = device_metrics.get('batteryLevel')
+                    voltage = device_metrics.get('voltage')
+                    
+                    # Determine power status (101 = USB power, or voltage > 4.2V)
+                    is_charging = battery_level == 101 or (voltage and voltage > 4.2)
+                    
+                    # Get radio name
+                    radio_name = user.get('longName', 'Unknown')
+                    
+                    return jsonify({
+                        'success': True,
+                        'battery_level': battery_level if battery_level != 101 else 100,
+                        'voltage': voltage,
+                        'is_charging': is_charging,
+                        'is_plugged_in': is_charging,
+                        'radio_name': radio_name,
+                        'connection_type': 'Bluetooth' if USE_BLUETOOTH and BLUETOOTH_DEVICE else ('WiFi' if USE_WIFI else 'Serial')
+                    })
+        
+        return jsonify({'success': False, 'error': 'No radio connected'}), 503
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
 @app.route("/dashboard/metrics", methods=["GET"])
 def get_dashboard_metrics():
     """Return the live metrics snapshot used by the dashboard overview."""
@@ -23110,7 +23170,20 @@ def dashboard():
         </div>
         </article>
 
-        <article class="panel config-panel" data-panel-id="config-overview" data-draggable="true" data-collapsible="true">
+        
+      <!-- Battery Status Display (Upper Left Corner) -->
+      <div id="batteryStatusHeader" style="position: fixed; top: 12px; left: 12px; z-index: 1000; background: var(--bg-panel); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+        <span id="batteryIcon" style="font-size: 18px;">🔋</span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="batteryLevel" style="font-weight: 600;">--</span>
+            <span id="powerStatus" style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase;"></span>
+          </div>
+          <div id="radioName" style="font-size: 10px; color: var(--text-secondary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+        </div>
+      </div>
+
+<article class="panel config-panel" data-panel-id="config-overview" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
           <div class="panel-title">
             <h2>Configuration Overview ⚙️</h2>
@@ -23151,6 +23224,234 @@ def dashboard():
           <div class="config-table" id="configSettingsList">
             <p class="config-empty">Config snapshot unavailable.</p>
           </div>
+        </div>
+        </article>
+
+        <article class="panel radio-panel" data-panel-id="radio-settings" data-draggable="true" data-collapsible="true">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>Radio Settings 📻</h2>
+            <span class="panel-subtitle">Connection & configuration</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body" id="radioPanelBody">
+          <!-- Sub-tabs for Radio Settings -->
+          <div style="display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 0;">
+            <button type="button" class="radio-subtab active" data-subtab="connection" style="padding: 8px 16px; background: var(--accent-soft); border: none; border-bottom: 2px solid var(--accent); color: var(--text-primary); cursor: pointer; font-size: 13px; font-weight: 500;">Connection</button>
+            <button type="button" class="radio-subtab" data-subtab="configuration" style="padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; font-weight: 500;">Configuration</button>
+          </div>
+
+          <!-- Connection Tab Content -->
+          <div id="radioConnectionTab" class="radio-tab-content">
+            <div style="display: flex; gap: 4px; margin-bottom: 12px; padding: 8px; background: var(--bg-alt); border-radius: 4px;">
+              <button type="button" class="connection-method-btn active" data-method="bluetooth" style="flex: 1; padding: 8px 12px; background: var(--accent-soft); border: 1px solid var(--accent); color: var(--text-primary); cursor: pointer; border-radius: 4px; font-size: 12px;">📡 Bluetooth</button>
+              <button type="button" class="connection-method-btn" data-method="wifi" style="flex: 1; padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; border-radius: 4px; font-size: 12px;">📶 WiFi</button>
+              <button type="button" class="connection-method-btn" data-method="serial" style="flex: 1; padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; border-radius: 4px; font-size: 12px;">🔌 Serial</button>
+            </div>
+
+            <!-- Bluetooth Connection Content -->
+            <div id="bluetoothConnectionContent" class="connection-content" style="display: block;">
+              <div class="passphrase-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label>BLE Device Manager<span class="help-icon" data-explainer="Scan for nearby Bluetooth Low Energy Meshtastic radios and connect. The PIN defaults to 123456 for no-screen devices. Devices with screens will display a PIN during pairing." data-explainer-placement="right">?</span></label>
+                  <span id="bluetoothConnectionStatus" style="font-size: 12px; color: #888;">
+                    <span id="bluetoothStatusIcon">⚪</span>
+                    <span id="bluetoothStatusText">Not connected</span>
+                  </span>
+                </div>
+
+                <div style="margin-top: 12px;">
+                  <button type="button" id="bluetoothScanBtn" class="config-save-btn" style="width: 100%;">🔍 Scan for Devices</button>
+                  <div id="bluetoothScanStatus" style="margin-top: 8px; font-size: 12px; color: #888; text-align: center;"></div>
+                </div>
+
+                <div id="bluetoothDeviceList" style="margin-top: 16px; display: none;">
+                  <div style="margin-bottom: 8px; font-weight: 500; color: #4CAF50;">Available Devices:</div>
+                  <div id="bluetoothDevicesContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid #444; border-radius: 4px; background: #1a1a1a;">
+                    <!-- Devices will be populated here -->
+                  </div>
+                </div>
+
+                <div id="bluetoothConnectedDevice" style="margin-top: 16px; display: none;">
+                  <div style="margin-bottom: 8px; font-weight: 500; color: #4CAF50;">Connected Device:</div>
+                  <div style="padding: 12px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); border-radius: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <div>
+                        <div style="font-weight: 500; margin-bottom: 4px;" id="bluetoothConnectedName">—</div>
+                        <div style="font-size: 11px; color: #888; font-family: monospace;" id="bluetoothConnectedAddress">—</div>
+                      </div>
+                      <button type="button" id="bluetoothForgetBtn" class="config-cancel-btn" style="padding: 6px 12px; font-size: 12px;">Forget Device</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="bluetoothPinPrompt" style="margin-top: 16px; padding: 12px; background: rgba(86, 156, 214, 0.1); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 4px; display: none;">
+                  <div style="margin-bottom: 8px; font-weight: 500;">Enter PIN:</div>
+                  <div style="font-size: 12px; color: #888; margin-bottom: 8px;" id="bluetoothPinHint">Check the device screen for the PIN, or use default 123456 for no-screen devices.</div>
+                  <div style="display: flex; gap: 8px;">
+                    <input type="text" id="bluetoothPinInput" placeholder="123456" maxlength="6" pattern="[0-9]*" style="flex: 1; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace; text-align: center; font-size: 16px;">
+                    <button type="button" id="bluetoothPinConnectBtn" class="config-save-btn" style="padding: 8px 16px;">Connect</button>
+                    <button type="button" id="bluetoothPinCancelBtn" class="config-cancel-btn" style="padding: 8px 16px;">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- WiFi Connection Content -->
+            <div id="wifiConnectionContent" class="connection-content" style="display: none;">
+              <div class="passphrase-card">
+                <label>WiFi TCP Bridge<span class="help-icon" data-explainer="Connect to Meshtastic radio over WiFi network. Requires radio to be configured with WiFi and accessible on your network." data-explainer-placement="right">?</span></label>
+                <div style="margin-top: 12px;">
+                  <label for="wifiHost" style="display: block; margin-bottom: 4px; font-weight: 500;">WiFi Host (IP Address)</label>
+                  <input type="text" id="wifiHost" placeholder="192.168.1.100" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+                </div>
+                <div style="margin-top: 12px;">
+                  <label for="wifiPort" style="display: block; margin-bottom: 4px; font-weight: 500;">WiFi Port</label>
+                  <input type="number" id="wifiPort" placeholder="4403" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px;">
+                </div>
+                <button type="button" id="wifiSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px;">Save WiFi Settings</button>
+                <div id="wifiStatus" style="margin-top: 8px; font-size: 12px; text-align: center;"></div>
+              </div>
+            </div>
+
+            <!-- Serial Connection Content -->
+            <div id="serialConnectionContent" class="connection-content" style="display: none;">
+              <div class="passphrase-card">
+                <label>Serial / USB Connection<span class="help-icon" data-explainer="Connect to Meshtastic radio via USB serial port. Use full device path like /dev/ttyUSB0 or /dev/serial/by-id/..." data-explainer-placement="right">?</span></label>
+                <div style="margin-top: 12px;">
+                  <label for="serialPort" style="display: block; margin-bottom: 4px; font-weight: 500;">Serial Port Path</label>
+                  <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace;">
+                </div>
+                <div style="margin-top: 12px;">
+                  <label for="serialBaud" style="display: block; margin-bottom: 4px; font-weight: 500;">Baud Rate</label>
+                  <select id="serialBaud" class="config-select" style="width: 100%;">
+                    <option value="38400">38400 (Default)</option>
+                    <option value="57600">57600</option>
+                    <option value="115200">115200</option>
+                    <option value="921600">921600</option>
+                  </select>
+                </div>
+                <button type="button" id="serialSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px;">Save Serial Settings</button>
+                <div id="serialStatus" style="margin-top: 8px; font-size: 12px; text-align: center;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration Tab Content -->
+          <div id="radioConfigurationTab" class="radio-tab-content" style="display: none;">
+          <div class="config-section" aria-live="polite">
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Long Name<span class="help-icon" data-explainer="The full name of this node as it appears on the mesh network (max 39 characters)." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="text" maxlength="39" id="radioLongName" class="config-input" style="width: 100%;" placeholder="My Node Name" aria-label="Long name">
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Short Name<span class="help-icon" data-explainer="Short identifier for this node (max 4 characters, typically used in UI displays)." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="text" maxlength="4" id="radioShortName" class="config-input" style="width: 100px; display: inline-block;" placeholder="NODE" aria-label="Short name">
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key"></div>
+              <div class="config-value">
+                <button type="button" id="radioNameSave" class="config-save-btn">Apply Node Names</button>
+                <span class="config-status" id="radioNameStatus" style="margin-left: 8px;"></span>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Node Role<span class="help-icon" data-explainer="The role/type of this node determines its behavior on the mesh network. Client for normal use, Router for relaying messages, Repeater for store-and-forward, etc." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <select id="radioRoleSelect" class="config-select" style="width: 200px;" aria-label="Node role">
+                    <option value="">Loading...</option>
+                  </select>
+                  <button type="button" id="radioRoleSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioRoleStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Hop Limit<span class="help-icon" data-explainer="Maximum number of hops (retransmissions) a message can make across the mesh network. Lower values save bandwidth but reduce range. Typical range: 3-7." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="number" min="0" max="7" id="radioHopLimit" class="config-input" style="width: 100px; display: inline-block;" aria-label="Hop limit">
+                  <button type="button" id="radioHopSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioHopStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Modem Preset<span class="help-icon" data-explainer="Controls spreading factor and bandwidth. Long/Slow = better range, slower speed. Short/Fast = shorter range, faster speed. Choose based on your needs." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <select id="radioModemSelect" class="config-select" style="width: 200px;" aria-label="Modem preset">
+                    <option value="">Loading...</option>
+                  </select>
+                  <button type="button" id="radioModemSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioModemStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-key">
+                <div class="config-key-heading">
+                  <strong>Frequency Slot<span class="help-icon" data-explainer="LoRa frequency channel number. Default is 20. Must match across all nodes on your network. Range: 0-255." data-explainer-placement="right">?</span></strong>
+                </div>
+              </div>
+              <div class="config-value">
+                <div class="config-display-line">
+                  <input type="number" min="0" max="255" id="radioFrequencySlot" class="config-input" style="width: 100px; display: inline-block;" aria-label="Frequency slot">
+                  <button type="button" id="radioFrequencySave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
+                  <span class="config-status" id="radioFrequencyStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-row config-row-stack" id="radioChannelsRow">
+              <div class="config-key-heading"><strong>Channels<span class="help-icon" data-explainer="Configure your LoRa mesh network channels. Each channel has a name, PSK (encryption key), and uplink/downlink settings. Add Channel to create new ones." data-explainer-placement="right">?</span></strong></div>
+              <div class="config-value">
+                <div id="radioChannelsList" class="config-table"></div>
+                <div style="margin-top: 8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
+                  <button type="button" id="radioAddChannel" class="config-save-btn">Add Channel</button>
+                  <span class="config-status" id="radioChannelsStatus"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+          <!-- End Configuration Tab Content -->
         </div>
         </article>
 
@@ -23340,127 +23641,7 @@ def dashboard():
         </div>
         </article>
 
-        <article class="panel radio-panel" data-panel-id="radio-settings" data-draggable="true" data-collapsible="true">
-        <div class="panel-header">
-          <div class="panel-title">
-            <h2>Radio Settings 📻</h2>
-            <span class="panel-subtitle">LoRa hop limit and channels</span>
-          </div>
-          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
-        </div>
-        <div class="panel-body" id="radioPanelBody">
-          <div class="config-section" aria-live="polite">
-            <div class="config-row">
-              <div class="config-key">
-                <div class="config-key-heading">
-                  <strong>Long Name<span class="help-icon" data-explainer="The full name of this node as it appears on the mesh network (max 39 characters)." data-explainer-placement="right">?</span></strong>
-                </div>
-              </div>
-              <div class="config-value">
-                <div class="config-display-line">
-                  <input type="text" maxlength="39" id="radioLongName" class="config-input" style="width: 100%;" placeholder="My Node Name" aria-label="Long name">
-                </div>
-              </div>
-            </div>
-
-            <div class="config-row">
-              <div class="config-key">
-                <div class="config-key-heading">
-                  <strong>Short Name<span class="help-icon" data-explainer="Short identifier for this node (max 4 characters, typically used in UI displays)." data-explainer-placement="right">?</span></strong>
-                </div>
-              </div>
-              <div class="config-value">
-                <div class="config-display-line">
-                  <input type="text" maxlength="4" id="radioShortName" class="config-input" style="width: 100px; display: inline-block;" placeholder="NODE" aria-label="Short name">
-                </div>
-              </div>
-            </div>
-
-            <div class="config-row">
-              <div class="config-key"></div>
-              <div class="config-value">
-                <button type="button" id="radioNameSave" class="config-save-btn">Apply Node Names</button>
-                <span class="config-status" id="radioNameStatus" style="margin-left: 8px;"></span>
-              </div>
-            </div>
-
-            <div class="config-row">
-              <div class="config-key">
-                <div class="config-key-heading">
-                  <strong>Node Role<span class="help-icon" data-explainer="The role/type of this node determines its behavior on the mesh network. Client for normal use, Router for relaying messages, Repeater for store-and-forward, etc." data-explainer-placement="right">?</span></strong>
-                </div>
-              </div>
-              <div class="config-value">
-                <div class="config-display-line">
-                  <select id="radioRoleSelect" class="config-select" style="width: 200px;" aria-label="Node role">
-                    <option value="">Loading...</option>
-                  </select>
-                  <button type="button" id="radioRoleSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
-                  <span class="config-status" id="radioRoleStatus"></span>
-                </div>
-              </div>
-            </div>
-
-            <div class="config-row">
-              <div class="config-key">
-                <div class="config-key-heading">
-                  <strong>Hop Limit<span class="help-icon" data-explainer="Maximum number of hops (retransmissions) a message can make across the mesh network. Lower values save bandwidth but reduce range. Typical range: 3-7." data-explainer-placement="right">?</span></strong>
-                </div>
-              </div>
-              <div class="config-value">
-                <div class="config-display-line">
-                  <input type="number" min="0" max="7" id="radioHopLimit" class="config-input" style="width: 100px; display: inline-block;" aria-label="Hop limit">
-                  <button type="button" id="radioHopSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
-                  <span class="config-status" id="radioHopStatus"></span>
-                </div>
-              </div>
-            </div>
-
-            <div class="config-row">
-              <div class="config-key">
-                <div class="config-key-heading">
-                  <strong>Modem Preset<span class="help-icon" data-explainer="Controls spreading factor and bandwidth. Long/Slow = better range, slower speed. Short/Fast = shorter range, faster speed. Choose based on your needs." data-explainer-placement="right">?</span></strong>
-                </div>
-              </div>
-              <div class="config-value">
-                <div class="config-display-line">
-                  <select id="radioModemSelect" class="config-select" style="width: 200px;" aria-label="Modem preset">
-                    <option value="">Loading...</option>
-                  </select>
-                  <button type="button" id="radioModemSave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
-                  <span class="config-status" id="radioModemStatus"></span>
-                </div>
-              </div>
-            </div>
-
-            <div class="config-row">
-              <div class="config-key">
-                <div class="config-key-heading">
-                  <strong>Frequency Slot<span class="help-icon" data-explainer="LoRa frequency channel number. Default is 20. Must match across all nodes on your network. Range: 0-255." data-explainer-placement="right">?</span></strong>
-                </div>
-              </div>
-              <div class="config-value">
-                <div class="config-display-line">
-                  <input type="number" min="0" max="255" id="radioFrequencySlot" class="config-input" style="width: 100px; display: inline-block;" aria-label="Frequency slot">
-                  <button type="button" id="radioFrequencySave" class="config-save-btn" style="margin-left: 8px;">Apply</button>
-                  <span class="config-status" id="radioFrequencyStatus"></span>
-                </div>
-              </div>
-            </div>
-
-            <div class="config-row config-row-stack" id="radioChannelsRow">
-              <div class="config-key-heading"><strong>Channels<span class="help-icon" data-explainer="Configure your LoRa mesh network channels. Each channel has a name, PSK (encryption key), and uplink/downlink settings. Add Channel to create new ones." data-explainer-placement="right">?</span></strong></div>
-              <div class="config-value">
-                <div id="radioChannelsList" class="config-table"></div>
-                <div style="margin-top: 8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
-                  <button type="button" id="radioAddChannel" class="config-save-btn">Add Channel</button>
-                  <span class="config-status" id="radioChannelsStatus"></span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        </article>
+        
 
         <article class="panel wiki-panel" data-panel-id="offline-knowledge" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
@@ -28112,11 +28293,440 @@ def dashboard():
       }
 
       loadTelegramConfig();
+
+      // =====================================================
+      // RADIO SETTINGS TAB SWITCHING
+      // =====================================================
+      // Handle main tab switching (Connection vs Configuration)
+      document.querySelectorAll('.radio-subtab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetTab = btn.dataset.subtab;
+
+          // Update button states
+          document.querySelectorAll('.radio-subtab').forEach(b => {
+            b.classList.remove('active');
+            b.style.background = 'transparent';
+            b.style.borderBottom = '2px solid transparent';
+            b.style.color = 'var(--text-secondary)';
+          });
+          btn.classList.add('active');
+          btn.style.background = 'var(--accent-soft)';
+          btn.style.borderBottom = '2px solid var(--accent)';
+          btn.style.color = 'var(--text-primary)';
+
+          // Show/hide tab content
+          document.getElementById('radioConnectionTab').style.display = targetTab === 'connection' ? 'block' : 'none';
+          document.getElementById('radioConfigurationTab').style.display = targetTab === 'configuration' ? 'block' : 'none';
+        });
+      });
+
+      // Handle connection method switching (Bluetooth/WiFi/Serial)
+      document.querySelectorAll('.connection-method-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const method = btn.dataset.method;
+
+          // Update button states
+          document.querySelectorAll('.connection-method-btn').forEach(b => {
+            b.classList.remove('active');
+            b.style.background = 'var(--bg-panel)';
+            b.style.border = '1px solid var(--border)';
+            b.style.color = 'var(--text-secondary)';
+          });
+          btn.classList.add('active');
+          btn.style.background = 'var(--accent-soft)';
+          btn.style.border = '1px solid var(--accent)';
+          btn.style.color = 'var(--text-primary)';
+
+          // Show/hide connection method content
+          document.getElementById('bluetoothConnectionContent').style.display = method === 'bluetooth' ? 'block' : 'none';
+          document.getElementById('wifiConnectionContent').style.display = method === 'wifi' ? 'block' : 'none';
+          document.getElementById('serialConnectionContent').style.display = method === 'serial' ? 'block' : 'none';
+        });
+      });
+
+      // =====================================================
+      // BLUETOOTH DEVICE MANAGER
+      // =====================================================
+      const bluetoothScanBtn = document.getElementById('bluetoothScanBtn');
+      const bluetoothScanStatus = document.getElementById('bluetoothScanStatus');
+      const bluetoothDeviceList = document.getElementById('bluetoothDeviceList');
+      const bluetoothDevicesContainer = document.getElementById('bluetoothDevicesContainer');
+      const bluetoothConnectedDevice = document.getElementById('bluetoothConnectedDevice');
+      const bluetoothConnectedName = document.getElementById('bluetoothConnectedName');
+      const bluetoothConnectedAddress = document.getElementById('bluetoothConnectedAddress');
+      const bluetoothForgetBtn = document.getElementById('bluetoothForgetBtn');
+      const bluetoothPinPrompt = document.getElementById('bluetoothPinPrompt');
+      const bluetoothPinInput = document.getElementById('bluetoothPinInput');
+      const bluetoothPinConnectBtn = document.getElementById('bluetoothPinConnectBtn');
+      const bluetoothPinCancelBtn = document.getElementById('bluetoothPinCancelBtn');
+      const bluetoothConnectionStatus = document.getElementById('bluetoothConnectionStatus');
+      const bluetoothStatusIcon = document.getElementById('bluetoothStatusIcon');
+      const bluetoothStatusText = document.getElementById('bluetoothStatusText');
+
+      let currentlySelectedDevice = null;
+
+      // Scan for Bluetooth devices
+      async function scanDevices(showAll = false) {
+        bluetoothScanStatus.innerHTML = '🔍 Scanning for BLE devices...';
+        bluetoothScanBtn.disabled = true;
+        bluetoothScanBtn.textContent = '⏳ Scanning...';
+
+        try {
+          const response = await fetch('/dashboard/bluetooth/scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ show_all: showAll })
+          });
+
+          const result = await response.json();
+
+          if (result.success && result.devices && result.devices.length > 0) {
+            const filterMsg = showAll ? '' : ' Meshtastic';
+            bluetoothScanStatus.innerHTML = `✅ Found ${result.devices.length}${filterMsg} device(s)`;
+            bluetoothScanStatus.style.color = '#6a9955';
+            bluetoothDeviceList.style.display = 'block';
+            renderDeviceList(result.devices);
+          } else if (result.success && result.devices.length === 0) {
+            if (showAll) {
+              bluetoothScanStatus.innerHTML = '⚠️ No devices found.';
+              bluetoothScanStatus.style.color = '#d7ba7d';
+            } else {
+              // Show helper link to scan all devices
+              bluetoothScanStatus.innerHTML = `
+                ⚠️ No Meshtastic devices found.<br>
+                <span style="color: #569cd6; font-size: 11px;">
+                  Don't see your device? <a href="#" id="showAllDevicesLink" style="color: #569cd6; text-decoration: underline;">Click here to scan for all BLE devices</a>
+                </span>
+              `;
+              bluetoothScanStatus.style.color = '#d7ba7d';
+
+              // Attach click handler to the link
+              setTimeout(() => {
+                const showAllLink = document.getElementById('showAllDevicesLink');
+                if (showAllLink) {
+                  showAllLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    scanDevices(true);
+                  });
+                }
+              }, 100);
+            }
+            bluetoothDeviceList.style.display = 'none';
+          } else {
+            bluetoothScanStatus.innerHTML = `❌ Scan failed: ${result.error || 'Unknown error'}`;
+            bluetoothScanStatus.style.color = '#f44747';
+            bluetoothDeviceList.style.display = 'none';
+          }
+        } catch (error) {
+          bluetoothScanStatus.innerHTML = `❌ Error: ${error.message}`;
+          bluetoothScanStatus.style.color = '#f44747';
+          bluetoothDeviceList.style.display = 'none';
+        } finally {
+          bluetoothScanBtn.disabled = false;
+          bluetoothScanBtn.textContent = '🔍 Scan for Devices';
+        }
+      }
+
+      if (bluetoothScanBtn) {
+        bluetoothScanBtn.addEventListener('click', () => scanDevices(false));
+      }
+
+      // Render device list
+      function renderDeviceList(devices) {
+        bluetoothDevicesContainer.innerHTML = '';
+
+        devices.forEach(device => {
+          const deviceCard = document.createElement('div');
+          deviceCard.style.cssText = 'padding: 12px; border-bottom: 1px solid #333; cursor: pointer; transition: background 0.2s;';
+          deviceCard.addEventListener('mouseenter', () => {
+            deviceCard.style.background = 'rgba(86, 156, 214, 0.1)';
+          });
+          deviceCard.addEventListener('mouseleave', () => {
+            deviceCard.style.background = 'transparent';
+          });
+
+          const signalBars = getSignalBars(device.rssi);
+
+          deviceCard.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 4px;">${device.name || 'Unknown Device'}</div>
+                <div style="font-size: 11px; color: #888; font-family: monospace;">${device.address}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="font-size: 20px;" title="Signal: ${device.rssi || 'Unknown'} dBm">${signalBars}</div>
+                <button class="config-save-btn" style="padding: 6px 12px; font-size: 12px;">Connect</button>
+              </div>
+            </div>
+          `;
+
+          const connectBtn = deviceCard.querySelector('button');
+          connectBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPinPrompt(device);
+          });
+
+          bluetoothDevicesContainer.appendChild(deviceCard);
+        });
+      }
+
+      // Get signal strength bars
+      function getSignalBars(rssi) {
+        if (!rssi) return '📶';
+        if (rssi > -60) return '📶'; // Excellent
+        if (rssi > -70) return '📶'; // Good
+        if (rssi > -80) return '📶'; // Fair
+        return '📶'; // Weak
+      }
+
+      // Show PIN prompt
+      function showPinPrompt(device) {
+        currentlySelectedDevice = device;
+        bluetoothPinPrompt.style.display = 'block';
+        bluetoothPinInput.value = '123456'; // Default PIN
+        bluetoothPinInput.focus();
+        bluetoothPinInput.select();
+
+        // Update hint based on device type
+        const pinHint = document.getElementById('bluetoothPinHint');
+        if (pinHint) {
+          pinHint.textContent = 'Check the device screen for the PIN, or use default 123456 for no-screen devices.';
+        }
+      }
+
+      // PIN Connect button
+      if (bluetoothPinConnectBtn) {
+        bluetoothPinConnectBtn.addEventListener('click', async () => {
+          if (!currentlySelectedDevice) return;
+
+          const pin = bluetoothPinInput.value.trim();
+          if (!pin) {
+            alert('Please enter a PIN');
+            return;
+          }
+
+          bluetoothPinConnectBtn.disabled = true;
+          bluetoothPinConnectBtn.textContent = 'Connecting...';
+
+          try {
+            const response = await fetch('/dashboard/bluetooth/connect', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                address: currentlySelectedDevice.address,
+                pin: pin
+              })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              bluetoothPinPrompt.style.display = 'none';
+              bluetoothDeviceList.style.display = 'none';
+              bluetoothConnectedDevice.style.display = 'block';
+              bluetoothConnectedName.textContent = currentlySelectedDevice.name || 'Unknown Device';
+              bluetoothConnectedAddress.textContent = currentlySelectedDevice.address;
+
+              bluetoothStatusIcon.textContent = '🟢';
+              bluetoothStatusText.textContent = 'Connected';
+              bluetoothStatusText.style.color = '#6a9955';
+
+              bluetoothScanStatus.textContent = '✅ Device configured! Restart Mesh Master to connect.';
+              bluetoothScanStatus.style.color = '#6a9955';
+
+              currentlySelectedDevice = null;
+            } else {
+              alert(`Connection failed: ${result.error || 'Unknown error'}`);
+            }
+          } catch (error) {
+            alert(`Error: ${error.message}`);
+          } finally {
+            bluetoothPinConnectBtn.disabled = false;
+            bluetoothPinConnectBtn.textContent = 'Connect';
+          }
+        });
+      }
+
+      // PIN Cancel button
+      if (bluetoothPinCancelBtn) {
+        bluetoothPinCancelBtn.addEventListener('click', () => {
+          bluetoothPinPrompt.style.display = 'none';
+          currentlySelectedDevice = null;
+        });
+      }
+
+      // PIN input - submit on Enter
+      if (bluetoothPinInput) {
+        bluetoothPinInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            bluetoothPinConnectBtn.click();
+          }
+        });
+      }
+
+      // Forget device button
+      if (bluetoothForgetBtn) {
+        bluetoothForgetBtn.addEventListener('click', async () => {
+          if (!confirm('Forget this Bluetooth device? You will need to pair again to reconnect.')) {
+            return;
+          }
+
+          try {
+            const response = await fetch('/dashboard/bluetooth/forget', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'}
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              bluetoothConnectedDevice.style.display = 'none';
+              bluetoothStatusIcon.textContent = '⚪';
+              bluetoothStatusText.textContent = 'Not connected';
+              bluetoothStatusText.style.color = '#888';
+              bluetoothScanStatus.textContent = '✅ Device forgotten. Scan again to connect.';
+              bluetoothScanStatus.style.color = '#6a9955';
+            } else {
+              alert(`Failed to forget device: ${result.error || 'Unknown error'}`);
+            }
+          } catch (error) {
+            alert(`Error: ${error.message}`);
+          }
+        });
+      }
+
+      // Load current Bluetooth connection status on page load
+      async function loadBluetoothStatus() {
+        try {
+          const response = await fetch('/dashboard/config/snapshot');
+          const result = await response.json();
+
+          if (result && result.config) {
+            const useBluetoothValue = result.config.use_bluetooth;
+            const useBluetooth = useBluetoothValue === true || useBluetoothValue === 'true';
+            const bluetoothDevice = result.config.bluetooth_device;
+
+            if (useBluetooth && bluetoothDevice) {
+              bluetoothConnectedDevice.style.display = 'block';
+              bluetoothConnectedName.textContent = result.config.bluetooth_preferred_device || bluetoothDevice;
+              bluetoothConnectedAddress.textContent = bluetoothDevice;
+              bluetoothStatusIcon.textContent = '🟢';
+              bluetoothStatusText.textContent = 'Connected';
+              bluetoothStatusText.style.color = '#6a9955';
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load Bluetooth status:', error);
+        }
+      }
+
+      loadBluetoothStatus();
+
+      // Poll connection status every 3 seconds to update Bluetooth UI
+      async function pollConnectionStatus() {
+        try {
+          const response = await fetch('/connection_status');
+          const result = await response.json();
+
+          // Check if we're configured for Bluetooth
+          const configResponse = await fetch('/dashboard/config/snapshot');
+          const configResult = await configResponse.json();
+
+          if (configResult && configResult.config) {
+            const useBluetoothValue = configResult.config.use_bluetooth;
+            const useBluetooth = useBluetoothValue === true || useBluetoothValue === 'true';
+            const bluetoothDevice = configResult.config.bluetooth_device;
+
+            if (useBluetooth && bluetoothDevice) {
+              // Update Bluetooth status based on actual connection
+              if (result.status === 'Connected') {
+                bluetoothStatusIcon.textContent = '🟢';
+                bluetoothStatusText.textContent = 'Connected';
+                bluetoothStatusText.style.color = '#6a9955';
+                bluetoothConnectedDevice.style.display = 'block';
+                bluetoothConnectedName.textContent = configResult.config.bluetooth_preferred_device || bluetoothDevice;
+                bluetoothConnectedAddress.textContent = bluetoothDevice;
+              } else {
+                bluetoothStatusIcon.textContent = '🔴';
+                bluetoothStatusText.textContent = 'Disconnected';
+                bluetoothStatusText.style.color = '#f44747';
+
+                // Show error if available
+                if (result.error) {
+                  bluetoothStatusText.textContent = `Disconnected (${result.error})`;
+                }
+              }
+            } else {
+              // Bluetooth not configured
+              bluetoothStatusIcon.textContent = '⚪';
+              bluetoothStatusText.textContent = 'Not connected';
+              bluetoothStatusText.style.color = '#888';
+              bluetoothConnectedDevice.style.display = 'none';
+            }
+          }
+        } catch (error) {
+          console.error('Failed to poll connection status:', error);
+        }
+      }
+
+      // Poll every 3 seconds
+      setInterval(pollConnectionStatus, 3000);
+      pollConnectionStatus(); // Initial poll
     });
   </script>
 
   <!-- Tutorial System -->
   <div id="tutorialOverlay" class="tutorial-overlay">
+
+      // =====================================================
+      // BATTERY STATUS MONITORING
+      // =====================================================
+      async function pollBatteryStatus() {
+        try {
+          const response = await fetch('/dashboard/battery');
+          const data = await response.json();
+
+          if (data.success && data.battery_level !== undefined) {
+            const batteryIcon = document.getElementById('batteryIcon');
+            const batteryLevel = document.getElementById('batteryLevel');
+            const powerStatus = document.getElementById('powerStatus');
+            const radioName = document.getElementById('radioName');
+
+            // Update battery icon based on level and charging status
+            if (data.is_charging) {
+              batteryIcon.textContent = '🔌';
+              powerStatus.textContent = 'Plugged in';
+            } else {
+              if (data.battery_level >= 75) {
+                batteryIcon.textContent = '🔋';
+              } else if (data.battery_level >= 50) {
+                batteryIcon.textContent = '🔋';
+              } else if (data.battery_level >= 25) {
+                batteryIcon.textContent = '🪫';
+              } else {
+                batteryIcon.textContent = '🪫';
+              }
+              powerStatus.textContent = 'On battery';
+            }
+
+            batteryLevel.textContent = `${data.battery_level}%`;
+            radioName.textContent = data.radio_name || 'Unknown Radio';
+
+            // Update Bluetooth panel if connected via Bluetooth
+            if (data.connection_type === 'Bluetooth' && bluetoothConnectedName) {
+              bluetoothConnectedName.textContent = data.radio_name;
+            }
+          }
+        } catch (error) {
+          console.error('Battery poll failed:', error);
+        }
+      }
+
+      // Poll battery every 30 seconds
+      setInterval(pollBatteryStatus, 30000);
+      pollBatteryStatus(); // Initial call
+
+
     <div class="tutorial-spotlight"></div>
     <div class="tutorial-card">
       <div class="tutorial-card-header">
@@ -30283,6 +30893,160 @@ def delete_custom_command(command_id):
 
         clean_log(f"🗑️ Custom command deleted: /{command['name']}", show_always=True, rate_limit=False)
         return jsonify({'success': True})
+    except Exception as exc:
+        clean_log(f"❌ Failed to delete command: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# =============================================================================
+# Bluetooth Management Endpoints
+# =============================================================================
+
+@app.route('/dashboard/bluetooth/scan', methods=['POST'])
+@require_auth
+def bluetooth_scan():
+    """Scan for Bluetooth devices."""
+    try:
+        import asyncio
+
+        # Check if user wants to see all devices
+        payload = request.get_json(force=True, silent=True) or {}
+        show_all = payload.get('show_all', False)
+
+        # Use bleak to scan for all BLE devices
+        from bleak import BleakScanner
+
+        async def scan_ble():
+            devices = await BleakScanner.discover(timeout=10.0, return_adv=True)
+            meshtastic_devices = []
+            all_devices = []
+
+            # Meshtastic service UUID
+            MESHTASTIC_SERVICE_UUID = "6ba1b218-15a8-461f-9fa8-5dcae273eafd"
+
+            for address, (device, adv_data) in devices.items():
+                name = device.name or adv_data.local_name or "Unknown"
+                rssi = adv_data.rssi
+
+                device_obj = {
+                    'name': name,
+                    'address': address,
+                    'rssi': rssi,
+                    'has_screen': None,
+                    'requires_pin': None
+                }
+
+                # Add to all devices list
+                all_devices.append(device_obj)
+
+                # Check if this is a Meshtastic device
+                is_meshtastic = False
+
+                # Check by service UUID
+                if adv_data.service_uuids:
+                    if MESHTASTIC_SERVICE_UUID in [str(uuid).lower() for uuid in adv_data.service_uuids]:
+                        is_meshtastic = True
+
+                # Check by name patterns
+                if not is_meshtastic:
+                    name_lower = name.lower()
+                    meshtastic_patterns = ['meshtastic', 'rak', 'lilygo', 'heltec', 't-beam', 'magd']
+                    is_meshtastic = any(pattern in name_lower for pattern in meshtastic_patterns)
+
+                # Add to Meshtastic devices if matched
+                if is_meshtastic:
+                    meshtastic_devices.append(device_obj)
+
+            # Sort by signal strength (strongest first)
+            meshtastic_devices.sort(key=lambda d: d['rssi'] if d['rssi'] else -999, reverse=True)
+            all_devices.sort(key=lambda d: d['rssi'] if d['rssi'] else -999, reverse=True)
+
+            return (all_devices, meshtastic_devices)
+
+        all_devices, meshtastic_devices = asyncio.run(scan_ble())
+
+        # Return all devices if requested, otherwise just Meshtastic ones
+        if show_all:
+            return jsonify({'success': True, 'devices': all_devices, 'total_count': len(all_devices)})
+        else:
+            return jsonify({'success': True, 'devices': meshtastic_devices, 'total_count': len(all_devices)})
+
+    except Exception as exc:
+        clean_log(f"❌ Bluetooth scan failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/bluetooth/connect', methods=['POST'])
+@require_auth
+def bluetooth_connect():
+    """Connect to a Bluetooth device with PIN handling."""
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+        device_address = payload.get('address')
+        pin = payload.get('pin', '123456')  # Default PIN for no-screen devices
+
+        if not device_address:
+            return jsonify({'success': False, 'error': 'Device address required'}), 400
+
+        # Update config
+        config['bluetooth_device'] = device_address
+        config['bluetooth_preferred_device'] = device_address
+        config['use_bluetooth'] = True
+
+        # Save config
+        with open('config.json', 'w') as f:
+            json.dump(config, f, indent=2)
+
+        clean_log(f"📱 Bluetooth device set: {device_address}", show_always=True, rate_limit=False)
+
+        # Auto-restart to connect immediately
+        import subprocess
+        import sys
+        clean_log(f"🔄 Restarting to connect via Bluetooth...", show_always=True, rate_limit=False)
+
+        # Return success immediately, then restart
+        def restart_app():
+            import time
+            time.sleep(1)  # Give time for response to be sent
+            python = sys.executable
+            subprocess.Popen([python, 'mesh-master.py'])
+            os._exit(0)
+
+        import threading
+        threading.Thread(target=restart_app, daemon=True).start()
+
+        return jsonify({
+            'success': True,
+            'message': 'Device configured. Restarting Mesh Master to connect...',
+            'device': device_address
+        })
+
+    except Exception as exc:
+        clean_log(f"❌ Bluetooth connect failed: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/bluetooth/forget', methods=['POST'])
+@require_auth
+def bluetooth_forget():
+    """Forget/unpair a Bluetooth device."""
+    try:
+        # Clear Bluetooth config
+        config['bluetooth_device'] = ''
+        config['bluetooth_preferred_device'] = ''
+        config['use_bluetooth'] = False
+
+        # Save config
+        with open('config.json', 'w') as f:
+            json.dump(config, f, indent=2)
+
+        clean_log(f"🔌 Bluetooth device forgotten", show_always=True, rate_limit=False)
+
+        return jsonify({'success': True, 'message': 'Bluetooth device forgotten'})
+
+    except Exception as exc:
+        clean_log(f"❌ Failed to forget device: {exc}", show_always=True, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
     except Exception as exc:
         clean_log(f"❌ Failed to delete custom command: {exc}", show_always=True, rate_limit=False)
@@ -30403,8 +31167,9 @@ def connect_interface():
 
     Resolution order:
       1. Wi‑Fi TCP bridge
-      2. Local MeshInterface()
-      3. USB SerialInterface (explicit path or auto‑detect)
+      2. Bluetooth Low Energy
+      3. Local MeshInterface()
+      4. USB SerialInterface (explicit path or auto‑detect)
     """
     global connection_status, last_error_message
     try:
@@ -30414,7 +31179,33 @@ def connect_interface():
             connection_status, last_error_message = "Connected", ""
             return TCPInterface(hostname=WIFI_HOST, portNumber=WIFI_PORT)
 
-        # 2️⃣  Local mesh interface ---------------------------------------
+        # 2️⃣  Bluetooth Low Energy ----------------------------------------
+        if USE_BLUETOOTH and BLUETOOTH_DEVICE and BLE_INTERFACE_AVAILABLE:
+            print(f"BLEInterface → {BLUETOOTH_DEVICE}")
+            try:
+                connection_status, last_error_message = "Connected", ""
+                return BLEInterface(address=BLUETOOTH_DEVICE)
+            except Exception as exc:
+                connection_status = "Disconnected"
+                last_error_message = f"BLE connection failed: {exc}"
+                error_msg = f"⚠️ Bluetooth connection to {BLUETOOTH_DEVICE} failed: {exc}"
+                clean_log(error_msg, "⚠️", show_always=True)
+
+                # Send Telegram notification
+                try:
+                    send_to_telegram(f"🔴 Mesh Master Bluetooth Disconnected\n\nDevice: {BLUETOOTH_DEVICE}\nError: {exc}")
+                except Exception as tg_exc:
+                    clean_log(f"Failed to send Telegram notification: {tg_exc}", "⚠️", show_always=False)
+
+                # Fall through to other methods
+        elif USE_BLUETOOTH and not BLE_INTERFACE_AVAILABLE:
+            clean_log(
+                "Bluetooth requested but BLEInterface not available - install python3-bleak",
+                "⚠️",
+                show_always=True,
+            )
+
+        # 3️⃣  Local mesh interface ---------------------------------------
         if USE_MESH_INTERFACE and MESH_INTERFACE_AVAILABLE:
             print("MeshInterface() for direct‑radio mode")
             mesh_candidate = None
@@ -30441,7 +31232,7 @@ def connect_interface():
                     with suppress(Exception):
                         mesh_candidate.close()
 
-        # 3️⃣  USB serial --------------------------------------------------
+        # 4️⃣  USB serial --------------------------------------------------
         # If a serial path is provided, retry opening it with backoff
         if SERIAL_PORT:
             max_attempts = 10
@@ -30985,6 +31776,8 @@ def main():
     threading.Thread(target=scheduled_refresh_monitor, daemon=True).start()
     # Heartbeat thread for visibility
     threading.Thread(target=heartbeat_worker, args=(30,), daemon=True).start()
+    # Low battery monitoring
+    threading.Thread(target=low_battery_monitor, daemon=True).start()
     threading.Thread(target=location_cleanup_worker, daemon=True).start()
     # Auto-update worker (if enabled)
     if AUTO_UPDATE_ENABLED:
@@ -31095,11 +31888,89 @@ def connection_monitor(initial_delay=30):
                 # Throttle to at most once per 10 seconds
                 if now - last_request >= 10:
                     print("⚠️ Connection lost! Triggering reconnect...")
+
+                    # Send Telegram notification for Bluetooth reconnection attempts
+                    if USE_BLUETOOTH and BLUETOOTH_DEVICE:
+                        try:
+                            send_to_telegram(f"🔄 Attempting to reconnect to Bluetooth device: {BLUETOOTH_DEVICE}")
+                        except Exception:
+                            pass
+
                     reset_event.set()
                     last_request = now
             time.sleep(2)
         except Exception:
             time.sleep(5)
+
+
+def low_battery_monitor():
+    """Monitor battery and alert when low."""
+    last_alert_time = 0
+    ALERT_THRESHOLD = 20  # Alert when below 20%
+    ALERT_COOLDOWN = 3600  # Only alert once per hour
+    
+    # Wait for system to stabilize
+    time.sleep(60)
+    
+    while True:
+        try:
+            time.sleep(60)  # Check every minute
+            
+            if interface and hasattr(interface, 'nodes'):
+                # Find my node
+                for node_id, node in interface.nodes.items():
+                    user = node.get('user', {})
+                    if user.get('id') == interface.myInfo.my_node_num:
+                        device_metrics = node.get('deviceMetrics', {})
+                        battery_level = device_metrics.get('batteryLevel')
+                        
+                        # Check if battery is low and not plugged in
+                        if battery_level and battery_level < ALERT_THRESHOLD and battery_level != 101:
+                            now = time.time()
+                            
+                            # Check quiet hours
+                            from datetime import datetime
+                            current_hour = datetime.now().hour
+                            quiet_start = AUTOMESSAGE_QUIET_HOURS.get('start', 22)
+                            quiet_end = AUTOMESSAGE_QUIET_HOURS.get('end', 8)
+                            quiet_enabled = AUTOMESSAGE_QUIET_HOURS.get('enabled', True)
+                            
+                            in_quiet_hours = False
+                            if quiet_enabled:
+                                if quiet_start > quiet_end:
+                                    in_quiet_hours = current_hour >= quiet_start or current_hour < quiet_end
+                                else:
+                                    in_quiet_hours = quiet_start <= current_hour < quiet_end
+                            
+                            # Only alert if not in quiet hours and cooldown passed
+                            if not in_quiet_hours and (now - last_alert_time > ALERT_COOLDOWN):
+                                radio_name = user.get('longName', 'Radio')
+                                
+                                # Log to activity feed
+                                clean_log(f"⚠️ Low battery: {radio_name} at {battery_level}%", "🪫", show_always=True)
+                                
+                                # Telegram alert
+                                try:
+                                    send_to_telegram(f"🪫 Low Battery Alert\n\n{radio_name} battery at {battery_level}%\nPlease charge soon.")
+                                except Exception as tg_exc:
+                                    pass
+                                
+                                # DM whitelisted admins
+                                try:
+                                    for admin_id in WHITELISTED_ADMINS:
+                                        send_direct_chunks(
+                                            f"🪫 Low battery alert: {radio_name} at {battery_level}%. Please charge soon.",
+                                            admin_id,
+                                            DM_CHANNEL
+                                        )
+                                except Exception as dm_exc:
+                                    pass
+                                
+                                last_alert_time = now
+                        break
+        except Exception as e:
+            time.sleep(60)
+
 
 def scheduled_refresh_monitor():
   """Background monitor that triggers a periodic safe refresh of the radio connection.
