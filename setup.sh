@@ -215,9 +215,16 @@ if [[ -f "requirements.txt" ]]; then
         curl -sL -o /tmp/meshmaster_wheels/meshtastic.whl "https://files.pythonhosted.org/packages/py3/m/meshtastic/meshtastic-2.3.3-py3-none-any.whl"
 
         echo "  Installing from downloaded wheels..."
-        pip install --no-cache-dir --no-index /tmp/meshmaster_wheels/*.whl 2>&1 | grep -E "Successfully installed|ERROR" || echo -e "  ${GREEN}✓${NC} Packages installed"
+        .venv/bin/pip install --no-cache-dir --no-index /tmp/meshmaster_wheels/*.whl 2>&1 | grep -E "Successfully installed|ERROR" || echo -e "  ${GREEN}✓${NC} Packages installed"
 
         rm -rf /tmp/meshmaster_wheels
+
+        # Verify meshtastic was installed
+        if .venv/bin/python3 -c "import meshtastic" 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} meshtastic verified working"
+        else
+            echo -e "  ${RED}✗${NC} meshtastic import failed - installation incomplete"
+        fi
 
         echo -e "${YELLOW}ℹ${NC}  Optional packages skipped. Install later if needed:"
         echo "    pip install pubsub unidecode python-chess reportlab"
