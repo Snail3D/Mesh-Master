@@ -28684,62 +28684,7 @@ def dashboard():
         }
       }
 
-      // Poll every 3 seconds
-      setInterval(pollConnectionStatus, 3000);
-      pollConnectionStatus(); // Initial poll
-    });
-  </script>
 
-  <!-- Tutorial System -->
-  <div id="tutorialOverlay" class="tutorial-overlay">
-
-      // =====================================================
-      // BATTERY STATUS MONITORING
-      // =====================================================
-      async function pollBatteryStatus() {
-        try {
-          const response = await fetch('/dashboard/battery');
-          const data = await response.json();
-
-          if (data.success && data.battery_level !== undefined) {
-            const batteryIcon = document.getElementById('batteryIcon');
-            const batteryLevel = document.getElementById('batteryLevel');
-            const powerStatus = document.getElementById('powerStatus');
-            const radioName = document.getElementById('radioName');
-
-            // Update battery icon based on level and charging status
-            if (data.is_charging) {
-              batteryIcon.textContent = '🔌';
-              powerStatus.textContent = 'Plugged in';
-            } else {
-              if (data.battery_level >= 75) {
-                batteryIcon.textContent = '🔋';
-              } else if (data.battery_level >= 50) {
-                batteryIcon.textContent = '🔋';
-              } else if (data.battery_level >= 25) {
-                batteryIcon.textContent = '🪫';
-              } else {
-                batteryIcon.textContent = '🪫';
-              }
-              powerStatus.textContent = 'On battery';
-            }
-
-            batteryLevel.textContent = `${data.battery_level}%`;
-            radioName.textContent = data.radio_name || 'Unknown Radio';
-
-            // Update Bluetooth panel if connected via Bluetooth
-            if (data.connection_type === 'Bluetooth' && bluetoothConnectedName) {
-              bluetoothConnectedName.textContent = data.radio_name;
-            }
-          }
-        } catch (error) {
-          console.error('Battery poll failed:', error);
-        }
-      }
-
-      // Poll battery every 30 seconds
-      setInterval(pollBatteryStatus, 30000);
-      pollBatteryStatus(); // Initial call
       // SERIAL PORT SCANNER
       // =====================================================
       const serialScanBtn = document.getElementById('serialScanBtn');
@@ -28876,6 +28821,62 @@ def dashboard():
           serialPortsContainer.appendChild(portCard);
         });
       }
+      // Poll every 3 seconds
+      setInterval(pollConnectionStatus, 3000);
+      pollConnectionStatus(); // Initial poll
+    });
+  </script>
+
+  <!-- Tutorial System -->
+  <div id="tutorialOverlay" class="tutorial-overlay">
+
+      // =====================================================
+      // BATTERY STATUS MONITORING
+      // =====================================================
+      async function pollBatteryStatus() {
+        try {
+          const response = await fetch('/dashboard/battery');
+          const data = await response.json();
+
+          if (data.success && data.battery_level !== undefined) {
+            const batteryIcon = document.getElementById('batteryIcon');
+            const batteryLevel = document.getElementById('batteryLevel');
+            const powerStatus = document.getElementById('powerStatus');
+            const radioName = document.getElementById('radioName');
+
+            // Update battery icon based on level and charging status
+            if (data.is_charging) {
+              batteryIcon.textContent = '🔌';
+              powerStatus.textContent = 'Plugged in';
+            } else {
+              if (data.battery_level >= 75) {
+                batteryIcon.textContent = '🔋';
+              } else if (data.battery_level >= 50) {
+                batteryIcon.textContent = '🔋';
+              } else if (data.battery_level >= 25) {
+                batteryIcon.textContent = '🪫';
+              } else {
+                batteryIcon.textContent = '🪫';
+              }
+              powerStatus.textContent = 'On battery';
+            }
+
+            batteryLevel.textContent = `${data.battery_level}%`;
+            radioName.textContent = data.radio_name || 'Unknown Radio';
+
+            // Update Bluetooth panel if connected via Bluetooth
+            if (data.connection_type === 'Bluetooth' && bluetoothConnectedName) {
+              bluetoothConnectedName.textContent = data.radio_name;
+            }
+          }
+        } catch (error) {
+          console.error('Battery poll failed:', error);
+        }
+      }
+
+      // Poll battery every 30 seconds
+      setInterval(pollBatteryStatus, 30000);
+      pollBatteryStatus(); // Initial call
 
 
 
