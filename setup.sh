@@ -178,44 +178,45 @@ echo ""
 if [[ -f "requirements.txt" ]]; then
     echo "Installing from requirements.txt..."
 
-    # On Raspberry Pi, install packages one at a time to show progress
+    # On Raspberry Pi, use mostly system packages to avoid compilation
     if [[ "$OS" == "Raspberry Pi" ]]; then
-        echo "Installing packages individually (showing progress)..."
+        echo "Using Raspberry Pi optimized installation..."
+        echo "(Installing from system packages when available to avoid compilation)"
         echo ""
 
-        # Packages known to hang on Pi - install from system packages instead
-        SKIP_PACKAGES=("protobuf")
+        # Install common Python packages from apt to avoid pip compilation issues
+        echo "Installing system packages..."
+        sudo apt-get install -y \
+            python3-protobuf \
+            python3-tornado \
+            python3-requests \
+            python3-flask \
+            python3-pil \
+            python3-numpy \
+            2>/dev/null | grep -v "already" || true
 
-        # Read requirements.txt and install each package
-        while IFS= read -r package || [[ -n "$package" ]]; do
-            # Skip empty lines and comments
-            [[ -z "$package" || "$package" =~ ^#.*$ ]] && continue
+        echo -e "${GREEN}✓${NC} System packages installed"
+        echo ""
 
-            # Extract package name (remove version specifiers)
-            package_name=$(echo "$package" | sed 's/[=<>!].*//')
+        # Only install meshtastic and packages not available via apt
+        echo "Installing remaining packages via pip..."
+        echo "Installing meshtastic..."
+        pip install meshtastic --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} meshtastic" || echo -e "  ${YELLOW}⚠️${NC} meshtastic failed"
 
-            # Check if this package should be skipped
-            skip=false
-            for skip_pkg in "${SKIP_PACKAGES[@]}"; do
-                if [[ "$package_name" == "$skip_pkg" ]]; then
-                    skip=true
-                    break
-                fi
-            done
+        echo "Installing pubsub..."
+        pip install pubsub --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} pubsub" || echo -e "  ${YELLOW}⚠️${NC} pubsub failed"
 
-            if [[ "$skip" == true ]]; then
-                echo "Skipping $package_name (using system package instead)..."
-                sudo apt-get install -y python3-$package_name 2>/dev/null && echo -e "  ${GREEN}✓${NC} Installed from apt" || echo -e "  ${YELLOW}⚠️${NC} Not available via apt (OK)"
-            else
-                echo "Installing $package..."
-                timeout 120 pip install "$package" --no-cache-dir --prefer-binary -q
-                if [[ $? -eq 0 ]]; then
-                    echo -e "  ${GREEN}✓${NC} $package installed"
-                else
-                    echo -e "  ${YELLOW}⚠️${NC} $package failed or timed out (continuing)"
-                fi
-            fi
-        done < requirements.txt
+        echo "Installing unidecode..."
+        pip install unidecode --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} unidecode" || echo -e "  ${YELLOW}⚠️${NC} unidecode failed"
+
+        echo "Installing reportlab..."
+        pip install reportlab --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} reportlab" || echo -e "  ${YELLOW}⚠️${NC} reportlab failed"
+
+        echo "Installing python-chess..."
+        pip install python-chess --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} python-chess" || echo -e "  ${YELLOW}⚠️${NC} python-chess failed"
+
+        echo "Installing pytest..."
+        pip install pytest --no-cache-dir -q && echo -e "  ${GREEN}✓${NC} pytest" || echo -e "  ${YELLOW}⚠️${NC} pytest failed"
 
         echo ""
         echo -e "${GREEN}✓${NC} Finished installing requirements"
