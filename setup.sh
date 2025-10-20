@@ -200,46 +200,11 @@ if [[ -f "requirements.txt" ]]; then
         echo -e "${GREEN}✓${NC} System packages ready"
         echo ""
 
-        # Only install meshtastic and packages not available via apt
-        echo "Installing remaining packages via pip (using piwheels for pre-built binaries)..."
-
-        # Simple pure-Python packages (should be fast)
-        echo "Installing pubsub..."
-        pip install pubsub --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} pubsub" || echo -e "  ${YELLOW}⚠️${NC} pubsub failed"
-
-        echo "Installing unidecode..."
-        pip install unidecode --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} unidecode" || echo -e "  ${YELLOW}⚠️${NC} unidecode failed"
-
-        echo "Installing python-chess..."
-        pip install python-chess --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} python-chess" || echo -e "  ${YELLOW}⚠️${NC} python-chess failed"
-
-        echo "Installing pytest..."
-        pip install pytest --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} pytest" || echo -e "  ${YELLOW}⚠️${NC} pytest failed"
-
-        # Meshtastic dependencies first (install individually to avoid index hangs)
-        echo "Installing meshtastic dependencies..."
-        echo "  Installing pyserial..."
-        timeout 60 pip install pyserial --no-cache-dir --prefer-binary 2>&1 | tail -3
-        echo "  Installing dotmap..."
-        timeout 60 pip install dotmap --no-cache-dir --prefer-binary 2>&1 | tail -3
-        echo "  Installing pypubsub..."
-        timeout 60 pip install pypubsub --no-cache-dir --prefer-binary 2>&1 | tail -3
-        echo "  Installing tabulate..."
-        timeout 60 pip install tabulate --no-cache-dir --prefer-binary 2>&1 | tail -3
-
-        # Now try meshtastic with shorter timeout since deps are installed
-        echo "Installing meshtastic package..."
-        timeout 60 pip install meshtastic --no-deps --no-cache-dir --prefer-binary 2>&1 | tail -3
-        if [[ $? -eq 0 ]]; then
-            echo -e "  ${GREEN}✓${NC} meshtastic"
-        else
-            echo -e "  ${YELLOW}⚠️${NC} meshtastic installation timed out or failed"
-            echo -e "  ${YELLOW}ℹ${NC}  You can try manually: pip install meshtastic"
-        fi
-
-        # Reportlab (may take longer, has native code)
-        echo "Installing reportlab..."
-        pip install reportlab --no-cache-dir --prefer-binary --index-url https://www.piwheels.org/simple --extra-index-url https://pypi.org/simple && echo -e "  ${GREEN}✓${NC} reportlab" || echo -e "  ${YELLOW}⚠️${NC} reportlab failed"
+        # Skip pip entirely on Raspberry Pi to avoid index lookup hangs
+        # Core system packages are already installed via apt above
+        echo "Skipping optional pip packages on Raspberry Pi (using system packages only)"
+        echo -e "${YELLOW}ℹ${NC}  Note: Some optional features may require manual package installation:"
+        echo "    pip install meshtastic pubsub unidecode python-chess reportlab"
 
         echo ""
         echo -e "${GREEN}✓${NC} Finished installing requirements"
