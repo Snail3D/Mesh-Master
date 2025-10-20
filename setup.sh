@@ -200,23 +200,28 @@ if [[ -f "requirements.txt" ]]; then
         echo -e "${GREEN}✓${NC} System packages ready"
         echo ""
 
-        # Install critical packages on Raspberry Pi with aggressive timeouts
-        echo "Installing critical packages (with timeouts to avoid hangs)..."
+        # Install critical packages on Raspberry Pi
+        echo "Installing critical packages..."
 
-        # Meshtastic is required for core functionality
+        # Meshtastic is required - download wheel directly to avoid index hangs
         echo "  Installing meshtastic (required)..."
-        # Try with 30 second timeout, using only piwheels to avoid index lookups
-        timeout 30 pip install --index-url https://www.piwheels.org/simple meshtastic 2>&1 | tail -3 &
-        PID=$!
-        wait $PID 2>/dev/null
-        if [[ $? -eq 0 ]]; then
-            echo -e "  ${GREEN}✓${NC} meshtastic installed"
+
+        # First install dependencies that are pure Python (no index lookups needed)
+        pip install --no-cache-dir --disable-pip-version-check pyserial dotmap tabulate 2>&1 | grep -E "Successfully|ERROR|Requirement already" | head -5
+
+        # Try direct wheel download from GitHub releases (no pip index needed)
+        echo "  Downloading meshtastic wheel directly..."
+        MESHTASTIC_URL="https://files.pythonhosted.org/packages/py3/m/meshtastic/meshtastic-2.3.3-py3-none-any.whl"
+        curl -L -o /tmp/meshtastic.whl "$MESHTASTIC_URL" 2>&1 | tail -2
+
+        if [ -f /tmp/meshtastic.whl ]; then
+            pip install --no-cache-dir /tmp/meshtastic.whl && \
+            echo -e "  ${GREEN}✓${NC} meshtastic installed" || \
+            echo -e "  ${RED}✗${NC} meshtastic installation failed"
+            rm -f /tmp/meshtastic.whl
         else
-            echo -e "  ${YELLOW}⚠️${NC} meshtastic installation failed/timed out"
-            echo -e "  ${YELLOW}→${NC} Trying alternative method (direct from piwheels)..."
-            # Last resort: try without any index checking
-            pip install --no-index --find-links=https://www.piwheels.org/simple meshtastic 2>&1 | tail -3 || \
-            echo -e "  ${RED}✗${NC} Could not install meshtastic - you may need to install manually"
+            echo -e "  ${RED}✗${NC} Could not download meshtastic wheel"
+            echo -e "  ${YELLOW}→${NC} Try manually: pip install meshtastic"
         fi
 
         echo -e "${YELLOW}ℹ${NC}  Optional packages skipped. Install later if needed:"
