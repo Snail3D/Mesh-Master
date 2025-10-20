@@ -252,11 +252,14 @@ if [[ -f "requirements.txt" ]]; then
             rm -rf /tmp/python-meshtastic
 
             # Verify installation
-            if "$MESH_DIR/.venv/bin/python3" -c "import meshtastic" 2>/dev/null; then
+            echo "  Verifying meshtastic import..."
+            if "$MESH_DIR/.venv/bin/python3" -c "import meshtastic" 2>&1; then
                 echo -e "  ${GREEN}✓${NC} meshtastic installed successfully"
             else
-                echo -e "  ${YELLOW}⚠${NC} meshtastic installation failed"
-                echo "  Try manual install: cd ~/Mesh-Master && .venv/bin/pip install meshtastic"
+                echo -e "  ${YELLOW}⚠${NC} meshtastic import failed (see error above)"
+                echo "  This is likely due to missing dependencies."
+                echo "  Mesh Master may still work if you install meshtastic later:"
+                echo "    cd ~/Mesh-Master && .venv/bin/pip install meshtastic"
             fi
         else
             echo -e "  ${RED}✗${NC} Could not clone meshtastic repository"
