@@ -276,9 +276,17 @@ if [[ -f "requirements.txt" ]]; then
 
                     # Also link .so files (compiled extensions) that are needed
                     echo "  Linking compiled extensions (.so files)..."
-                    # Link all .so files from dist-packages
-                    find "$DIST_PACKAGES" -maxdepth 1 -name "*.so" -type f | while read so_file; do
-                        ln -sf "$so_file" "$SITE_PACKAGES/" && echo "    ✓ Linked $(basename $so_file)"
+                    # Explicitly link critical .so files
+                    if [ -f "$DIST_PACKAGES/_cffi_backend.cpython-311-aarch64-linux-gnu.so" ]; then
+                        ln -sf "$DIST_PACKAGES/_cffi_backend.cpython-311-aarch64-linux-gnu.so" "$SITE_PACKAGES/"
+                        echo "    ✓ Linked _cffi_backend.cpython-311-aarch64-linux-gnu.so"
+                    fi
+
+                    # Link all other .so files from dist-packages
+                    for so_file in "$DIST_PACKAGES"/*.so; do
+                        if [ -f "$so_file" ]; then
+                            ln -sf "$so_file" "$SITE_PACKAGES/" && echo "    ✓ Linked $(basename $so_file)"
+                        fi
                     done
 
                     # Also check /usr/local
