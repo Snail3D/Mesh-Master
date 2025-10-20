@@ -220,7 +220,8 @@ if [[ -f "requirements.txt" ]]; then
         echo "Installing system packages..."
 
         # Install all required system packages (including all meshtastic AND mesh-master.py dependencies)
-        SYSTEM_PKGS="python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate python3-serial python3-yaml python3-pypubsub python3-packaging python3-urllib3 python3-certifi python3-charset-normalizer python3-idna python3-six python3-dotenv python3-dateutil python3-werkzeug python3-jinja2 python3-click python3-itsdangerous python3-markupsafe python3-blinker python3-cffi python3-pycparser python3-unidecode python3-bcrypt"
+        # Added python3-bleak for Bluetooth support
+        SYSTEM_PKGS="python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate python3-serial python3-yaml python3-pypubsub python3-packaging python3-urllib3 python3-certifi python3-charset-normalizer python3-idna python3-six python3-dotenv python3-dateutil python3-werkzeug python3-jinja2 python3-click python3-itsdangerous python3-markupsafe python3-blinker python3-cffi python3-pycparser python3-unidecode python3-bcrypt python3-bleak"
 
         for pkg in $SYSTEM_PKGS; do
             if dpkg -l 2>/dev/null | grep -q "^ii.*$pkg"; then
@@ -376,6 +377,34 @@ else
     fi
 fi
 echo ""
+
+# Scan for Bluetooth Meshtastic devices (if on Pi/Linux)
+if [[ "$OS" == "Raspberry Pi" ]] || [[ "$OS" == "Linux" ]]; then
+    echo ""
+    echo "Scanning for Bluetooth Meshtastic devices..."
+    echo "(This takes ~10 seconds)"
+
+    # Check if meshtastic CLI is available
+    if command -v meshtastic &> /dev/null 2>&1 || command -v .venv/bin/meshtastic &> /dev/null 2>&1; then
+        # Try to scan for BLE devices
+        BT_SCAN=$(timeout 15 meshtastic --ble-scan 2>/dev/null | grep -i meshtastic || echo "")
+
+        if [ -n "$BT_SCAN" ]; then
+            echo -e "${GREEN}✓${NC} Found Bluetooth devices:"
+            echo "$BT_SCAN"
+            echo ""
+            echo -e "${YELLOW}TIP:${NC} To use Bluetooth, edit config.json and set:"
+            echo '  "use_bluetooth": true,'
+            echo '  "bluetooth_device": "your_device_name"'
+        else
+            echo -e "${YELLOW}ℹ${NC}  No Bluetooth Meshtastic devices found"
+            echo "  Make sure your radio is powered on and in range"
+        fi
+    else
+        echo -e "${YELLOW}ℹ${NC}  Meshtastic CLI not available for Bluetooth scan"
+        echo "  You can scan manually later with: meshtastic --ble-scan"
+    fi
+fi
 
 # Create config.json from example if it doesn't exist
 if [[ ! -f "config.json" ]]; then
