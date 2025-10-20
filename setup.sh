@@ -65,20 +65,45 @@ if command -v $PYTHON_CMD &> /dev/null; then
     PYTHON_VERSION=$($PYTHON_CMD --version)
     echo -e "${GREEN}✓${NC} Found: $PYTHON_VERSION"
 else
-    echo -e "${RED}❌ Python 3 not found${NC}"
+    echo -e "${YELLOW}⚠️  Python 3 not found${NC}"
     echo ""
-    echo "Please install Python 3.9 or later:"
-    if [[ "$OS" == "macOS" ]]; then
-        echo "  Download from: https://www.python.org/downloads/"
-        echo "  Or via Homebrew: brew install python"
-    elif [[ "$OS" == "Raspberry Pi" || "$OS" == "Linux" ]]; then
-        echo "  sudo apt-get update"
-        echo "  sudo apt-get install python3 python3-pip python3-venv"
-    elif [[ "$OS" == "Windows (Git Bash)" ]]; then
-        echo "  Download from: https://www.python.org/downloads/"
-        echo "  IMPORTANT: Check 'Add Python to PATH' during installation"
+    echo "Would you like to install Python 3 automatically?"
+    read -p "Install Python? (Y/n) " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        echo "Installing Python 3..."
+        if [[ "$OS" == "macOS" ]]; then
+            if command -v brew &> /dev/null; then
+                brew install python3
+            else
+                echo -e "${RED}❌ Homebrew not found${NC}"
+                echo "Please install Homebrew first: https://brew.sh"
+                echo "Or download Python from: https://www.python.org/downloads/"
+                exit 1
+            fi
+        elif [[ "$OS" == "Raspberry Pi" || "$OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y python3 python3-pip python3-venv
+        elif [[ "$OS" == "Windows (Git Bash)" ]]; then
+            echo -e "${RED}❌ Cannot auto-install on Windows${NC}"
+            echo "Please download Python from: https://www.python.org/downloads/"
+            echo "IMPORTANT: Check 'Add Python to PATH' during installation"
+            exit 1
+        fi
+
+        # Re-check for Python
+        if command -v python3 &> /dev/null; then
+            PYTHON_CMD="python3"
+            echo -e "${GREEN}✓${NC} Python 3 installed successfully"
+        else
+            echo -e "${RED}❌ Python installation failed${NC}"
+            exit 1
+        fi
+    else
+        echo "Python 3 is required. Exiting."
+        exit 1
     fi
-    exit 1
 fi
 echo ""
 
@@ -195,28 +220,77 @@ if command -v ollama &> /dev/null; then
     echo -e "${GREEN}✓${NC} Ollama is installed"
 
     # Check if a model is pulled
-    if ollama list 2>/dev/null | grep -q "llama3.2"; then
-        echo -e "${GREEN}✓${NC} Ollama model found"
+    if ollama list 2>/dev/null | grep -q "llama3.2:1b"; then
+        echo -e "${GREEN}✓${NC} llama3.2:1b model already installed"
     else
-        echo -e "${YELLOW}⚠️  No Ollama models found${NC}"
+        echo -e "${YELLOW}⚠️  llama3.2:1b model not found${NC}"
         echo ""
-        echo "Recommended: Pull a model for AI functionality"
-        echo "  ollama pull llama3.2:1b    (Lightweight, good for Pi)"
-        echo "  ollama pull llama3.2:3b    (Better quality, needs more RAM)"
+        echo "Would you like to download llama3.2:1b? (Recommended for Mesh Master)"
+        echo "Size: ~1.3GB download"
+        read -p "Download model? (Y/n) " -n 1 -r
         echo ""
+
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo "Downloading llama3.2:1b model (this may take a few minutes)..."
+            ollama pull llama3.2:1b
+            if [[ $? -eq 0 ]]; then
+                echo -e "${GREEN}✓${NC} Model downloaded successfully"
+            else
+                echo -e "${YELLOW}⚠️${NC}  Model download failed (you can try again later with: ollama pull llama3.2:1b)"
+            fi
+        else
+            echo "Skipping model download (you can install later with: ollama pull llama3.2:1b)"
+        fi
     fi
 else
     echo -e "${YELLOW}⚠️  Ollama not found${NC}"
     echo ""
-    echo "Ollama is required for AI features."
+    echo "Ollama is required for AI features. Would you like to install it?"
+    read -p "Install Ollama? (Y/n) " -n 1 -r
     echo ""
-    if [[ "$OS" == "macOS" ]]; then
-        echo "  Install from: https://ollama.com"
-        echo "  Or via Homebrew: brew install ollama"
-    elif [[ "$OS" == "Raspberry Pi" || "$OS" == "Linux" ]]; then
-        echo "  curl -fsSL https://ollama.com/install.sh | sh"
-    elif [[ "$OS" == "Windows (Git Bash)" ]]; then
-        echo "  Download from: https://ollama.com/download/windows"
+
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        echo "Installing Ollama..."
+        if [[ "$OS" == "macOS" ]]; then
+            if command -v brew &> /dev/null; then
+                brew install ollama
+                brew services start ollama
+                sleep 3  # Wait for Ollama to start
+            else
+                echo -e "${YELLOW}⚠️${NC}  Homebrew not found, using direct install..."
+                curl -fsSL https://ollama.com/install.sh | sh
+            fi
+        elif [[ "$OS" == "Raspberry Pi" || "$OS" == "Linux" ]]; then
+            curl -fsSL https://ollama.com/install.sh | sh
+        elif [[ "$OS" == "Windows (Git Bash)" ]]; then
+            echo -e "${RED}❌ Cannot auto-install on Windows${NC}"
+            echo "Please download from: https://ollama.com/download/windows"
+            echo "After installing, re-run this setup script"
+            echo ""
+        fi
+
+        # Re-check for Ollama
+        if command -v ollama &> /dev/null; then
+            echo -e "${GREEN}✓${NC} Ollama installed successfully"
+
+            # Auto-download llama3.2:1b after installing Ollama
+            echo ""
+            echo "Downloading llama3.2:1b model (recommended for Mesh Master)..."
+            echo "Size: ~1.3GB download (this may take a few minutes)"
+            ollama pull llama3.2:1b
+            if [[ $? -eq 0 ]]; then
+                echo -e "${GREEN}✓${NC} Model downloaded successfully"
+            else
+                echo -e "${YELLOW}⚠️${NC}  Model download failed (you can try again later with: ollama pull llama3.2:1b)"
+            fi
+        else
+            echo -e "${YELLOW}⚠️${NC}  Ollama installation may require manual steps"
+            echo "Visit: https://ollama.com for installation instructions"
+        fi
+    else
+        echo -e "${YELLOW}⚠️${NC}  Skipping Ollama installation"
+        echo "AI features will not work without Ollama"
+        echo "Install later from: https://ollama.com"
     fi
     echo ""
 fi
