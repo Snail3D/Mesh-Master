@@ -219,11 +219,11 @@ if [[ -f "requirements.txt" ]]; then
         git clone --depth 1 https://github.com/meshtastic/python.git /tmp/python-meshtastic 2>&1 | tail -3
 
         if [ -d "/tmp/python-meshtastic" ]; then
-            echo "  Installing meshtastic from source..."
+            echo "  Installing meshtastic from local source..."
             cd /tmp/python-meshtastic
 
-            # Install directly from source without pip index
-            "$MESH_DIR/.venv/bin/python3" setup.py install 2>&1 | tail -5
+            # Use pip to install from local directory (no index needed)
+            "$MESH_DIR/.venv/bin/pip" install --no-deps --no-index --no-build-isolation . 2>&1 | tail -5
 
             cd "$MESH_DIR"
             rm -rf /tmp/python-meshtastic
@@ -233,6 +233,8 @@ if [[ -f "requirements.txt" ]]; then
                 echo -e "  ${GREEN}✓${NC} meshtastic installed successfully from source"
             else
                 echo -e "  ${YELLOW}⚠${NC} meshtastic source install completed but import failed"
+                echo "  Checking what was installed..."
+                "$MESH_DIR/.venv/bin/pip" list | grep meshtastic
             fi
         else
             echo -e "  ${RED}✗${NC} Could not clone meshtastic repository"
