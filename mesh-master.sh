@@ -6,13 +6,33 @@ echo "  Starting Mesh Master"
 echo "========================================"
 echo ""
 
-# Kill any existing instances
+# Kill any existing instances (aggressive cleanup)
 echo "Checking for old instances..."
-pkill -f "python.*mesh-master.py" 2>/dev/null || true
-pkill -f "mesh-master.py" 2>/dev/null || true
+PID_FILE="mesh-master.pid"
 
-# Kill zombies
-ps aux | grep "[m]esh-master.py" | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+# If PID file exists, kill that process first
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if ps -p "$OLD_PID" > /dev/null 2>&1; then
+        echo "Stopping previous instance (PID: $OLD_PID)..."
+        kill -15 "$OLD_PID" 2>/dev/null || true
+        sleep 2
+        kill -9 "$OLD_PID" 2>/dev/null || true
+    fi
+    rm -f "$PID_FILE"
+fi
+
+# Aggressively kill any remaining mesh-master processes
+pkill -9 -f "python.*mesh-master.py" 2>/dev/null || true
+sleep 1
+
+# Double-check for zombies
+REMAINING=$(ps aux | grep -E "[p]ython.*mesh-master\.py" | wc -l | tr -d ' ')
+if [ "$REMAINING" -gt 0 ]; then
+    echo "Force-killing $REMAINING zombie process(es)..."
+    ps aux | grep -E "[p]ython.*mesh-master\.py" | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+    sleep 1
+fi
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,6 +52,9 @@ fi
 # Start Mesh Master in background
 echo "Starting Mesh Master..."
 nohup $PYTHON_EXEC mesh-master.py > mesh-master.log 2>&1 &
+NEW_PID=$!
+echo $NEW_PID > "$PID_FILE"
+echo "Mesh Master started (PID: $NEW_PID)"
 
 # Wait for server to start
 sleep 5
