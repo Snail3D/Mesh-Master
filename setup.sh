@@ -188,7 +188,7 @@ if [[ -f "requirements.txt" ]]; then
         echo "Installing system packages..."
 
         # Try to install each package individually in case some are already installed
-        for pkg in python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy; do
+        for pkg in python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography; do
             if dpkg -l | grep -q "^ii.*$pkg"; then
                 echo "  $pkg already installed"
             else
