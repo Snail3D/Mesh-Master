@@ -242,10 +242,26 @@ if [[ -f "requirements.txt" ]]; then
 
                     # Link system packages into venv so meshtastic can find them
                     echo "  Linking system packages to venv..."
-                    for pkg in google protobuf pubsub serial; do
-                        SYSTEM_PKG=$(python3 -c "import sys; print([p for p in sys.path if 'dist-packages' in p][0])" 2>/dev/null)
-                        if [ -n "$SYSTEM_PKG" ] && [ -d "$SYSTEM_PKG/$pkg" ]; then
-                            ln -sf "$SYSTEM_PKG/$pkg" "$SITE_PACKAGES/" 2>/dev/null && echo "    ✓ Linked $pkg"
+
+                    # Find all system package directories
+                    SYSTEM_PATHS=$(python3 -c "import sys; [print(p) for p in sys.path if 'dist-packages' in p or 'site-packages' in p]" 2>/dev/null)
+
+                    # Try to link each required package from system to venv
+                    for pkg_name in google protobuf pubsub serial; do
+                        LINKED=0
+                        while IFS= read -r sys_path; do
+                            if [ -d "$sys_path/$pkg_name" ] || [ -f "$sys_path/${pkg_name}.py" ]; then
+                                if [ -d "$sys_path/$pkg_name" ]; then
+                                    ln -sf "$sys_path/$pkg_name" "$SITE_PACKAGES/" 2>/dev/null && LINKED=1 && echo "    ✓ Linked $pkg_name from $sys_path"
+                                else
+                                    ln -sf "$sys_path/${pkg_name}.py" "$SITE_PACKAGES/" 2>/dev/null && LINKED=1 && echo "    ✓ Linked ${pkg_name}.py from $sys_path"
+                                fi
+                                break
+                            fi
+                        done <<< "$SYSTEM_PATHS"
+
+                        if [ $LINKED -eq 0 ]; then
+                            echo "    ⚠ Could not find $pkg_name in system packages"
                         fi
                     done
                 else
