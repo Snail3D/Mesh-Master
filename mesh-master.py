@@ -13216,19 +13216,17 @@ def build_ollama_history(sender_id=None, is_direct=False, channel_idx=None, thre
     candidates = []
     if is_direct:
       # Build a per-DM-thread history scoped strictly to the given sender_id.
-      # Include only:
-      #  - direct human messages from this sender, and
-      #  - direct AI replies whose reply_to points to one of those human messages.
-      sender_human_ts = set()
+      # Include:
+      #  - direct human messages from this sender
+      #  - ALL direct AI messages (for better conversation continuity)
       for m in snapshot:
         try:
-          if m.get('direct') is True and same_node_id(m.get('node_id'), sender_id):
-            candidates.append(m)
-            ts = m.get('timestamp')
-            if ts:
-              sender_human_ts.add(ts)
-          elif m.get('direct') is True and m.get('is_ai') is True:
-            if m.get('reply_to') in sender_human_ts:
+          if m.get('direct') is True:
+            # Include human messages from this sender
+            if same_node_id(m.get('node_id'), sender_id):
+              candidates.append(m)
+            # Include ALL AI messages in DMs (simplified for better context)
+            elif m.get('is_ai') is True:
               candidates.append(m)
         except Exception:
           continue
