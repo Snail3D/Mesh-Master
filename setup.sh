@@ -110,14 +110,25 @@ echo ""
 # Create virtual environment
 echo "Setting up virtual environment..."
 if [[ -d ".venv" ]]; then
-    echo -e "${YELLOW}⚠️  Virtual environment already exists${NC}"
-    read -p "Recreate it? (y/N) " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Removing old virtual environment..."
-        rm -rf .venv
+    if [[ "$OS" == "Raspberry Pi" ]]; then
+        # Check if venv has system-site-packages enabled
+        if grep -q "include-system-site-packages = false" .venv/pyvenv.cfg 2>/dev/null; then
+            echo -e "${YELLOW}⚠️  Existing venv missing system-site-packages${NC}"
+            echo "Recreating for Raspberry Pi compatibility..."
+            rm -rf .venv
+        else
+            echo -e "${GREEN}✓${NC} Virtual environment already exists with correct configuration"
+        fi
     else
-        echo "Keeping existing virtual environment"
+        echo -e "${YELLOW}⚠️  Virtual environment already exists${NC}"
+        read -p "Recreate it? (y/N) " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "Removing old virtual environment..."
+            rm -rf .venv
+        else
+            echo "Keeping existing virtual environment"
+        fi
     fi
 fi
 
