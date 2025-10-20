@@ -264,13 +264,20 @@ if [[ -f "requirements.txt" ]]; then
                     DIST_PACKAGES="/usr/lib/python3/dist-packages"
 
                     # Link all required packages for meshtastic AND mesh-master.py
-                    REQUIRED_PKGS="google protobuf pubsub pypubsub serial tabulate yaml requests packaging urllib3 certifi charset_normalizer idna six dotenv dateutil flask werkzeug jinja2 click itsdangerous markupsafe blinker cryptography cffi pycparser PIL tornado unidecode bcrypt"
+                    REQUIRED_PKGS="google protobuf pubsub pypubsub serial tabulate yaml requests packaging urllib3 certifi charset_normalizer idna six dotenv dateutil flask werkzeug jinja2 click itsdangerous markupsafe blinker cryptography cffi pycparser PIL tornado unidecode bcrypt _cffi_backend"
 
                     for pkg in $REQUIRED_PKGS; do
                         if [ -d "$DIST_PACKAGES/$pkg" ]; then
                             ln -sf "$DIST_PACKAGES/$pkg" "$SITE_PACKAGES/" && echo "    ✓ Linked $pkg"
                         elif [ -f "$DIST_PACKAGES/${pkg}.py" ]; then
                             ln -sf "$DIST_PACKAGES/${pkg}.py" "$SITE_PACKAGES/" && echo "    ✓ Linked ${pkg}.py"
+                        fi
+                    done
+
+                    # Also link .so files (compiled extensions) that are needed
+                    for so_file in "$DIST_PACKAGES"/_cffi_backend*.so; do
+                        if [ -f "$so_file" ]; then
+                            ln -sf "$so_file" "$SITE_PACKAGES/" && echo "    ✓ Linked $(basename $so_file)"
                         fi
                     done
 
