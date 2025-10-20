@@ -216,14 +216,25 @@ if [[ -f "requirements.txt" ]]; then
         echo "Installing pytest..."
         pip install pytest --no-cache-dir --prefer-binary && echo -e "  ${GREEN}✓${NC} pytest" || echo -e "  ${YELLOW}⚠️${NC} pytest failed"
 
-        # Meshtastic (may have dependencies, use piwheels with timeout)
-        echo "Installing meshtastic (this may take 1-2 minutes on Pi)..."
-        timeout 120 pip install meshtastic --no-cache-dir --prefer-binary --index-url https://www.piwheels.org/simple --extra-index-url https://pypi.org/simple 2>&1 | tail -5
+        # Meshtastic dependencies first (install individually to avoid index hangs)
+        echo "Installing meshtastic dependencies..."
+        echo "  Installing pyserial..."
+        timeout 60 pip install pyserial --no-cache-dir --prefer-binary 2>&1 | tail -3
+        echo "  Installing dotmap..."
+        timeout 60 pip install dotmap --no-cache-dir --prefer-binary 2>&1 | tail -3
+        echo "  Installing pypubsub..."
+        timeout 60 pip install pypubsub --no-cache-dir --prefer-binary 2>&1 | tail -3
+        echo "  Installing tabulate..."
+        timeout 60 pip install tabulate --no-cache-dir --prefer-binary 2>&1 | tail -3
+
+        # Now try meshtastic with shorter timeout since deps are installed
+        echo "Installing meshtastic package..."
+        timeout 60 pip install meshtastic --no-deps --no-cache-dir --prefer-binary 2>&1 | tail -3
         if [[ $? -eq 0 ]]; then
             echo -e "  ${GREEN}✓${NC} meshtastic"
         else
             echo -e "  ${YELLOW}⚠️${NC} meshtastic installation timed out or failed"
-            echo -e "  ${YELLOW}ℹ${NC}  You can install it later with: pip install meshtastic"
+            echo -e "  ${YELLOW}ℹ${NC}  You can try manually: pip install meshtastic"
         fi
 
         # Reportlab (may take longer, has native code)
