@@ -186,16 +186,18 @@ if [[ -f "requirements.txt" ]]; then
 
         # Install common Python packages from apt to avoid pip compilation issues
         echo "Installing system packages..."
-        sudo apt-get install -y \
-            python3-protobuf \
-            python3-tornado \
-            python3-requests \
-            python3-flask \
-            python3-pil \
-            python3-numpy \
-            2>/dev/null | grep -v "already" || true
 
-        echo -e "${GREEN}✓${NC} System packages installed"
+        # Try to install each package individually in case some are already installed
+        for pkg in python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy; do
+            if dpkg -l | grep -q "^ii.*$pkg"; then
+                echo "  $pkg already installed"
+            else
+                echo "  Installing $pkg..."
+                sudo apt-get install -y $pkg 2>&1 | tail -1
+            fi
+        done
+
+        echo -e "${GREEN}✓${NC} System packages ready"
         echo ""
 
         # Only install meshtastic and packages not available via apt
