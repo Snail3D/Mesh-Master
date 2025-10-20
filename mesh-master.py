@@ -13328,6 +13328,11 @@ def send_to_ollama(
     # Build optional conversation history
     history = ""
     history_truncated = False
+    if not use_history:
+        clean_log("⚠️ History disabled by session", "🔍", show_always=False)
+    elif sender_id is None:
+        clean_log("⚠️ No sender_id - history disabled", "🔍", show_always=False)
+
     if use_history and sender_id is not None:
         try:
             history, history_truncated = build_ollama_history(
