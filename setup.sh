@@ -229,13 +229,23 @@ if [[ -f "requirements.txt" ]]; then
             # Copy the meshtastic module directly to site-packages (avoid build system)
             if [ -d "meshtastic" ]; then
                 echo "  Copying meshtastic module to venv..."
-                # Find the actual site-packages directory
-                SITE_PACKAGES=$(find "$MESH_DIR/.venv/lib" -type d -name "site-packages" 2>/dev/null | head -1)
-                if [ -n "$SITE_PACKAGES" ]; then
+                # Use explicit python3.11 path (or find it dynamically)
+                SITE_PACKAGES="$MESH_DIR/.venv/lib/python3.11/site-packages"
+
+                # If python3.11 doesn't exist, find the actual version
+                if [ ! -d "$SITE_PACKAGES" ]; then
+                    SITE_PACKAGES=$(find "$MESH_DIR/.venv/lib" -type d -name "site-packages" 2>/dev/null | head -1)
+                fi
+
+                if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
                     cp -r meshtastic "$SITE_PACKAGES/" && echo "    ✓ Copied to $SITE_PACKAGES"
                 else
-                    echo "    ✗ Could not find site-packages directory"
+                    echo "    ✗ Could not find site-packages at: $SITE_PACKAGES"
+                    echo "    Debug: MESH_DIR=$MESH_DIR"
+                    ls -la "$MESH_DIR/.venv/lib/" 2>&1 | head -5
                 fi
+            else
+                echo "    ✗ meshtastic directory not found in cloned repo"
             fi
 
             cd "$MESH_DIR"
