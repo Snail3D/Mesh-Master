@@ -242,7 +242,8 @@ echo "Loading Mesh Master service..."
 launchctl load "$PLIST_PATH"
 
 # Give it a moment to start
-sleep 2
+echo "Waiting for service to start..."
+sleep 5
 
 # Create desktop shortcuts
 echo "Creating desktop shortcuts..."
@@ -288,6 +289,15 @@ if launchctl list | grep -q "com.meshmaster"; then
     echo "  • Restart:       launchctl kickstart -k gui/\$(id -u)/com.meshmaster"
     echo ""
     echo "Dashboard: http://localhost:5001/dashboard"
+    echo ""
+
+    # Wait a bit more for Flask to fully start
+    echo "Waiting for dashboard to be ready..."
+    sleep 3
+
+    # Open browser to dashboard
+    echo "Opening dashboard in browser..."
+    open http://localhost:5001/dashboard 2>/dev/null || echo "Please manually open: http://localhost:5001/dashboard"
     echo ""
 else
     echo ""
