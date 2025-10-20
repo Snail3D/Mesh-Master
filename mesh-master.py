@@ -1,3 +1,8 @@
+import sys
+import os
+# Add scripts/utilities to path for local modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts', 'utilities'))
+
 import meshtastic
 import meshtastic.serial_interface
 from meshtastic import BROADCAST_ADDR
