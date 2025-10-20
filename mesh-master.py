@@ -28702,7 +28702,8 @@ def dashboard():
           try {
             const response = await fetch('/dashboard/serial/scan', {
               method: 'POST',
-              headers: {'Content-Type': 'application/json'}
+              headers: {'Content-Type': 'application/json'},
+              credentials: 'include'
             });
 
             const result = await response.json();
@@ -28774,6 +28775,7 @@ def dashboard():
               const response = await fetch('/dashboard/serial/test-baud', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'include',
                 body: JSON.stringify({ port: port.device })
               });
 
