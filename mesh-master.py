@@ -2488,9 +2488,9 @@ def safe_load_json(path, default_value):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"⚠️ {path} not found. Using defaults.")
+        add_script_log(f"⚠️ {path} not found. Using defaults.")
     except Exception as e:
-        print(f"⚠️ Could not load {path}: {e}")
+        add_script_log(f"⚠️ Could not load {path}: {e}")
     return default_value
 
 def write_atomic(path: str, data: str):
@@ -12048,7 +12048,7 @@ def load_archive():
         except Exception as e:
             print(f"⚠️ Could not load archive {ARCHIVE_FILE}: {e}")
     else:
-        print("No archive found; starting fresh.")
+        add_script_log("No archive found; starting fresh.")
 
 def _rotate_archive_if_needed():
   """Rotate archive if it exceeds size/age limits."""
@@ -32008,7 +32008,7 @@ def main():
     server_start_time = server_start_time or datetime.now().astimezone()
     restart_count += 1
     add_script_log(f"Server restarted. Restart count: {restart_count}")
-    clean_log("Starting MESH-MASTER server...", "🚀", show_always=True)
+    clean_log("Starting MESH-MASTER server...", "🚀", show_always=False)
     load_archive()
 
     # Load and migrate saved contexts (encrypts if needed)
@@ -32408,7 +32408,7 @@ if __name__ == "__main__":
     # Install stderr filter to reduce protobuf noise jitter
     if not DEBUG_ENABLED and CLEAN_LOGS:
         sys.stderr = FilteredStderr(sys.stderr)
-        clean_log("Enabled clean logging mode with smooth scrolling", "🌊", show_always=True, rate_limit=False)
+        clean_log("Enabled clean logging mode with smooth scrolling", "🌊", show_always=False, rate_limit=False)
     
     while True:
         try:
