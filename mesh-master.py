@@ -3458,7 +3458,7 @@ def _initialize_onboarding_state() -> None:
         # Sync settings from config.json
         if "settings" not in _onboarding_state:
             _onboarding_state["settings"] = {}
-        _onboarding_state["settings"]["auto_onboard_new_users"] = config.get("onboard_auto_enable", True)
+        _onboarding_state["settings"]["auto_onboard_new_users"] = config.get("onboard_auto_enable", False)
         _onboarding_state["settings"]["daily_reminders_enabled"] = config.get("onboard_daily_reminders", True)
         _onboarding_state["settings"]["reminder_frequency"] = config.get("onboard_reminder_frequency", "daily")
         _onboarding_state["settings"]["reminder_check_hour"] = config.get("onboard_reminder_hour", 10)

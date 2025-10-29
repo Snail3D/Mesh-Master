@@ -97,7 +97,7 @@
   "ollama_stream": true,
   "ollama_timeout": 120,
   "ollama_url": "http://localhost:11434/api/generate",
-  "onboard_auto_enable": true,
+  "onboard_auto_enable": false,
   "onboard_custom_welcome": "",
   "onboard_daily_reminders": true,
   "onboard_quiet_end": 8,
