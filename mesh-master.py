@@ -1275,12 +1275,12 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
     device_name = 'Unknown Device'
     radio_name = 'Unknown Radio'
 
-    # Try to get radio name from interface
+    # Try to get radio name from interface using the same method as the configuration panel
     try:
-        if interface and hasattr(interface, 'myInfo') and interface.myInfo:
-            my_node_num = interface.myInfo.my_node_num
-            # Use the standard helper function to get the node name
-            radio_name = get_node_fullname(my_node_num)
+        if interface:
+            long_name = interface.getLongName()
+            short_name = interface.getShortName()
+            radio_name = long_name or short_name or 'Unknown Radio'
     except Exception:
         pass
 
