@@ -23574,9 +23574,6 @@ def dashboard():
           <span id="featuresStatus" class="panel-subtitle">Core bot behavior and system management</span>
         </div>
         <div id="featureAlerts" class="feature-alerts" hidden></div>
-        <div style="padding: 0 0 12px 0; border-bottom: 1px solid var(--border);">
-          <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
-        </div>
         <div class="panel-body">
         <div class="toggle-row">
           <label class="switch">
@@ -23689,6 +23686,9 @@ def dashboard():
           <label>🗑️ Uninstall Everything<span class="help-icon" data-explainer="Completely removes Mesh Master service, disables auto-start, and removes desktop shortcuts. Your data and config are preserved." data-explainer-placement="right">?</span></label>
           <button type="button" id="uninstallServiceBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px;">🗑️ Uninstall Service + Remove Shortcuts</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Stops service, disables auto-start, removes all service files and desktop shortcuts. Data and config preserved.</p>
+        </div>
+        <div style="padding: 16px 0 0 0; border-top: 1px solid var(--border); margin-top: 16px;">
+          <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
         </div>
         </div>
 
