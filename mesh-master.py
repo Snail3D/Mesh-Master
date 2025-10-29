@@ -1278,16 +1278,9 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
     # Try to get radio name from interface
     try:
         if interface and hasattr(interface, 'myInfo') and interface.myInfo:
-            # First try to get from nodes dictionary (most reliable)
-            if hasattr(interface, 'nodes'):
-                for node_id, node in interface.nodes.items():
-                    user = node.get('user', {})
-                    if user.get('id') == interface.myInfo.my_node_num:
-                        radio_name = user.get('longName', user.get('shortName', 'Unknown Radio'))
-                        break
-            # Fallback to myInfo if not found in nodes
-            if radio_name == 'Unknown Radio':
-                radio_name = interface.myInfo.longName or interface.myInfo.shortName or 'Unknown Radio'
+            my_node_num = interface.myInfo.my_node_num
+            # Use the standard helper function to get the node name
+            radio_name = get_node_fullname(my_node_num)
     except Exception:
         pass
 
@@ -2497,9 +2490,9 @@ def safe_load_json(path, default_value):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        add_script_log(f"⚠️ {path} not found. Using defaults.")
+        print(f"⚠️ {path} not found. Using defaults.")
     except Exception as e:
-        add_script_log(f"⚠️ Could not load {path}: {e}")
+        print(f"⚠️ Could not load {path}: {e}")
     return default_value
 
 def write_atomic(path: str, data: str):
