@@ -2506,9 +2506,9 @@ def safe_load_json(path, default_value):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"⚠️ {path} not found. Using defaults.")
+        pass  # Silently use defaults
     except Exception as e:
-        print(f"⚠️ Could not load {path}: {e}")
+        pass  # Silently use defaults
     return default_value
 
 def write_atomic(path: str, data: str):
