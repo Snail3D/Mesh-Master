@@ -1,0 +1,11 @@
+{
+  "ai_enabled": true,
+  "disabled_commands": [],
+  "message_mode": "both",
+  "admin_passphrase": "change_me_to_something_secure",
+  "auto_ping_enabled": true,
+  "admin_whitelist": [
+    "!your_radio_id_here",
+    "telegram_your_user_id_here"
+  ]
+}
