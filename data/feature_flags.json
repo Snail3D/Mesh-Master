@@ -1,0 +1,10 @@
+{
+  "ai_enabled": true,
+  "disabled_commands": [],
+  "message_mode": "both",
+  "admin_passphrase": "roughrider",
+  "auto_ping_enabled": true,
+  "admin_whitelist": [
+    "!376be684"
+  ]
+}

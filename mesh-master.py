@@ -23198,6 +23198,17 @@ def dashboard():
       </div>
     </header>
     <div id="connectionBanner" class="connection-banner is-unknown">Checking connection…</div>
+    <!-- Battery Status Display (Upper Left Corner) -->
+    <div id="batteryStatusHeader" style="position: fixed; top: 12px; left: 12px; z-index: 1000; background: var(--bg-panel); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+      <span id="batteryIcon" style="font-size: 18px;">🔋</span>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span id="batteryLevel" style="font-weight: 600;">--</span>
+          <span id="powerStatus" style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase;"></span>
+        </div>
+        <div id="radioName" style="font-size: 10px; color: var(--text-secondary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+      </div>
+    </div>
     <main class="content">
       <nav class="panel-menu" id="panelMenu" aria-label="Dashboard sections"></nav>
       <section class="panel-grid" data-panel-zone="dashboard">
@@ -23269,19 +23280,6 @@ def dashboard():
           </div>
         </div>
         </article>
-
-        
-      <!-- Battery Status Display (Upper Left Corner) -->
-      <div id="batteryStatusHeader" style="position: fixed; top: 12px; left: 12px; z-index: 1000; background: var(--bg-panel); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-        <span id="batteryIcon" style="font-size: 18px;">🔋</span>
-        <div style="display: flex; flex-direction: column; gap: 2px;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span id="batteryLevel" style="font-weight: 600;">--</span>
-            <span id="powerStatus" style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase;"></span>
-          </div>
-          <div id="radioName" style="font-size: 10px; color: var(--text-secondary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
-        </div>
-      </div>
 
 <article class="panel config-panel" data-panel-id="config-overview" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
@@ -28951,7 +28949,9 @@ def dashboard():
       // =====================================================
       async function pollBatteryStatus() {
         try {
-          const response = await fetch('/dashboard/battery');
+          const response = await fetch('/dashboard/battery', {
+            credentials: 'include',
+          });
           const data = await response.json();
 
           if (data.success && data.battery_level !== undefined) {
@@ -28959,6 +28959,11 @@ def dashboard():
             const batteryLevel = document.getElementById('batteryLevel');
             const powerStatus = document.getElementById('powerStatus');
             const radioName = document.getElementById('radioName');
+
+            if (!batteryLevel) {
+              console.warn('Battery display elements not found in DOM');
+              return;
+            }
 
             // Update battery icon based on level and charging status
             if (data.is_charging) {
