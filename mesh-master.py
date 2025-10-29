@@ -29596,7 +29596,6 @@ def _log_config_change(key: str, old_value: Any, new_value: Any, is_security_sen
 
 
 @app.route('/dashboard/config/snapshot', methods=['GET'])
-@require_auth
 def get_config_snapshot():
     """Return a snapshot of the current configuration for the dashboard."""
     return jsonify({
