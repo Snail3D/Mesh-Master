@@ -1281,8 +1281,18 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
             long_name = interface.getLongName()
             short_name = interface.getShortName()
             radio_name = long_name or short_name or 'Unknown Radio'
-    except Exception:
-        pass
+    except Exception as e:
+        # If interface methods don't work, try fallback: get from config or nodes
+        try:
+            if interface and hasattr(interface, 'nodes'):
+                # Get my node ID
+                my_node_id = getattr(interface.myInfo, 'my_node_num', None) if hasattr(interface, 'myInfo') else None
+                if my_node_id and my_node_id in interface.nodes:
+                    node_info = interface.nodes[my_node_id]
+                    user_info = node_info.get('user', {})
+                    radio_name = user_info.get('longName', user_info.get('shortName', 'Unknown Radio'))
+        except Exception:
+            pass
 
     if USE_WIFI and WIFI_HOST:
         connection_type = 'WiFi'
