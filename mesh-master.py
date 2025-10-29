@@ -18230,6 +18230,10 @@ def get_battery_status():
                     battery_level = device_metrics.get('batteryLevel')
                     voltage = device_metrics.get('voltage')
 
+                    # Debug: log what we're getting from the radio
+                    if device_metrics:
+                        add_script_log(f"📊 Battery telemetry from radio: level={battery_level}, voltage={voltage}, all_metrics={device_metrics}")
+
                     # If we have battery level data, use it
                     if battery_level is not None:
                         is_charging = battery_level == 101 or (voltage and voltage > 4.2)
