@@ -28724,6 +28724,18 @@ def dashboard():
           const configResult = await configResp.json();
           const configData = (configResult && configResult.config) ? configResult.config : {};
 
+          // Get metrics to get radio name
+          let radioName = 'Unknown Radio';
+          try {
+            const metricsResp = await fetch('/dashboard/metrics');
+            const metricsData = await metricsResp.json();
+            if (metricsData.radio_name) {
+              radioName = metricsData.radio_name;
+            }
+          } catch (e) {
+            // Silently fail if metrics unavailable
+          }
+
           const useBluetooth = configData.use_bluetooth === true || configData.use_bluetooth === 'true';
           const bluetoothDevice = configData.bluetooth_device;
 
@@ -28734,7 +28746,7 @@ def dashboard():
               bluetoothStatusText.textContent = 'Connected';
               bluetoothStatusText.style.color = '#6a9955';
               bluetoothConnectedDevice.style.display = 'block';
-              bluetoothConnectedName.textContent = configData.bluetooth_preferred_device || bluetoothDevice;
+              bluetoothConnectedName.textContent = radioName;
               bluetoothConnectedAddress.textContent = bluetoothDevice;
             } else {
               bluetoothStatusIcon.textContent = '🔴';
