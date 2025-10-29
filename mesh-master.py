@@ -29595,6 +29595,24 @@ def _log_config_change(key: str, old_value: Any, new_value: Any, is_security_sen
         clean_log(f"⚠️ Failed to log config change: {e}", "⚠️", show_always=True, rate_limit=False)
 
 
+@app.route('/dashboard/config/snapshot', methods=['GET'])
+@require_auth
+def get_config_snapshot():
+    """Return a snapshot of the current configuration for the dashboard."""
+    return jsonify({
+        'ok': True,
+        'config': {
+            'use_bluetooth': USE_BLUETOOTH,
+            'bluetooth_device': BLUETOOTH_DEVICE,
+            'bluetooth_preferred_device': config.get('bluetooth_preferred_device'),
+            'use_wifi': USE_WIFI,
+            'wifi_host': WIFI_HOST,
+            'wifi_port': WIFI_PORT,
+            'serial_port': SERIAL_PORT,
+        }
+    })
+
+
 @app.route('/dashboard/config/update', methods=['POST'])
 @require_auth
 def update_dashboard_config():
