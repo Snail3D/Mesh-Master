@@ -1273,6 +1273,15 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
     # Determine connection type and device name
     connection_type = 'Unknown'
     device_name = 'Unknown Device'
+    radio_name = 'Unknown Radio'
+
+    # Try to get radio name from interface
+    try:
+        if interface and hasattr(interface, 'myInfo') and interface.myInfo:
+            radio_name = interface.myInfo.longName or interface.myInfo.shortName or 'Unknown Radio'
+    except Exception:
+        pass
+
     if USE_WIFI and WIFI_HOST:
         connection_type = 'WiFi'
         device_name = f"{WIFI_HOST}:{WIFI_PORT}"
@@ -1291,6 +1300,7 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
         'connection_status': connection_status,
         'connection_type': connection_type,
         'device_name': device_name,
+        'radio_name': radio_name,
         'message_activity': message_metrics,
         'message_totals': message_totals_snapshot,
         'node_activity': node_metrics,
@@ -23771,7 +23781,6 @@ def dashboard():
         <div class="panel-header">
           <h2>Activity 📡</h2>
           <div class="activity-header-meta">
-            <div class="scroll-status on" id="scrollStatus"><span class="heartbeat-indicator" id="heartbeatIndicator">💓</span><span id="scrollLabel">Streaming</span></div>
             <div class="queue-meta" id="queueMeta">Queue —</div>
           </div>
         </div>
@@ -27764,7 +27773,7 @@ def dashboard():
       requestAnimationFrame(monitorLogStream);
     }
 
-    function updateConnectionBanner(status, deviceName, connectionType) {
+    function updateConnectionBanner(status, radioName, connectionType) {
       const banner = $("connectionBanner");
       if (!banner) return;
       const normalized = (status || "").toLowerCase();
@@ -27773,7 +27782,7 @@ def dashboard():
         banner.classList.add("is-connected");
         const typeEmoji = connectionType === 'Bluetooth' ? '🔵' : (connectionType === 'WiFi' ? '📡' : '🔌');
         const typeName = connectionType || 'Unknown';
-        banner.innerHTML = `<span>${typeEmoji} Connected via ${typeName}</span><span style="margin-left: 12px; opacity: 0.7; font-size: 12px;">${deviceName || 'Unknown Device'}</span>`;
+        banner.innerHTML = `<span>${typeEmoji} ${radioName || 'Unknown Radio'}</span><span style="margin-left: 12px; opacity: 0.7; font-size: 12px;">via ${typeName}</span>`;
       } else if (normalized === "connecting" || normalized === "reconnecting") {
         banner.classList.add("is-degraded");
         banner.textContent = status;
@@ -27870,7 +27879,7 @@ def dashboard():
         if (statusEl) {
           statusEl.textContent = "Metrics unavailable";
         }
-        updateConnectionBanner("Disconnected", "Unknown Device", "Unknown");
+        updateConnectionBanner("Disconnected", "Unknown Radio", "Unknown");
         console.error("Metrics refresh failed:", err);
       }
     }
@@ -27882,7 +27891,7 @@ def dashboard():
       if (timestampEl) {
         timestampEl.textContent = ts && !isNaN(ts) ? ts.toLocaleTimeString() : "Time unavailable";
       }
-      updateConnectionBanner(metrics.connection_status, metrics.device_name, metrics.connection_type);
+      updateConnectionBanner(metrics.connection_status, metrics.radio_name, metrics.connection_type);
 
       const queueBadge = $("queueMeta");
       if (queueBadge) {
