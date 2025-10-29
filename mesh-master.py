@@ -32193,6 +32193,21 @@ def main():
                 globals()['CONNECTING_NOW'] = False
             except Exception:
                 pass
+
+            # Add connected radio to admin whitelist by default if no admins configured
+            try:
+                if interface and hasattr(interface, 'myInfo'):
+                    my_node_id = interface.myInfo.my_node_num
+                    if my_node_id and len(AUTHORIZED_ADMINS) == 0:
+                        # Auto-add this radio as admin if no admins configured
+                        node_id_str = str(my_node_id)
+                        AUTHORIZED_ADMINS.add(node_id_str)
+                        AUTHORIZED_ADMIN_NAMES[node_id_str] = node_id_str
+                        _INITIAL_ADMIN_WHITELIST.add(node_id_str)
+                        add_script_log(f"✅ Auto-added radio (node {my_node_id}) as admin (no admins were configured)")
+            except Exception as e:
+                add_script_log(f"⚠️ Could not auto-add radio to admin whitelist: {e}")
+
             print("Subscribing to on_receive callback...")
             # Only subscribe to the main topic to avoid duplicate callbacks
             pub.subscribe(on_receive, "meshtastic.receive")
