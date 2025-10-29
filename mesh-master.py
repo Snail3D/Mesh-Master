@@ -1644,7 +1644,7 @@ def ai_log(message, provider="AI"):
             "home_assistant": "🏠"
         }
         emoji = provider_emojis.get(provider.lower(), "🤖")
-        clean_log(f"{provider.upper()}: {message} {emoji}", emoji="", show_always=True, rate_limit=False)
+        clean_log(f"{provider.upper()}: {message} {emoji}", emoji="", show_always=False, rate_limit=False)
     elif not DEBUG_ENABLED:
         # Simple logging without emojis if clean_logs is disabled
         print(f"[{provider.upper()}] {message}")
@@ -1660,7 +1660,7 @@ def periodic_status_update():
     
     if current_time - _last_status_time > _status_interval and not DEBUG_ENABLED and CLEAN_LOGS:
         _last_status_time = current_time
-        clean_log("System running normally...", "💚", show_always=True, rate_limit=False)
+        clean_log("System running normally...", "💚", show_always=False, rate_limit=False)
 
 # Custom stderr filter to catch protobuf noise
 class FilteredStderr:
@@ -2334,19 +2334,19 @@ def power_cycle_usb_port():
     global USB_POWER_CYCLE_WARNED
     if not USB_POWER_CYCLE_ENABLED:
         if not USB_POWER_CYCLE_WARNED:
-            clean_log("USB power cycle skipped (commands not configured).", "ℹ️", show_always=True, rate_limit=False)
+            clean_log("USB power cycle skipped (commands not configured).", "ℹ️", show_always=False, rate_limit=False)
             USB_POWER_CYCLE_WARNED = True
         return
     if not USB_POWER_CYCLE_LOCK.acquire(blocking=False):
         return
     try:
-        clean_log("Power cycling USB port for radio...", "🔌", show_always=True, rate_limit=False)
+        clean_log("Power cycling USB port for radio...", "🔌", show_always=False, rate_limit=False)
         _invoke_power_command(USB_POWER_CYCLE_OFF_CMD)
         time.sleep(max(1, USB_POWER_CYCLE_DELAY))
         _invoke_power_command(USB_POWER_CYCLE_ON_CMD)
-        clean_log("USB power restored.", "🔌", show_always=True, rate_limit=False)
+        clean_log("USB power restored.", "🔌", show_always=False, rate_limit=False)
     except Exception as exc:
-        clean_log(f"USB power cycle failed: {exc}", "⚠️", show_always=True, rate_limit=False)
+        clean_log(f"USB power cycle failed: {exc}", "⚠️", show_always=False, rate_limit=False)
     finally:
         USB_POWER_CYCLE_LOCK.release()
 
@@ -2360,7 +2360,7 @@ def trigger_radio_reset(reason: str, emoji: str = "🔄", debounce_key: str = "g
         return
     RADIO_WATCHDOG_STATE[debounce_key] = now_ts
     add_script_log(f"Radio watchdog: {reason}")
-    clean_log(f"{reason} — requesting radio reconnect", emoji, show_always=True, rate_limit=False)
+    clean_log(f"{reason} — requesting radio reconnect", emoji, show_always=False, rate_limit=False)
     try:
         globals()['connection_status'] = "Disconnected"
     except Exception:
@@ -4395,7 +4395,7 @@ def _run_bible_autoscroll(sender_key: str, sender_node: str, interface_ref, nav_
         try:
             send_direct_chunks(interface_ref, message, sender_node, chunk_delay=None)
         except Exception as exc:
-            clean_log(f"Bible auto-scroll failed: {exc}", "⚠️", show_always=True, rate_limit=False)
+            clean_log(f"Bible auto-scroll failed: {exc}", "⚠️", show_always=False, rate_limit=False)
             break
         local_state.update(info)
         try:
@@ -6112,7 +6112,7 @@ if AI_PROVIDER != "ollama":
     clean_log(
         f"AI provider '{AI_PROVIDER}' overridden to Ollama (dashboard only supports Ollama).",
         "🦙",
-        show_always=True,
+        show_always=False,
         rate_limit=False,
     )
 AI_PROVIDER = "ollama"
@@ -6325,7 +6325,7 @@ def _apply_ollama_model(model_name: str) -> Tuple[bool, str]:
         globals()['OLLAMA_MODEL'] = sanitized
     except Exception:
         pass
-    clean_log(f"Ollama model set to {sanitized}", "🧠", show_always=True, rate_limit=False)
+    clean_log(f"Ollama model set to {sanitized}", "🧠", show_always=False, rate_limit=False)
     return True, ''
 
 try:
@@ -9606,7 +9606,7 @@ def annotate_command_response(resp, original_cmd: str, canonical_cmd: str, reaso
     else:
         note = strings["fuzzy_note"].format(original=original_cmd, canonical=canonical_cmd)
     try:
-        clean_log(note, "ℹ️", show_always=True, rate_limit=False)
+        clean_log(note, "ℹ️", show_always=False, rate_limit=False)
     except Exception:
         pass
     return resp
@@ -9661,7 +9661,7 @@ def _process_admin_password(sender_id: Any, message: str):
         clean_log(
             f"Admin credentials accepted{source_note} for {actor} ({sender_id})",
             "🛡️",
-            show_always=True,
+            show_always=False,
             rate_limit=False,
         )
         _ensure_admin_in_feature_flags(sender_key)
@@ -9709,7 +9709,7 @@ def _process_admin_password(sender_id: Any, message: str):
     clean_log(
         f"Admin password rejected for {get_node_shortname(sender_id)} ({sender_id})",
         "🚫",
-        show_always=True,
+        show_always=False,
         rate_limit=False,
     )
     failure_text = translate(lang or 'en', 'password_failure', "no way jose, try again.. or don't")
@@ -10195,7 +10195,7 @@ def _maybe_notify_queue_delay(sender_key: Optional[str], sender_node: Any, inter
     try:
         send_direct_chunks(interface_ref, message, sender_node)
         QUEUE_NOTICE_TRACK[sender_key] = now_ts
-        clean_log(f"Queue delay notice sent to {sender_key}", "⚠️", show_always=True, rate_limit=False)
+        clean_log(f"Queue delay notice sent to {sender_key}", "⚠️", show_always=False, rate_limit=False)
     except Exception as exc:
         clean_log(f"Failed to send queue delay notice to {sender_key}: {exc}", "⚠️")
 
@@ -10239,7 +10239,7 @@ def process_responses_worker():
                     clean_log(
                         response_type,
                         icon,
-                        show_always=True,
+                        show_always=False,
                         rate_limit=False,
                     )
 
@@ -10296,16 +10296,16 @@ def process_responses_worker():
                                             add_script_log(f"HTTP chunk response: {r.status_code}")
                                             if chunk_delay:
                                                 time.sleep(chunk_delay)
-                                    clean_log(f"✅ Telegram AI response sent to {chat_id}", "✅", show_always=True, rate_limit=False)
+                                    clean_log(f"✅ Telegram AI response sent to {chat_id}", "✅", show_always=False, rate_limit=False)
                                 except Exception as e:
-                                    clean_log(f"❌ Telegram HTTP send failed: {e}", "❌", show_always=True, rate_limit=False)
+                                    clean_log(f"❌ Telegram HTTP send failed: {e}", "❌", show_always=False, rate_limit=False)
 
                             # Run in thread to avoid blocking
                             import threading
                             thread = threading.Thread(target=send_to_telegram_sync, daemon=True)
                             thread.start()
                         except Exception as e:
-                            clean_log(f"❌ Telegram send failed: {e}", "❌", show_always=True, rate_limit=False)
+                            clean_log(f"❌ Telegram send failed: {e}", "❌", show_always=False, rate_limit=False)
                     elif interface_ref and response_text and not already_sent:
                         # Regular mesh query - send via mesh (not Telegram)
                         if is_direct:
@@ -10379,7 +10379,7 @@ def process_responses_worker():
                 except Exception:
                     pass
             else:
-                clean_log(f"Ollama → {get_node_shortname(sender_node) or sender_node} ({processing_time:.1f}s) [no response]", "🦙", show_always=True, rate_limit=False)
+                clean_log(f"Ollama → {get_node_shortname(sender_node) or sender_node} ({processing_time:.1f}s) [no response]", "🦙", show_always=False, rate_limit=False)
                 try:
                     STATS.record_ai_response(processing_time)
                 except Exception:
@@ -12000,7 +12000,7 @@ def _log_position_share(sender_id: Any) -> None:
         label = None
     if not label:
         label = _safe_sender_key(sender_id) or str(sender_id)
-    clean_log(f"Position shared: {label}", "📍", show_always=True, rate_limit=False)
+    clean_log(f"Position shared: {label}", "📍", show_always=False, rate_limit=False)
 
 
 def _handle_position_confirmation(
@@ -13012,7 +13012,7 @@ def _process_update_confirmation(sender_key: str, message: str) -> PendingReply:
     current_version = state.get("current_version", "unknown")
     latest_version = state.get("latest_version", "unknown")
 
-    clean_log(f"📦 Update confirmed by admin. Updating from {current_version} to {latest_version}", show_always=True, rate_limit=False)
+    clean_log(f"📦 Update confirmed by admin. Updating from {current_version} to {latest_version}", show_always=False, rate_limit=False)
 
     try:
         import subprocess
@@ -13028,13 +13028,13 @@ def _process_update_confirmation(sender_key: str, message: str) -> PendingReply:
         )
 
         if result.returncode != 0:
-            clean_log(f"❌ Update failed: {result.stderr.strip()}", show_always=True, rate_limit=False)
+            clean_log(f"❌ Update failed: {result.stderr.strip()}", show_always=False, rate_limit=False)
             return PendingReply(f"❌ Update failed: {result.stderr.strip()[:200]}", "/update confirm")
 
-        clean_log("✅ Successfully pulled latest changes from GitHub", show_always=True, rate_limit=False)
+        clean_log("✅ Successfully pulled latest changes from GitHub", show_always=False, rate_limit=False)
 
         # Schedule restart (cross-platform)
-        clean_log("🔄 Restarting service in 2 seconds...", show_always=True, rate_limit=False)
+        clean_log("🔄 Restarting service in 2 seconds...", show_always=False, rate_limit=False)
 
         # Detect platform and use appropriate restart method
         import platform
@@ -13065,7 +13065,7 @@ Restarting service now...
 I'll be back online in ~10-30 seconds.""", "/update confirm")
 
     except Exception as exc:
-        clean_log(f"❌ Update error: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Update error: {exc}", show_always=False, rate_limit=False)
         return PendingReply(f"❌ Update error: {str(exc)[:200]}", "/update confirm")
 
 
@@ -13584,7 +13584,7 @@ def send_to_ollama(
         resp_preview = (full_text[:80] + "...") if full_text and len(full_text) > 80 else (full_text or "[EMPTY]")
         add_script_log(f"Ollama STREAMING response ({len(full_text) if full_text else 0} chars): {resp_preview}")
 
-        clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
+        clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=False, rate_limit=False)
         # Append processing time to buffer before final flush
         timing_text = f" ({int(round(elapsed))}s)"
         buffer += timing_text
@@ -13640,7 +13640,7 @@ def send_to_ollama(
                 add_script_log(f"⚠️ Ollama returned empty response. Full JSON: {jr}")
                 resp = "Mongo no know... Mongo only pawn in game of life"
             elapsed = max(0.01, time.perf_counter() - start_time)
-            clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=True, rate_limit=False)
+            clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=False, rate_limit=False)
             # Append processing time to response
             resp_with_time = f"{resp} ({int(round(elapsed))}s)"
             return (resp_with_time or "")[:MAX_RESPONSE_LENGTH]
@@ -13792,7 +13792,7 @@ def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None,
   hardcoded_always_enabled = {"/about", "/donate"}
 
   if cmd not in hardcoded_always_enabled and not is_command_enabled(cmd):
-    clean_log(f"Command {cmd} blocked (disabled)", "⛔", show_always=True, rate_limit=False)
+    clean_log(f"Command {cmd} blocked (disabled)", "⛔", show_always=False, rate_limit=False)
     return _cmd_reply(cmd, f"⚠️ {cmd} is currently disabled by the operator.")
   sender_key = _safe_sender_key(sender_id)
   lang = _resolve_user_language(language_hint, sender_key)
@@ -14730,7 +14730,7 @@ This forwards your message and shortname to the admin's Telegram bot."""
           if bot_data.get("ok"):
             bot_username = bot_data.get("result", {}).get("username", "")
       except Exception as e:
-        clean_log(f"Failed to get bot username: {e}", show_always=True, rate_limit=False)
+        clean_log(f"Failed to get bot username: {e}", show_always=False, rate_limit=False)
 
     if not bot_token:
       help_msg = """📱 Telegram Bot Setup
@@ -14964,7 +14964,7 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
         interface.waitForConfig()
         node.localConfig.lora.hop_limit = int(hop_limit)
         node.writeConfig('lora')
-        clean_log(f"Radio hop limit set to {hop_limit} by {sender_key}", "🛠️", show_always=True, rate_limit=False)
+        clean_log(f"Radio hop limit set to {hop_limit} by {sender_key}", "🛠️", show_always=False, rate_limit=False)
         return _cmd_reply(cmd, f"✅ Hop limit set to {hop_limit}")
       except Exception as exc:
         return _cmd_reply(cmd, f"❌ Failed to set hop limit: {exc}")
@@ -15619,7 +15619,7 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
           context_limit=OFFLINE_WIKI_CONTEXT_LIMIT,
         )
       except Exception as exc:
-        clean_log(f"Offline wiki lookup error: {exc}", "⚠️", show_always=True, rate_limit=False)
+        clean_log(f"Offline wiki lookup error: {exc}", "⚠️", show_always=False, rate_limit=False)
         return _cmd_reply(cmd, "⚠️ Offline wiki lookup failed. Try again later.")
 
       if not article:
@@ -15637,7 +15637,7 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
           return _cmd_reply(cmd, helper)
         error = OFFLINE_WIKI_STORE.error_message()
         if error:
-          clean_log(error, "⚠️", show_always=True, rate_limit=False)
+          clean_log(error, "⚠️", show_always=False, rate_limit=False)
         return _cmd_reply(cmd, f"📚 I couldn't find '{argument}' and the offline library is currently empty.")
 
       lines = [f"📚 Offline Wiki: {article.title}"]
@@ -16009,7 +16009,7 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
       clean_log(
         f"Admin password required for /stats from {actor} ({sender_id})",
         "🔐",
-        show_always=True,
+        show_always=False,
         rate_limit=False,
       )
     
@@ -16034,7 +16034,7 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
       clean_log(
         f"Admin password required for /changemotd from {get_node_shortname(sender_id)} ({sender_id})",
         "🔐",
-        show_always=True,
+        show_always=False,
         rate_limit=False,
       )
       prompt = translate(lang, 'password_prompt', "reply with password")
@@ -16642,7 +16642,7 @@ def _admin_control_command(text: str, sender_id: Any, sender_key: str, channel_i
         clean_log(
             f"Inbound messaging set to {mode_value} via admin DM from {actor}",
             "🛡️",
-            show_always=True,
+            show_always=False,
             rate_limit=False,
         )
         return PendingReply(f"🛡️ {message}", "admin control")
@@ -16663,7 +16663,7 @@ def _admin_control_command(text: str, sender_id: Any, sender_key: str, channel_i
         clean_log(
             f"AI responses {status} via admin DM from {actor}",
             "🛡️",
-            show_always=True,
+            show_always=False,
             rate_limit=False,
         )
         emoji = "🤖" if enabled else "🛑"
@@ -16682,7 +16682,7 @@ def _admin_control_command(text: str, sender_id: Any, sender_key: str, channel_i
         clean_log(
             f"Auto ping replies {status} via admin DM from {actor}",
             "🛡️",
-            show_always=True,
+            show_always=False,
             rate_limit=False,
         )
         emoji = "🏓" if enabled else "🚫"
@@ -16712,7 +16712,7 @@ def _admin_control_command(text: str, sender_id: Any, sender_key: str, channel_i
     clean_log(
         f"Command {normalized} {log_status} via admin DM from {actor}",
         "🛡️",
-        show_always=True,
+        show_always=False,
         rate_limit=False,
     )
     verb = "enabled" if enabled else "disabled"
@@ -16757,10 +16757,10 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}"
       try:
         send_to_telegram(telegram_msg)
-        clean_log(f"📱 Forwarded DM to Telegram from {sender_name}", show_always=True, rate_limit=False)
+        clean_log(f"📱 Forwarded DM to Telegram from {sender_name}", show_always=False, rate_limit=False)
         return _cmd_reply("telegram", "✅ Forwarded to Telegram.")
       except Exception as e:
-        clean_log(f"❌ Failed to forward to Telegram: {e}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to forward to Telegram: {e}", show_always=False, rate_limit=False)
         return _cmd_reply("telegram", "❌ Failed to forward message to Telegram. Bot may not be configured.")
     else:
       return _cmd_reply("telegram", "Usage: telegram <your message>\n\nThis will forward your message to the admin's Telegram bot.")
@@ -17834,7 +17834,7 @@ def on_receive(packet=None, interface=None, **kwargs):
         if sender_key:
           newly_added = _ai_chill_track(sender_key, sender_node=sender_node)
           if newly_added:
-            clean_log(f"Chill mode blocked Ollama intake for {sender_key}", "🧊", show_always=True, rate_limit=False)
+            clean_log(f"Chill mode blocked Ollama intake for {sender_key}", "🧊", show_always=False, rate_limit=False)
             _ai_chill_notify_initial(sender_key, sender_node, interface)
         # Do not enqueue the task; return early so other commands/messages flow normally
         return
@@ -17888,7 +17888,7 @@ def on_receive(packet=None, interface=None, **kwargs):
         if response_text:
           target_name = get_node_shortname(sender_node) or str(sender_node)
           summary = _truncate_for_log(response_text)
-          clean_log(f"Ollama → {target_name} (0.0s)", "🦙", show_always=True, rate_limit=False)
+          clean_log(f"Ollama → {target_name} (0.0s)", "🦙", show_always=False, rate_limit=False)
           if pending:
             _command_delay(pending.reason)
           if not already_sent:
@@ -17911,7 +17911,7 @@ def on_receive(packet=None, interface=None, **kwargs):
   except OSError as e:
     error_code = getattr(e, 'errno', None) or getattr(e, 'winerror', None)
     if error_code in (10053, 10054, 10060):
-      clean_log("Radio disconnected!", "⚠️", show_always=True, rate_limit=False)
+      clean_log("Radio disconnected!", "⚠️", show_always=False, rate_limit=False)
       global connection_status
       connection_status = "Disconnected"
       reset_event.set()
@@ -17985,7 +17985,7 @@ def api_login():
         if password.casefold() == ADMIN_PASSWORD_NORM:
             session['authenticated'] = True
             session.permanent = True
-            clean_log(f"🔐 Dashboard login successful from {request.remote_addr}", show_always=True)
+            clean_log(f"🔐 Dashboard login successful from {request.remote_addr}", show_always=False)
             return jsonify({'authenticated': True, 'message': 'Login successful'})
 
         # Check against dashboard passphrase
@@ -17993,14 +17993,14 @@ def api_login():
         if passphrase and password.casefold() == passphrase.strip().casefold():
             session['authenticated'] = True
             session.permanent = True
-            clean_log(f"🔐 Dashboard login successful (passphrase) from {request.remote_addr}", show_always=True)
+            clean_log(f"🔐 Dashboard login successful (passphrase) from {request.remote_addr}", show_always=False)
             return jsonify({'authenticated': True, 'message': 'Login successful'})
 
-        clean_log(f"⚠️ Failed dashboard login attempt from {request.remote_addr}", show_always=True)
+        clean_log(f"⚠️ Failed dashboard login attempt from {request.remote_addr}", show_always=False)
         return jsonify({'error': 'Invalid password', 'authenticated': False}), 401
 
     except Exception as e:
-        clean_log(f"❌ Login error: {e}", show_always=True)
+        clean_log(f"❌ Login error: {e}", show_always=False)
         return jsonify({'error': 'Login failed', 'authenticated': False}), 500
 
 @app.route("/api/logout", methods=["POST"])
@@ -18301,32 +18301,32 @@ def update_dashboard_features():
     try:
         if ai_enabled is not None:
             status = "enabled" if updated.get("ai_enabled", True) else "disabled"
-            clean_log(f"AI responses {status} via dashboard", "🛠️", show_always=True, rate_limit=False)
+            clean_log(f"AI responses {status} via dashboard", "🛠️", show_always=False, rate_limit=False)
         if normalized_disabled is not None:
             if normalized_disabled:
                 clean_log(
                     f"Commands disabled: {', '.join(normalized_disabled)}",
                     "🛠️",
-                    show_always=True,
+                    show_always=False,
                     rate_limit=False,
                 )
             else:
-                clean_log("All commands enabled via dashboard", "🛠️", show_always=True, rate_limit=False)
+                clean_log("All commands enabled via dashboard", "🛠️", show_always=False, rate_limit=False)
         if normalized_mode is not None:
             if normalized_mode == "both":
-                clean_log("Inbound messaging set to channels + DMs", "🛠️", show_always=True, rate_limit=False)
+                clean_log("Inbound messaging set to channels + DMs", "🛠️", show_always=False, rate_limit=False)
             elif normalized_mode == "dm_only":
-                clean_log("Inbound messaging set to DM only", "🛠️", show_always=True, rate_limit=False)
+                clean_log("Inbound messaging set to DM only", "🛠️", show_always=False, rate_limit=False)
             elif normalized_mode == "channel_only":
-                clean_log("Inbound messaging set to channels only", "🛠️", show_always=True, rate_limit=False)
+                clean_log("Inbound messaging set to channels only", "🛠️", show_always=False, rate_limit=False)
         if sanitized_passphrase is not None:
             message = "Admin handoff word updated via dashboard"
             if passphrase_changed:
                 message += " — whitelist reset"
-            clean_log(message, "🔐", show_always=True, rate_limit=False)
+            clean_log(message, "🔐", show_always=False, rate_limit=False)
         if auto_ping_flag is not None:
             status = "enabled" if auto_ping_flag else "disabled"
-            clean_log(f"Auto ping replies {status} via dashboard", "🛠️", show_always=True, rate_limit=False)
+            clean_log(f"Auto ping replies {status} via dashboard", "🛠️", show_always=False, rate_limit=False)
     except Exception:
         pass
 
@@ -18434,7 +18434,7 @@ def remove_dashboard_admin():
             update_feature_flags(admin_whitelist=sorted(current))
     else:
         _refresh_authorized_admins(retain_existing=False)
-    clean_log(f"Admin access revoked for {admin_key}", "🛡️", show_always=True, rate_limit=False)
+    clean_log(f"Admin access revoked for {admin_key}", "🛡️", show_always=False, rate_limit=False)
     return jsonify(gather_feature_snapshot())
 
 
@@ -18460,7 +18460,7 @@ def dashboard_onboarding_get():
             }
         })
     except Exception as exc:
-        clean_log(f"❌ Onboarding settings get failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Onboarding settings get failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18482,11 +18482,11 @@ def dashboard_onboarding_update():
 
         if updates:
             update_onboarding_settings(**updates)
-            clean_log(f"🎓 Onboarding settings updated", show_always=True, rate_limit=False)
+            clean_log(f"🎓 Onboarding settings updated", show_always=False, rate_limit=False)
 
         return jsonify({"success": True, "message": "Settings updated"})
     except Exception as exc:
-        clean_log(f"❌ Onboarding settings update failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Onboarding settings update failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18496,11 +18496,11 @@ def dashboard_system_reboot():
     """Admin-only endpoint to reboot the entire server."""
     try:
         import subprocess
-        clean_log("🔄 System reboot requested via dashboard", show_always=True, rate_limit=False)
+        clean_log("🔄 System reboot requested via dashboard", show_always=False, rate_limit=False)
         subprocess.Popen(["sudo", "reboot"], start_new_session=True)
         return jsonify({"success": True, "message": "Reboot initiated"})
     except Exception as exc:
-        clean_log(f"❌ Reboot failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Reboot failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18566,7 +18566,7 @@ def dashboard_weather_validate():
     except requests.exceptions.RequestException as exc:
         return jsonify({"success": False, "error": f"Geocoding service error: {str(exc)}"}), 500
     except Exception as exc:
-        clean_log(f"❌ Weather validation failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Weather validation failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18603,11 +18603,11 @@ def dashboard_weather_save():
         with WEATHER_CACHE_LOCK:
             WEATHER_CACHE.clear()
 
-        clean_log(f"🌤️ Weather location updated to: {name} ({lat}, {lon})", show_always=True, rate_limit=False)
+        clean_log(f"🌤️ Weather location updated to: {name} ({lat}, {lon})", show_always=False, rate_limit=False)
         return jsonify({"success": True, "message": f"Weather location updated to {name}"})
 
     except Exception as exc:
-        clean_log(f"❌ Weather save failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Weather save failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18667,7 +18667,7 @@ def dashboard_update_check():
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "error": "Request timed out"}), 500
     except Exception as exc:
-        clean_log(f"❌ Update check failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Update check failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18684,7 +18684,7 @@ def dashboard_update_apply():
         if not version:
             return jsonify({"success": False, "error": "No version specified"}), 400
 
-        clean_log(f"📦 Update requested to version: {version}", show_always=True, rate_limit=False)
+        clean_log(f"📦 Update requested to version: {version}", show_always=False, rate_limit=False)
 
         # Get project directory dynamically (works on any machine)
         project_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18724,7 +18724,7 @@ fi
         return jsonify({"success": True, "message": f"Updating to {version}. Server will restart shortly."})
 
     except Exception as exc:
-        clean_log(f"❌ Update apply failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Update apply failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18776,7 +18776,7 @@ def dashboard_create_desktop_shortcuts():
         )
 
         if result.returncode == 0:
-            clean_log("✅ Desktop shortcut created", show_always=True, rate_limit=False)
+            clean_log("✅ Desktop shortcut created", show_always=False, rate_limit=False)
             return jsonify({
                 "success": True,
                 "message": "Desktop shortcut created! Check your desktop for the 'Mesh Master' launcher.",
@@ -18784,13 +18784,13 @@ def dashboard_create_desktop_shortcuts():
             })
         else:
             error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-            clean_log(f"❌ Desktop shortcut failed: {error_msg}", show_always=True, rate_limit=False)
+            clean_log(f"❌ Desktop shortcut failed: {error_msg}", show_always=False, rate_limit=False)
             return jsonify({"success": False, "error": error_msg}), 500
 
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "error": "Shortcut creation timed out"}), 500
     except Exception as exc:
-        clean_log(f"❌ Desktop shortcut creation failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Desktop shortcut creation failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18819,7 +18819,7 @@ def dashboard_install_service():
         else:
             return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
 
-        clean_log(f"🔧 Installing service on {system}...", show_always=True, rate_limit=False)
+        clean_log(f"🔧 Installing service on {system}...", show_always=False, rate_limit=False)
 
         # Run the install script
         service_result = subprocess.run(
@@ -18832,11 +18832,11 @@ def dashboard_install_service():
 
         if service_result.returncode != 0:
             error_msg = service_result.stderr.strip() if service_result.stderr else service_result.stdout.strip()
-            clean_log(f"❌ Service installation failed: {error_msg}", show_always=True, rate_limit=False)
+            clean_log(f"❌ Service installation failed: {error_msg}", show_always=False, rate_limit=False)
             return jsonify({"success": False, "error": error_msg, "output": service_result.stdout}), 500
 
         # Step 2: Create desktop shortcuts
-        clean_log(f"🖥️ Creating desktop shortcuts...", show_always=True, rate_limit=False)
+        clean_log(f"🖥️ Creating desktop shortcuts...", show_always=False, rate_limit=False)
         shortcut_script = os.path.join(project_dir, "scripts", "desktop", "create_shortcuts.py")
 
         shortcut_result = subprocess.run(
@@ -18849,13 +18849,13 @@ def dashboard_install_service():
 
         # Desktop shortcuts are optional - don't fail if they don't work
         if shortcut_result.returncode == 0:
-            clean_log(f"✅ Desktop shortcuts created", show_always=True, rate_limit=False)
+            clean_log(f"✅ Desktop shortcuts created", show_always=False, rate_limit=False)
             shortcuts_msg = " Desktop shortcuts created on your desktop."
         else:
-            clean_log(f"⚠️ Desktop shortcuts failed (optional): {shortcut_result.stderr}", show_always=True, rate_limit=False)
+            clean_log(f"⚠️ Desktop shortcuts failed (optional): {shortcut_result.stderr}", show_always=False, rate_limit=False)
             shortcuts_msg = " (Desktop shortcuts skipped - you can create them manually later)"
 
-        clean_log(f"✅ Installation complete on {system}", show_always=True, rate_limit=False)
+        clean_log(f"✅ Installation complete on {system}", show_always=False, rate_limit=False)
         return jsonify({
             "success": True,
             "message": f"Service installed! Mesh Master will auto-start on boot and restart on crashes.{shortcuts_msg}",
@@ -18865,7 +18865,7 @@ def dashboard_install_service():
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "error": "Service installation timed out (60s limit)"}), 500
     except Exception as exc:
-        clean_log(f"❌ Service installation failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Service installation failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18894,7 +18894,7 @@ def dashboard_uninstall_service():
         else:
             return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
 
-        clean_log(f"🗑️ Uninstalling service on {system}...", show_always=True, rate_limit=False)
+        clean_log(f"🗑️ Uninstalling service on {system}...", show_always=False, rate_limit=False)
 
         # Run the uninstall script
         result = subprocess.run(
@@ -18906,7 +18906,7 @@ def dashboard_uninstall_service():
         )
 
         if result.returncode == 0:
-            clean_log(f"✅ Service uninstalled successfully on {system}", show_always=True, rate_limit=False)
+            clean_log(f"✅ Service uninstalled successfully on {system}", show_always=False, rate_limit=False)
             return jsonify({
                 "success": True,
                 "message": f"Service uninstalled! Mesh Master will no longer auto-start on boot.",
@@ -18914,13 +18914,13 @@ def dashboard_uninstall_service():
             })
         else:
             error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
-            clean_log(f"❌ Service uninstallation failed: {error_msg}", show_always=True, rate_limit=False)
+            clean_log(f"❌ Service uninstallation failed: {error_msg}", show_always=False, rate_limit=False)
             return jsonify({"success": False, "error": error_msg, "output": result.stdout}), 500
 
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "error": "Service uninstallation timed out (60s limit)"}), 500
     except Exception as exc:
-        clean_log(f"❌ Service uninstallation failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Service uninstallation failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -18928,7 +18928,7 @@ def auto_update_worker():
     """Background worker that checks for updates from GitHub and notifies admins via DM."""
     global LAST_UPDATE_CHECK_TIME, AUTO_UPDATE_ENABLED
 
-    clean_log("Auto-update checker started", "📦", show_always=True, rate_limit=False)
+    clean_log("Auto-update checker started", "📦", show_always=False, rate_limit=False)
 
     # Track which version we've already notified about to avoid spam
     last_notified_version = None
@@ -18949,7 +18949,7 @@ def auto_update_worker():
 
             LAST_UPDATE_CHECK_TIME = current_time
 
-            clean_log("🔍 Auto-update: Checking for updates from GitHub...", show_always=True, rate_limit=False)
+            clean_log("🔍 Auto-update: Checking for updates from GitHub...", show_always=False, rate_limit=False)
 
             # Check if we're in quiet hours
             if config.get("mail_notify_quiet_hours_enabled", False):
@@ -18967,14 +18967,14 @@ def auto_update_worker():
                     in_quiet_hours = quiet_start <= current_hour < quiet_end
 
                 if in_quiet_hours:
-                    clean_log(f"🔇 Auto-update: In quiet hours ({quiet_start}:00-{quiet_end}:00), skipping notification", show_always=True, rate_limit=False)
+                    clean_log(f"🔇 Auto-update: In quiet hours ({quiet_start}:00-{quiet_end}:00), skipping notification", show_always=False, rate_limit=False)
                     continue
 
             # Check for updates
             update_available, latest_version, commits_behind = _check_for_updates()
 
             if not update_available:
-                clean_log("✅ Auto-update: Already up to date", show_always=True, rate_limit=False)
+                clean_log("✅ Auto-update: Already up to date", show_always=False, rate_limit=False)
                 last_notified_version = None  # Reset so we notify about next update
                 continue
 
@@ -18982,7 +18982,7 @@ def auto_update_worker():
             if latest_version == last_notified_version:
                 continue
 
-            clean_log(f"📦 Auto-update: {commits_behind} new commit(s) available ({latest_version}). Notifying admins...", show_always=True, rate_limit=False)
+            clean_log(f"📦 Auto-update: {commits_behind} new commit(s) available ({latest_version}). Notifying admins...", show_always=False, rate_limit=False)
 
             # Get current version
             current_version = _get_current_version()
@@ -19003,18 +19003,18 @@ Use /update to upgrade.
                 try:
                     _send_dm_to_user(admin_key, notification_msg)
                     notified_count += 1
-                    clean_log(f"✅ Notified admin {admin_key[:8]}...", show_always=True, rate_limit=False)
+                    clean_log(f"✅ Notified admin {admin_key[:8]}...", show_always=False, rate_limit=False)
                 except Exception as e:
-                    clean_log(f"⚠️ Failed to notify admin {admin_key[:8]}...: {e}", show_always=True, rate_limit=False)
+                    clean_log(f"⚠️ Failed to notify admin {admin_key[:8]}...: {e}", show_always=False, rate_limit=False)
 
             if notified_count > 0:
-                clean_log(f"📨 Auto-update: Notified {notified_count} admin(s) about {latest_version}", show_always=True, rate_limit=False)
+                clean_log(f"📨 Auto-update: Notified {notified_count} admin(s) about {latest_version}", show_always=False, rate_limit=False)
                 last_notified_version = latest_version
             else:
-                clean_log("⚠️ Auto-update: No admins to notify", show_always=True, rate_limit=False)
+                clean_log("⚠️ Auto-update: No admins to notify", show_always=False, rate_limit=False)
 
         except Exception as exc:
-            clean_log(f"❌ Auto-update worker error: {exc}", show_always=True, rate_limit=False)
+            clean_log(f"❌ Auto-update worker error: {exc}", show_always=False, rate_limit=False)
             time.sleep(300)  # Wait 5 minutes before retrying on error
 
 
@@ -29589,10 +29589,10 @@ def _log_config_change(key: str, old_value: Any, new_value: Any, is_security_sen
             friendly_key = _humanize_config_key(key)
             alert_msg = f"🔐 Security Setting Changed\n\nSetting: {friendly_key}\nOld: {old_display}\nNew: {new_display}\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             threading.Thread(target=lambda: send_to_telegram(alert_msg), daemon=True).start()
-            clean_log(f"🚨 Security alert sent: {friendly_key} changed", "🔐", show_always=True, rate_limit=False)
+            clean_log(f"🚨 Security alert sent: {friendly_key} changed", "🔐", show_always=False, rate_limit=False)
 
     except Exception as e:
-        clean_log(f"⚠️ Failed to log config change: {e}", "⚠️", show_always=True, rate_limit=False)
+        clean_log(f"⚠️ Failed to log config change: {e}", "⚠️", show_always=False, rate_limit=False)
 
 
 @app.route('/dashboard/config/snapshot', methods=['GET'])
@@ -29694,7 +29694,7 @@ def update_dashboard_config():
                 'type': 'automessage_quiet_hours',
                 'explainer': _build_config_explainer('automessage_quiet_hours', display_label, tooltip),
             }
-            clean_log("Config 'automessage_quiet_hours' updated via dashboard", "🛠️", show_always=True, rate_limit=False)
+            clean_log("Config 'automessage_quiet_hours' updated via dashboard", "🛠️", show_always=False, rate_limit=False)
             return jsonify({'ok': True, 'entry': entry})
 
         current_value = config.get(key)
@@ -29726,7 +29726,7 @@ def update_dashboard_config():
         try:
             globals()['ADMIN_PASSWORD'] = str(new_value or "password")
             globals()['ADMIN_PASSWORD_NORM'] = str(new_value or "password").strip().casefold()
-            clean_log(f"Dashboard password updated", "🔐", show_always=True, rate_limit=False)
+            clean_log(f"Dashboard password updated", "🔐", show_always=False, rate_limit=False)
         except Exception:
             pass
     if key == 'admin_password_hint':
@@ -29737,13 +29737,13 @@ def update_dashboard_config():
     if key == 'auto_update_enabled':
         try:
             globals()['AUTO_UPDATE_ENABLED'] = bool(new_value)
-            clean_log(f"Auto-update {'enabled' if new_value else 'disabled'}", "📦", show_always=True, rate_limit=False)
+            clean_log(f"Auto-update {'enabled' if new_value else 'disabled'}", "📦", show_always=False, rate_limit=False)
         except Exception:
             pass
     if key == 'auto_update_check_interval_hours':
         try:
             globals()['AUTO_UPDATE_CHECK_INTERVAL_HOURS'] = float(new_value or 24.0)
-            clean_log(f"Auto-update check interval set to {new_value} hours", "📦", show_always=True, rate_limit=False)
+            clean_log(f"Auto-update check interval set to {new_value} hours", "📦", show_always=False, rate_limit=False)
         except Exception:
             pass
     if key == 'cooldown_enabled':
@@ -29755,7 +29755,7 @@ def update_dashboard_config():
     if key == 'ollama_model':
         try:
             globals()['OLLAMA_MODEL'] = str(new_value)
-            clean_log(f"Ollama model set to {new_value}", "🧠", show_always=True, rate_limit=False)
+            clean_log(f"Ollama model set to {new_value}", "🧠", show_always=False, rate_limit=False)
         except Exception:
             pass
     # Apply select offline wiki settings at runtime
@@ -29836,7 +29836,7 @@ def update_dashboard_config():
             globals()['FEED_MIN_BUDGET'] = max(100, int(new_value))
         except Exception:
             pass
-    clean_log(f"Config '{key}' updated via dashboard", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Config '{key}' updated via dashboard", "🛠️", show_always=False, rate_limit=False)
     display, tooltip = _format_config_value(key, new_value)
     entry = {
         'key': key,
@@ -30254,7 +30254,7 @@ def log_dashboard_js_error():
     if stack:
         first_line = str(stack).splitlines()[0]
         parts.append(first_line)
-    clean_log(" | ".join(parts), "⚠️", show_always=True, rate_limit=False)
+    clean_log(" | ".join(parts), "⚠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True})
 
 
@@ -30469,7 +30469,7 @@ def set_radio_hops():
             node.writeConfig('lora')
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to set hop limit: {exc}'}), 500
-    clean_log(f"Radio hop limit set to {hop_limit}", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Radio hop limit set to {hop_limit}", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'hop_limit': hop_limit})
 
 
@@ -30502,13 +30502,13 @@ def set_radio_names():
             # Write config to persist the change
             try:
                 node.writeConfig()
-                clean_log("Writing config to persist node names...", "💾", show_always=True, rate_limit=False)
+                clean_log("Writing config to persist node names...", "💾", show_always=False, rate_limit=False)
             except Exception as e:
-                clean_log(f"Warning: Failed to write config: {e}", "⚠️", show_always=True, rate_limit=False)
+                clean_log(f"Warning: Failed to write config: {e}", "⚠️", show_always=False, rate_limit=False)
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to set node names: {exc}'}), 500
 
-    clean_log(f"Node names updated: '{long_name}' / '{short_name or '(unchanged)'}'", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Node names updated: '{long_name}' / '{short_name or '(unchanged)'}'", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'long_name': long_name, 'short_name': short_name})
 
 
@@ -30547,7 +30547,7 @@ def set_radio_role():
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to set role: {exc}'}), 500
 
-    clean_log(f"Node role set to {role_name} ({role_value})", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Node role set to {role_name} ({role_value})", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'role': role_value, 'role_name': role_name})
 
 
@@ -30601,7 +30601,7 @@ def get_builtin_command_source(command_name):
         return jsonify({'success': True, 'source': source_code, 'line_start': command_start, 'line_count': len(command_lines)})
 
     except Exception as exc:
-        clean_log(f"❌ Failed to get command source: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to get command source: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -30667,7 +30667,7 @@ def update_builtin_command_source(command_name):
         with source_file.open('w', encoding='utf-8') as f:
             f.write(new_source_content)
 
-        clean_log(f"✏️ Updated command source: /{command_name} (backup: {backup_file.name})", show_always=True, rate_limit=False)
+        clean_log(f"✏️ Updated command source: /{command_name} (backup: {backup_file.name})", show_always=False, rate_limit=False)
 
         # Restart the service to apply changes
         import subprocess
@@ -30676,7 +30676,7 @@ def update_builtin_command_source(command_name):
         return jsonify({'success': True, 'message': 'Command updated successfully. Service restarting...', 'backup': str(backup_file)})
 
     except Exception as exc:
-        clean_log(f"❌ Failed to update command source: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to update command source: {exc}", show_always=False, rate_limit=False)
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(exc)}), 500
@@ -30736,7 +30736,7 @@ def get_builtin_commands():
         return jsonify({'success': True, 'commands': builtin_commands})
 
     except Exception as exc:
-        clean_log(f"❌ Failed to get built-in commands: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to get built-in commands: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -30775,7 +30775,7 @@ def set_radio_modem_preset():
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to set modem preset: {exc}'}), 500
 
-    clean_log(f"Modem preset set to {modem_name} ({modem_preset})", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Modem preset set to {modem_name} ({modem_preset})", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'modem_preset': modem_preset, 'modem_preset_name': modem_name})
 
 
@@ -30807,7 +30807,7 @@ def set_radio_frequency_slot():
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to set frequency slot: {exc}'}), 500
 
-    clean_log(f"Frequency slot set to {frequency_slot}", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Frequency slot set to {frequency_slot}", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'frequency_slot': frequency_slot})
 
 
@@ -30868,7 +30868,7 @@ def add_radio_channel():
             node.writeChannel(target_idx)
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to add channel: {exc}'}), 500
-    clean_log(f"Added secondary channel at index {target_idx}", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Added secondary channel at index {target_idx}", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'channel': _build_radio_state_dict().get('channels', [])[target_idx]})
 
 
@@ -30912,7 +30912,7 @@ def update_radio_channel():
             node.writeChannel(index)
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to update channel: {exc}'}), 500
-    clean_log(f"Updated channel {index}", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Updated channel {index}", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'channel': _build_radio_state_dict().get('channels', [])[index]})
 
 
@@ -30940,7 +30940,7 @@ def remove_radio_channel():
             node.deleteChannel(index)
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to delete channel: {exc}'}), 500
-    clean_log(f"Deleted channel at index {index}", "🛠️", show_always=True, rate_limit=False)
+    clean_log(f"Deleted channel at index {index}", "🛠️", show_always=False, rate_limit=False)
     return jsonify({'ok': True, 'channels': _build_radio_state_dict().get('channels', [])})
 
 
@@ -30957,7 +30957,7 @@ def get_custom_commands():
 
         return jsonify({'success': True, 'commands': data.get('commands', [])})
     except Exception as exc:
-        clean_log(f"❌ Failed to load custom commands: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to load custom commands: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31023,11 +31023,11 @@ def create_custom_command():
         with commands_file.open('w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        clean_log(f"✨ Custom command created: /{name}", show_always=True, rate_limit=False)
+        clean_log(f"✨ Custom command created: /{name}", show_always=False, rate_limit=False)
         return jsonify({'success': True, 'command': new_command})
 
     except Exception as exc:
-        clean_log(f"❌ Failed to create custom command: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to create custom command: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31094,11 +31094,11 @@ def update_custom_command(command_id):
         with commands_file.open('w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        clean_log(f"✏️ Custom command updated: /{name}", show_always=True, rate_limit=False)
+        clean_log(f"✏️ Custom command updated: /{name}", show_always=False, rate_limit=False)
         return jsonify({'success': True, 'command': commands[command_index]})
 
     except Exception as exc:
-        clean_log(f"❌ Failed to update custom command: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to update custom command: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31129,10 +31129,10 @@ def delete_custom_command(command_id):
         with commands_file.open('w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        clean_log(f"🗑️ Custom command deleted: /{command['name']}", show_always=True, rate_limit=False)
+        clean_log(f"🗑️ Custom command deleted: /{command['name']}", show_always=False, rate_limit=False)
         return jsonify({'success': True})
     except Exception as exc:
-        clean_log(f"❌ Failed to delete command: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to delete command: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31210,7 +31210,7 @@ def bluetooth_scan():
             return jsonify({'success': True, 'devices': meshtastic_devices, 'total_count': len(all_devices)})
 
     except Exception as exc:
-        clean_log(f"❌ Bluetooth scan failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Bluetooth scan failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31235,12 +31235,12 @@ def bluetooth_connect():
         with open('config.json', 'w') as f:
             json.dump(config, f, indent=2)
 
-        clean_log(f"📱 Bluetooth device set: {device_address}", show_always=True, rate_limit=False)
+        clean_log(f"📱 Bluetooth device set: {device_address}", show_always=False, rate_limit=False)
 
         # Auto-restart to connect immediately
         import subprocess
         import sys
-        clean_log(f"🔄 Restarting to connect via Bluetooth...", show_always=True, rate_limit=False)
+        clean_log(f"🔄 Restarting to connect via Bluetooth...", show_always=False, rate_limit=False)
 
         # Return success immediately, then restart
         def restart_app():
@@ -31260,7 +31260,7 @@ def bluetooth_connect():
         })
 
     except Exception as exc:
-        clean_log(f"❌ Bluetooth connect failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Bluetooth connect failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31278,16 +31278,16 @@ def bluetooth_forget():
         with open('config.json', 'w') as f:
             json.dump(config, f, indent=2)
 
-        clean_log(f"🔌 Bluetooth device forgotten", show_always=True, rate_limit=False)
+        clean_log(f"🔌 Bluetooth device forgotten", show_always=False, rate_limit=False)
 
         return jsonify({'success': True, 'message': 'Bluetooth device forgotten'})
 
     except Exception as exc:
-        clean_log(f"❌ Failed to forget device: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to forget device: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
     except Exception as exc:
-        clean_log(f"❌ Failed to delete custom command: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Failed to delete custom command: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31332,7 +31332,7 @@ def serial_scan():
         return jsonify({'success': True, 'ports': ports})
 
     except Exception as exc:
-        clean_log(f"❌ Serial port scan failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Serial port scan failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31385,7 +31385,7 @@ def serial_test_baud():
         })
 
     except Exception as exc:
-        clean_log(f"❌ Baud rate detection failed: {exc}", show_always=True, rate_limit=False)
+        clean_log(f"❌ Baud rate detection failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -31526,7 +31526,7 @@ def connect_interface():
                 connection_status = "Disconnected"
                 last_error_message = f"BLE connection failed: {exc}"
                 error_msg = f"⚠️ Bluetooth connection to {BLUETOOTH_DEVICE} failed: {exc}"
-                clean_log(error_msg, "⚠️", show_always=True)
+                clean_log(error_msg, "⚠️", show_always=False)
 
                 # Send Telegram notification
                 try:
@@ -31539,7 +31539,7 @@ def connect_interface():
             clean_log(
                 "Bluetooth requested but BLEInterface not available - install python3-bleak",
                 "⚠️",
-                show_always=True,
+                show_always=False,
             )
 
         # 3️⃣  Local mesh interface ---------------------------------------
@@ -31562,7 +31562,7 @@ def connect_interface():
                 clean_log(
                     f"{last_error_message}; falling back to SerialInterface",
                     "⚠️",
-                    show_always=True,
+                    show_always=False,
                 )
             finally:
                 if mesh_candidate and not mesh_candidate.isConnected.is_set():
@@ -31586,7 +31586,7 @@ def connect_interface():
                     wait = min(5, 1 + attempt)
                     # Only show simple message on first attempt
                     if attempt == 1:
-                        clean_log("Connecting to radio...", "🔄", show_always=True, rate_limit=False)
+                        clean_log("Connecting to radio...", "🔄", show_always=False, rate_limit=False)
                     add_script_log(f"Retry {attempt} failed opening serial {SERIAL_PORT}: {e}")
                     time.sleep(wait)
             else:
@@ -31717,7 +31717,7 @@ def send_to_telegram(message: str):
     def send_sync():
         bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
         if not bot_token:
-            clean_log(f"❌ No bot token available", "❌", show_always=True, rate_limit=False)
+            clean_log(f"❌ No bot token available", "❌", show_always=False, rate_limit=False)
             return
 
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -31885,7 +31885,7 @@ if TELEGRAM_AVAILABLE:
                                     if packet_id:
                                         packet_ids.append(packet_id)
                                 except Exception as e:
-                                    clean_log(f"❌ Send failed: {e}", "❌", show_always=True, rate_limit=False)
+                                    clean_log(f"❌ Send failed: {e}", "❌", show_always=False, rate_limit=False)
 
                             # For channel messages, just confirm sent (no individual ACKs expected)
                             if packet_ids:
@@ -31899,7 +31899,7 @@ if TELEGRAM_AVAILABLE:
                                     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
                                     requests.post(url, json={"chat_id": chat_id, "text": result_msg}, timeout=10)
                                 except Exception as e:
-                                    clean_log(f"❌ Channel ack notify failed: {e}", "❌", show_always=True, rate_limit=False)
+                                    clean_log(f"❌ Channel ack notify failed: {e}", "❌", show_always=False, rate_limit=False)
 
                         loop.run_in_executor(None, send_channel_and_track)
                         add_script_log("Telegram channel message queued")
@@ -31932,7 +31932,7 @@ if TELEGRAM_AVAILABLE:
                             response_queue.put(task, block=False)
                             add_script_log(f"AI query queued (queue: {response_queue.qsize()})")
                         except Exception as e:
-                            clean_log(f"❌ Queue put failed: {e}", "❌", show_always=True, rate_limit=False)
+                            clean_log(f"❌ Queue put failed: {e}", "❌", show_always=False, rate_limit=False)
                             await update.message.reply_text(f"❌ Queue full: {e}")
                     else:
                         add_script_log(f"AI disabled, sending error")
@@ -32157,12 +32157,12 @@ def main():
                     ALARM_TIMER_MANAGER.set_interface(interface)
             except Exception:
                 pass
-            clean_log(f"AI provider: {AI_PROVIDER}", "🧠", show_always=True)
+            clean_log(f"AI provider: {AI_PROVIDER}", "🧠", show_always=False)
             if HOME_ASSISTANT_ENABLED:
                 print(f"Home Assistant multi-mode is ENABLED. Channel index: {HOME_ASSISTANT_CHANNEL_INDEX}")
                 if HOME_ASSISTANT_ENABLE_PIN:
                     print("Home Assistant secure PIN protection is ENABLED.")
-            clean_log("Connection successful! Running until error or Ctrl+C.", "🟢", show_always=True, rate_limit=True)
+            clean_log("Connection successful! Running until error or Ctrl+C.", "🟢", show_always=False, rate_limit=True)
             add_script_log("Connection established successfully.")
             # Inner loop: periodically check if a reset has been signaled
             while not reset_event.is_set():
@@ -32179,7 +32179,7 @@ def main():
                 pass
             error_code = getattr(e, 'errno', None) or getattr(e, 'winerror', None)
             if error_code in (10053, 10054, 10060):
-                clean_log("Radio disconnected! Reconnecting...", "🔄", show_always=True, rate_limit=False)
+                clean_log("Radio disconnected! Reconnecting...", "🔄", show_always=False, rate_limit=False)
                 time.sleep(5)
                 reset_event.clear()
                 continue
@@ -32284,7 +32284,7 @@ def low_battery_monitor():
                                 radio_name = user.get('longName', 'Radio')
                                 
                                 # Log to activity feed
-                                clean_log(f"⚠️ Low battery: {radio_name} at {battery_level}%", "🪫", show_always=True)
+                                clean_log(f"⚠️ Low battery: {radio_name} at {battery_level}%", "🪫", show_always=False)
                                 
                                 # Telegram alert
                                 try:
@@ -32325,7 +32325,7 @@ def scheduled_refresh_monitor():
     try:
       time.sleep(interval)
       add_script_log(f"Scheduled auto-refresh: requesting reconnect after {AUTO_REFRESH_MINUTES} minutes")
-      clean_log("Performing scheduled refresh of radio connection...", "🧽", show_always=True)
+      clean_log("Performing scheduled refresh of radio connection...", "🧽", show_always=False)
       reset_event.set()
     except Exception:
       # Never crash; wait a bit and continue
@@ -32383,7 +32383,7 @@ def heartbeat_worker(period_sec=30):
             power_cycle=True,
           )
       # Short, periodic heartbeat log; always show to keep logs alive
-      clean_log(f"HB conn={status['conn']} q={status['queue']} rx={status['rx_age_s']}s tx={status['tx_age_s']}s ai={status['ai_age_s']}s", "💓", show_always=True, rate_limit=False)
+      clean_log(f"HB conn={status['conn']} q={status['queue']} rx={status['rx_age_s']}s tx={status['tx_age_s']}s ai={status['ai_age_s']}s", "💓", show_always=False, rate_limit=False)
       periodic_status_update()
       time.sleep(max(5, int(period_sec)))
     except Exception as e:
