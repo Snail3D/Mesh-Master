@@ -23201,12 +23201,9 @@ def dashboard():
     <!-- Battery Status Display (Upper Left Corner) -->
     <div id="batteryStatusHeader" style="position: fixed; top: 12px; left: 12px; z-index: 1000; background: var(--bg-panel); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
       <span id="batteryIcon" style="font-size: 18px;">🔋</span>
-      <div style="display: flex; flex-direction: column; gap: 2px;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span id="batteryLevel" style="font-weight: 600;">--</span>
-          <span id="powerStatus" style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase;"></span>
-        </div>
-        <div id="radioName" style="font-size: 10px; color: var(--text-secondary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span id="batteryLevel" style="font-weight: 600;">--</span>
+        <span id="powerStatus" style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase;"></span>
       </div>
     </div>
     <main class="content">
@@ -28954,7 +28951,6 @@ def dashboard():
             const batteryIcon = document.getElementById('batteryIcon');
             const batteryLevel = document.getElementById('batteryLevel');
             const powerStatus = document.getElementById('powerStatus');
-            const radioName = document.getElementById('radioName');
 
             if (!batteryLevel) {
               console.warn('Battery display elements not found in DOM');
@@ -28979,7 +28975,6 @@ def dashboard():
             }
 
             batteryLevel.textContent = `${data.battery_level}%`;
-            radioName.textContent = data.radio_name || 'Unknown Radio';
 
             // Update Bluetooth panel if connected via Bluetooth
             if (data.connection_type === 'Bluetooth' && bluetoothConnectedName) {
