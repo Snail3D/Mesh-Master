@@ -27772,7 +27772,8 @@ def dashboard():
       if (normalized === "connected") {
         banner.classList.add("is-connected");
         const typeEmoji = connectionType === 'Bluetooth' ? '🔵' : (connectionType === 'WiFi' ? '📡' : '🔌');
-        banner.innerHTML = `<span>${typeEmoji} Connected</span><span style="margin-left: 12px; opacity: 0.7; font-size: 12px;">${deviceName || 'Unknown Device'}</span>`;
+        const typeName = connectionType || 'Unknown';
+        banner.innerHTML = `<span>${typeEmoji} Connected via ${typeName}</span><span style="margin-left: 12px; opacity: 0.7; font-size: 12px;">${deviceName || 'Unknown Device'}</span>`;
       } else if (normalized === "connecting" || normalized === "reconnecting") {
         banner.classList.add("is-degraded");
         banner.textContent = status;
