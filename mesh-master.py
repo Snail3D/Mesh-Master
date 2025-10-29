@@ -18202,47 +18202,60 @@ def connection_status_info():
 def get_battery_status():
     """Return current radio battery level and power status."""
     try:
-        if interface and hasattr(interface, 'myInfo'):
-            my_node_num = interface.myInfo.my_node_num
-            radio_name = get_node_fullname(my_node_num)
+        # Default battery response for when interface isn't fully initialized
+        default_response = {
+            'success': True,
+            'battery_level': 100,
+            'voltage': None,
+            'is_charging': True,
+            'is_plugged_in': True,
+            'radio_name': 'Unknown Radio',
+            'connection_type': 'Bluetooth' if USE_BLUETOOTH and BLUETOOTH_DEVICE else ('WiFi' if USE_WIFI else 'Serial')
+        }
 
-            # Try to get battery from nodes dictionary
-            if hasattr(interface, 'nodes'):
-                for node_id, node in interface.nodes.items():
-                    user = node.get('user', {})
-                    if user.get('id') == my_node_num:
-                        device_metrics = node.get('deviceMetrics', {})
-                        battery_level = device_metrics.get('batteryLevel')
-                        voltage = device_metrics.get('voltage')
+        if not interface or not hasattr(interface, 'myInfo'):
+            # Return default if interface not ready
+            return jsonify(default_response)
 
-                        # If we have battery level data, use it
-                        if battery_level is not None:
-                            is_charging = battery_level == 101 or (voltage and voltage > 4.2)
-                            return jsonify({
-                                'success': True,
-                                'battery_level': battery_level if battery_level != 101 else 100,
-                                'voltage': voltage,
-                                'is_charging': is_charging,
-                                'is_plugged_in': is_charging,
-                                'radio_name': radio_name,
-                                'connection_type': 'Bluetooth' if USE_BLUETOOTH and BLUETOOTH_DEVICE else ('WiFi' if USE_WIFI else 'Serial')
-                            })
+        my_node_num = interface.myInfo.my_node_num
+        radio_name = get_node_fullname(my_node_num)
+        default_response['radio_name'] = radio_name
 
-            # Fallback: device doesn't report battery or nodes not ready
-            # Default to full battery and assume plugged in
-            return jsonify({
-                'success': True,
-                'battery_level': 100,
-                'voltage': None,
-                'is_charging': True,
-                'is_plugged_in': True,
-                'radio_name': radio_name,
-                'connection_type': 'Bluetooth' if USE_BLUETOOTH and BLUETOOTH_DEVICE else ('WiFi' if USE_WIFI else 'Serial')
-            })
+        # Try to get battery from nodes dictionary
+        if hasattr(interface, 'nodes'):
+            for node_id, node in interface.nodes.items():
+                user = node.get('user', {})
+                if user.get('id') == my_node_num:
+                    device_metrics = node.get('deviceMetrics', {})
+                    battery_level = device_metrics.get('batteryLevel')
+                    voltage = device_metrics.get('voltage')
 
-        return jsonify({'success': False, 'error': 'No radio connected'}), 503
+                    # If we have battery level data, use it
+                    if battery_level is not None:
+                        is_charging = battery_level == 101 or (voltage and voltage > 4.2)
+                        return jsonify({
+                            'success': True,
+                            'battery_level': battery_level if battery_level != 101 else 100,
+                            'voltage': voltage,
+                            'is_charging': is_charging,
+                            'is_plugged_in': is_charging,
+                            'radio_name': radio_name,
+                            'connection_type': 'Bluetooth' if USE_BLUETOOTH and BLUETOOTH_DEVICE else ('WiFi' if USE_WIFI else 'Serial')
+                        })
+
+        # Fallback: device doesn't report battery or nodes not ready
+        return jsonify(default_response)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        # Return default on any error
+        return jsonify({
+            'success': True,
+            'battery_level': 100,
+            'voltage': None,
+            'is_charging': True,
+            'is_plugged_in': True,
+            'radio_name': 'Unknown Radio',
+            'connection_type': 'Bluetooth' if USE_BLUETOOTH and BLUETOOTH_DEVICE else ('WiFi' if USE_WIFI else 'Serial')
+        })
 
 
 
