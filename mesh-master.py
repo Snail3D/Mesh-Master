@@ -3937,7 +3937,7 @@ def _get_wiki_store_for_lang(language_hint: Optional[str]) -> Optional[OfflineWi
 OFFLINE_WIKI_STORE = OfflineWikiStore(OFFLINE_WIKI_INDEX, base_dir=OFFLINE_WIKI_DIR) if OFFLINE_WIKI_ENABLED else None
 if OFFLINE_WIKI_STORE and not OFFLINE_WIKI_STORE.is_ready():
     err = OFFLINE_WIKI_STORE.error_message() or f"Offline wiki index has no entries ({OFFLINE_WIKI_INDEX})."
-    clean_log(err, "⚠️", show_always=False, rate_limit=False)
+    # Note: can't use clean_log() here as CLEAN_LOGS not yet defined
 
 # ---------------------------------
 # Offline Crawl Storage
