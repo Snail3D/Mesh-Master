@@ -196,7 +196,7 @@ data/reports/
 data/onboarding_state.json
 data/config_audit.json
 data/saved_contexts.json
-data/feature_flags.json
+data/feature_flags.json          # ⚠️ SECURITY: Contains admin IDs & passphrase - NEVER commit!
 data/user_access.json
 data/user_languages.json
 data/alarms_timers.json
