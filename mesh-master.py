@@ -1278,7 +1278,16 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
     # Try to get radio name from interface
     try:
         if interface and hasattr(interface, 'myInfo') and interface.myInfo:
-            radio_name = interface.myInfo.longName or interface.myInfo.shortName or 'Unknown Radio'
+            # First try to get from nodes dictionary (most reliable)
+            if hasattr(interface, 'nodes'):
+                for node_id, node in interface.nodes.items():
+                    user = node.get('user', {})
+                    if user.get('id') == interface.myInfo.my_node_num:
+                        radio_name = user.get('longName', user.get('shortName', 'Unknown Radio'))
+                        break
+            # Fallback to myInfo if not found in nodes
+            if radio_name == 'Unknown Radio':
+                radio_name = interface.myInfo.longName or interface.myInfo.shortName or 'Unknown Radio'
     except Exception:
         pass
 
