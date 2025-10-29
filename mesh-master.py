@@ -28939,11 +28939,6 @@ def dashboard():
       // Poll every 3 seconds
       setInterval(pollConnectionStatus, 3000);
       pollConnectionStatus(); // Initial poll
-    });
-  </script>
-
-  <!-- Tutorial System -->
-  <div id="tutorialOverlay" class="tutorial-overlay">
 
       // =====================================================
       // BATTERY STATUS MONITORING
@@ -28999,6 +28994,12 @@ def dashboard():
       // Poll battery every 30 seconds
       setInterval(pollBatteryStatus, 30000);
       pollBatteryStatus(); // Initial call
+
+    });
+  </script>
+
+  <!-- Tutorial System -->
+  <div id="tutorialOverlay" class="tutorial-overlay">
 
 
 
