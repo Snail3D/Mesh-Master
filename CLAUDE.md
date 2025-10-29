@@ -786,6 +786,6 @@ All sensitive data gitignored (see .gitignore for complete list)
 
 ---
 
-**Last Updated:** 2025-10-10
-**Version:** 2.5
+**Last Updated:** 2025-10-28
+**Version:** 2.5.1
 **Maintainer:** snailpi (Snail3D fork)
