@@ -700,14 +700,14 @@ If you prefer manual setup or need advanced customization, see [INSTALL.md](INST
 ## Everyday Commands
 
 - **Getting started** — `/onboard`, `/onboarding`, or `/onboardme` for an interactive tour (DM only).
-- **AI conversations** — `/ai`, `/bot`, `/query`, or `/data` (DM or configured channels).
+- **AI conversations** — `/ai` (DM doesn't need the prefix to hit the AI, just from channels).
 - **Network & Relay** — `<shortname> <message>` to relay messages across networks. `/nodes` lists all reachable nodes, `/node <shortname>` shows signal details, `/networks` lists connected channels. `/optout` to disable receiving relays, `/optin` to re-enable.
 - **Mesh mail** — `/m <mailbox> <message>` or `/mail <recipient> <message>`, `/c [mailbox]` or `/checkmail`, `/emailhelp`, `/wipe ...`.
 - **Quick knowledge** — `/bible [topic]`, `/chucknorris`, `/elpaso`, `/meshtastic`, `/offline wiki`, `/web <query>`, `/wiki <topic>`, `/find <query>`, `/drudge`, `/weather`.
 - **Field notes** — `/log <title>` for private notes (visible only to the author), `/checklog [title]` or `/readlog [title]` to view logs; `/report <title>` for public reports (searchable by all), `/checkreport [title]` or `/readreport [title]` to view reports. Both are DM-only. Use `/find <query>` to search with fuzzy matching.
-- **Personality & context** — `/aipersonality [persona]` (list/set/prompt/reset), `/vibe [tone]`, `/save [name]`, `/recall [name]`, `/reset`, `/chathistory`.
+- **Personality & context** (list/set/prompt/reset), `/vibe [tone]`, `/save [name]`, `/recall [name]`, `/reset`, `/chathistory`.
 - **Games** — `/games`, `/hangman start`, `/wordle start`, `/wordladder start cold warm`, `/adventure start`, `/cipher start`, `/quizbattle start`, `/morse start`, `/rps`, `/coinflip`, `/yahtzee`, `/blackjack`.
-- **Location & status** — `/test`, `/motd`, `/menu`, Meshtastic "Request Position".
+- **Location & status** — `/test`, `/motd`, `/menu`, Meshtastic "Request Position" button returns hyperlinked google maps pin.
 - **Version & updates** — `/about` shows current version, credits, links, and checks for updates available on GitHub.
 - **Admin (DM-only)** — `/admin` (console), `/status`, `/whatsoff`, `/allcommands`, `/ai on/off`, `/channels+dm on`, `/channels on`, `/dm on`, `/autoping on/off`, `/<command> on/off`, `/changemotd`, `/changeprompt`, `/showprompt`, `/showmodel`, `/selectmodel`, `/hops <0-7>`, `/stop`, `/reboot`, `/update` (pulls latest from GitHub and restarts). See [COMMANDS.md](COMMANDS.md) for whitelist configuration.
 
