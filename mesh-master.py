@@ -18230,10 +18230,6 @@ def get_battery_status():
                     battery_level = device_metrics.get('batteryLevel')
                     voltage = device_metrics.get('voltage')
 
-                    # Debug: log what we're getting from the radio
-                    if device_metrics:
-                        add_script_log(f"📊 Battery telemetry from radio: level={battery_level}, voltage={voltage}, all_metrics={device_metrics}")
-
                     # If we have battery level data, use it
                     if battery_level is not None:
                         is_charging = battery_level == 101 or (voltage and voltage > 4.2)
@@ -23202,14 +23198,6 @@ def dashboard():
       </div>
     </header>
     <div id="connectionBanner" class="connection-banner is-unknown">Checking connection…</div>
-    <!-- Battery Status Display (Upper Left Corner) -->
-    <div id="batteryStatusHeader" style="position: fixed; top: 12px; left: 12px; z-index: 1000; background: var(--bg-panel); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-      <span id="batteryIcon" style="font-size: 18px;">🔋</span>
-      <div style="display: flex; align-items: center; gap: 6px;">
-        <span id="batteryLevel" style="font-weight: 600;">--</span>
-        <span id="powerStatus" style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase;"></span>
-      </div>
-    </div>
     <main class="content">
       <nav class="panel-menu" id="panelMenu" aria-label="Dashboard sections"></nav>
       <section class="panel-grid" data-panel-zone="dashboard">
@@ -28940,59 +28928,6 @@ def dashboard():
       // Poll every 3 seconds
       setInterval(pollConnectionStatus, 3000);
       pollConnectionStatus(); // Initial poll
-
-      // =====================================================
-      // BATTERY STATUS MONITORING
-      // =====================================================
-      async function pollBatteryStatus() {
-        try {
-          const response = await fetch('/dashboard/battery', {
-            credentials: 'include',
-          });
-          const data = await response.json();
-
-          if (data.success && data.battery_level !== undefined) {
-            const batteryIcon = document.getElementById('batteryIcon');
-            const batteryLevel = document.getElementById('batteryLevel');
-            const powerStatus = document.getElementById('powerStatus');
-
-            if (!batteryLevel) {
-              console.warn('Battery display elements not found in DOM');
-              return;
-            }
-
-            // Update battery icon based on level and charging status
-            if (data.is_charging) {
-              batteryIcon.textContent = '🔌';
-              powerStatus.textContent = 'Plugged in';
-            } else {
-              if (data.battery_level >= 75) {
-                batteryIcon.textContent = '🔋';
-              } else if (data.battery_level >= 50) {
-                batteryIcon.textContent = '🔋';
-              } else if (data.battery_level >= 25) {
-                batteryIcon.textContent = '🪫';
-              } else {
-                batteryIcon.textContent = '🪫';
-              }
-              powerStatus.textContent = 'On battery';
-            }
-
-            batteryLevel.textContent = `${data.battery_level}%`;
-
-            // Update Bluetooth panel if connected via Bluetooth
-            if (data.connection_type === 'Bluetooth' && bluetoothConnectedName) {
-              bluetoothConnectedName.textContent = data.radio_name;
-            }
-          }
-        } catch (error) {
-          console.error('Battery poll failed:', error);
-        }
-      }
-
-      // Poll battery every 30 seconds
-      setInterval(pollBatteryStatus, 30000);
-      pollBatteryStatus(); // Initial call
 
     });
   </script>
