@@ -1095,7 +1095,7 @@ def _value_delta(current: Optional[Union[int, float]], previous: Optional[Union[
 
 
 def _gather_dashboard_metrics() -> Dict[str, Any]:
-    global LAST_METRICS_SNAPSHOT
+    global LAST_METRICS_SNAPSHOT, interface
     now = datetime.now().astimezone()
     uptime_delta = now - server_start_time if server_start_time else timedelta(0)
     uptime_label = _humanize_uptime(uptime_delta)
@@ -28711,8 +28711,9 @@ def dashboard():
           const statusData = await statusResp.json();
 
           // Get config to check if Bluetooth is enabled
-          const configResp = await fetch('/dashboard/config');
-          const configData = await configResp.json();
+          const configResp = await fetch('/dashboard/config/snapshot');
+          const configResult = await configResp.json();
+          const configData = (configResult && configResult.config) ? configResult.config : {};
 
           const useBluetooth = configData.use_bluetooth === true || configData.use_bluetooth === 'true';
           const bluetoothDevice = configData.bluetooth_device;
