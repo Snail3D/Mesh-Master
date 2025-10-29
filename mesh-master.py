@@ -27756,7 +27756,7 @@ def dashboard():
       if (logAutoScroll) {
         const elapsed = Date.now() - logLastMessageAt;
         if (elapsed > LOG_WAIT_THRESHOLD_MS) {
-          setActivityScrollLabel("Waiting…", false);
+          // Keep showing "Streaming" even when idle (removed "Waiting..." indicator)
         } else {
           setActivityScrollLabel("Streaming", true);
         }
