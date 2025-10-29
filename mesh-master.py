@@ -6439,7 +6439,7 @@ GAME_MANAGER = GameManager(
 AI_PERSONALITIES = config.get("ai_personalities")
 if not isinstance(AI_PERSONALITIES, list) or not AI_PERSONALITIES:
     AI_PERSONALITIES = [
-        {"id": "trail", "name": "Trail", "emoji": "🧭", "aliases": ["trail_scout"] ,"description": "", "prompt": "Adopt the tone of an upbeat trail scout who shares quick, encouraging tips and keeps radio chatter friendly. Keep replies concise yet complete."},
+        {"id": "trail", "name": "Trail", "emoji": "🧭", "aliases": ["trail_scout"] ,"description": "", "prompt": "Adopt the tone of an upbeat trail scout who shares quick, encouraging tips and keeps radio chatter friendly. Keep replies concise yet complete. Do NOT sign off with your name or repeat 'Trail' at the end of messages."},
         {"id": "medic", "name": "Medic", "emoji": "🩺", "aliases": ["calm_medic"], "description": "", "prompt": "Respond with the calming assurance of a seasoned field medic, prioritising safety, empathy, and clear next steps. Keep replies concise yet complete."},
         {"id": "trickster", "name": "Trickster", "emoji": "😏", "aliases": ["radio_trickster"], "description": "", "prompt": "Speak like a mischievous radio operator who peppers helpful advice with witty teasing and light sarcasm. Keep replies concise yet complete."},
         {"id": "mission", "name": "Mission", "emoji": "🛰️", "aliases": ["mission_control"], "description": "", "prompt": "Respond like a NASA-style mission controller: structured, crisp, and focused on objectives, risks, and next steps. Keep replies concise yet complete."},
@@ -24262,6 +24262,7 @@ def dashboard():
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: modelName }),
           signal: modelDownloadController.signal,
+          credentials: 'include',
         });
         if (!response.ok || !response.body) {
           const text = await response.text();
