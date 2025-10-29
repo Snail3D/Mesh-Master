@@ -1278,6 +1278,12 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
     # Try to get radio name from interface using the same method as the configuration panel
     try:
         if interface:
+            # Ensure config is loaded (same as radio state builder)
+            try:
+                interface.waitForConfig()
+            except Exception:
+                pass
+
             long_name = interface.getLongName()
             short_name = interface.getShortName()
             radio_name = long_name or short_name or 'Unknown Radio'
