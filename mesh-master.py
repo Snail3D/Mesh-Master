@@ -1270,12 +1270,27 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
         ),
     }
 
+    # Determine connection type and device name
+    connection_type = 'Unknown'
+    device_name = 'Unknown Device'
+    if USE_WIFI and WIFI_HOST:
+        connection_type = 'WiFi'
+        device_name = f"{WIFI_HOST}:{WIFI_PORT}"
+    elif USE_BLUETOOTH and BLUETOOTH_DEVICE:
+        connection_type = 'Bluetooth'
+        device_name = BLUETOOTH_DEVICE
+    elif SERIAL_PORT:
+        connection_type = 'Serial'
+        device_name = SERIAL_PORT.split('/')[-1]  # Extract device name from path
+
     metrics = {
         'timestamp': now.isoformat(),
         'uptime_human': uptime_label,
         'uptime_seconds': int(uptime_delta.total_seconds()),
         'restart_count': restart_count,
         'connection_status': connection_status,
+        'connection_type': connection_type,
+        'device_name': device_name,
         'message_activity': message_metrics,
         'message_totals': message_totals_snapshot,
         'node_activity': node_metrics,
@@ -25636,7 +25651,7 @@ def dashboard():
       if (hiddenPanelState.size === 0) {
         document.querySelectorAll('.panel-grid .panel[data-panel-id]').forEach(panel => {
           const panelId = panel.dataset.panelId || '';
-          if (panelId && panelId !== 'log') {
+          if (panelId && panelId !== 'log' && panelId !== 'radio-settings') {
             hiddenPanelState.add(panelId);
           }
         });
@@ -27749,14 +27764,15 @@ def dashboard():
       requestAnimationFrame(monitorLogStream);
     }
 
-    function updateConnectionBanner(status) {
+    function updateConnectionBanner(status, deviceName, connectionType) {
       const banner = $("connectionBanner");
       if (!banner) return;
       const normalized = (status || "").toLowerCase();
       banner.classList.remove("is-connected", "is-degraded", "is-disconnected", "is-unknown");
       if (normalized === "connected") {
         banner.classList.add("is-connected");
-        banner.textContent = "Connected";
+        const typeEmoji = connectionType === 'Bluetooth' ? '🔵' : (connectionType === 'WiFi' ? '📡' : '🔌');
+        banner.innerHTML = `<span>${typeEmoji} Connected</span><span style="margin-left: 12px; opacity: 0.7; font-size: 12px;">${deviceName || 'Unknown Device'}</span>`;
       } else if (normalized === "connecting" || normalized === "reconnecting") {
         banner.classList.add("is-degraded");
         banner.textContent = status;
@@ -27853,7 +27869,7 @@ def dashboard():
         if (statusEl) {
           statusEl.textContent = "Metrics unavailable";
         }
-        updateConnectionBanner("Disconnected");
+        updateConnectionBanner("Disconnected", "Unknown Device", "Unknown");
         console.error("Metrics refresh failed:", err);
       }
     }
@@ -27865,7 +27881,7 @@ def dashboard():
       if (timestampEl) {
         timestampEl.textContent = ts && !isNaN(ts) ? ts.toLocaleTimeString() : "Time unavailable";
       }
-      updateConnectionBanner(metrics.connection_status);
+      updateConnectionBanner(metrics.connection_status, metrics.device_name, metrics.connection_type);
 
       const queueBadge = $("queueMeta");
       if (queueBadge) {
@@ -29298,20 +29314,8 @@ def dashboard():
       }
 
       async function checkFirstVisit() {
-        try {
-          const response = await fetch('/api/tutorial/status');
-          if (!response.ok) throw new Error('Tutorial API not available');
-
-          const data = await response.json();
-          if (!data.completed || !data.completed.includes('dashboard')) {
-            setTimeout(() => startTour('dashboard'), 1500);
-          } else {
-            helpIcon.style.display = 'flex';
-          }
-        } catch (error) {
-          console.log('Tutorial API unavailable, showing help icon');
-          helpIcon.style.display = 'flex';
-        }
+        // Always show help icon - tutorial only starts when user clicks the help button
+        helpIcon.style.display = 'flex';
       }
 
       function startTour(tourName) {
