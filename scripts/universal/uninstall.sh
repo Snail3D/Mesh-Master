@@ -48,15 +48,29 @@ if [[ -n "$SCRIPT_PATH" ]] && [[ -f "$SCRIPT_PATH" ]]; then
     echo -e "Using uninstaller: ${BLUE}$SCRIPT_PATH${NC}"
     echo ""
 
+    # Get the Mesh-Master directory before calling platform-specific script
+    if [[ -n "${BASH_SOURCE[0]}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+        MESH_DIR_EXPORT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
+    else
+        # Try from current directory
+        if [[ -f "mesh-master.py" ]]; then
+            MESH_DIR_EXPORT=$(pwd)
+        elif [[ -f "../mesh-master.py" ]]; then
+            MESH_DIR_EXPORT=$(cd .. && pwd)
+        elif [[ -f "../../mesh-master.py" ]]; then
+            MESH_DIR_EXPORT=$(cd ../.. && pwd)
+        fi
+    fi
+
     if [[ "$PLATFORM" == "macOS" ]]; then
-        bash "$SCRIPT_PATH"
+        MESH_DIR_HINT="$MESH_DIR_EXPORT" bash "$SCRIPT_PATH"
     elif [[ "$PLATFORM" == "Linux" ]]; then
         if [[ $EUID -ne 0 ]]; then
             echo -e "${YELLOW}Elevating to root with sudo...${NC}"
             echo ""
-            sudo bash "$SCRIPT_PATH"
+            sudo MESH_DIR_HINT="$MESH_DIR_EXPORT" bash "$SCRIPT_PATH"
         else
-            bash "$SCRIPT_PATH"
+            MESH_DIR_HINT="$MESH_DIR_EXPORT" bash "$SCRIPT_PATH"
         fi
     elif [[ "$PLATFORM" == "Windows" ]]; then
         echo -e "${YELLOW}⚠️  Windows Setup${NC}"

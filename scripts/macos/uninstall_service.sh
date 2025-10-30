@@ -103,20 +103,25 @@ echo "  • All processes stopped"
 echo ""
 
 # Get the Mesh-Master directory (try multiple methods)
-# Method 1: From script location
-MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
+# Method 0: Use hint from parent script if available
+if [[ -n "$MESH_DIR_HINT" ]] && [[ -d "$MESH_DIR_HINT" ]] && [[ -f "$MESH_DIR_HINT/mesh-master.py" ]]; then
+    MESH_DIR="$MESH_DIR_HINT"
+else
+    # Method 1: From script location
+    MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
 
-# Method 2: If that failed, try from current directory
-if [[ -z "$MESH_DIR" ]] || [[ ! -d "$MESH_DIR" ]]; then
-    # Check if we're already in Mesh-Master directory
-    if [[ -f "mesh-master.py" ]] && [[ -d "scripts" ]]; then
-        MESH_DIR=$(pwd)
-    # Check if we're in scripts/ subdirectory
-    elif [[ -f "../mesh-master.py" ]]; then
-        MESH_DIR=$(cd .. && pwd)
-    # Check if we're in scripts/macos/ subdirectory
-    elif [[ -f "../../mesh-master.py" ]]; then
-        MESH_DIR=$(cd ../.. && pwd)
+    # Method 2: If that failed, try from current directory
+    if [[ -z "$MESH_DIR" ]] || [[ ! -d "$MESH_DIR" ]]; then
+        # Check if we're already in Mesh-Master directory
+        if [[ -f "mesh-master.py" ]] && [[ -d "scripts" ]]; then
+            MESH_DIR=$(pwd)
+        # Check if we're in scripts/ subdirectory
+        elif [[ -f "../mesh-master.py" ]]; then
+            MESH_DIR=$(cd .. && pwd)
+        # Check if we're in scripts/macos/ subdirectory
+        elif [[ -f "../../mesh-master.py" ]]; then
+            MESH_DIR=$(cd ../.. && pwd)
+        fi
     fi
 fi
 
