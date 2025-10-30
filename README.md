@@ -40,10 +40,10 @@ curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/uni
 
 ### Network Relay
 Send messages to any node by shortname:
-```
-(snmo is the shortname put the shortname
+_(snmo is the shortname put the shortname
 first while DM'ing the bot with or without the '/'
-in order to send the relay)
+in order to send the relay)_
+```
 snmo how's the weather?
 /snmo how's the weather?
 ```
