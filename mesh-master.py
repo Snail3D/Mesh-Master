@@ -18977,11 +18977,15 @@ def dashboard_complete_uninstall():
         else:
             return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
 
-        # Run the uninstaller in background and immediately return success
+        # Run the uninstaller in background with AUTO_DELETE env var
         # The uninstaller will kill this process, so we can't wait for completion
+        env = os.environ.copy()
+        env["AUTO_DELETE"] = "true"  # Tell the script to auto-delete the directory
+
         subprocess.Popen(
             cmd,
             cwd=project_dir,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True
@@ -18991,9 +18995,8 @@ def dashboard_complete_uninstall():
 
         return jsonify({
             "success": True,
-            "message": f"Complete uninstall started! All services, shortcuts, and processes will be removed. The Mesh Master process will terminate in a few seconds.",
-            "platform": system,
-            "warning": "To completely remove the directory, run: cd ~ && rm -rf Mesh-Master"
+            "message": f"Complete uninstall started! All services, shortcuts, processes, and the directory will be removed. The Mesh Master process will terminate in a few seconds.",
+            "platform": system
         })
 
     except Exception as exc:
@@ -23728,9 +23731,9 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Stops service, disables auto-start, removes all service files and desktop shortcuts. Data and config preserved.</p>
         </div>
         <div class="passphrase-card" style="border: 2px solid #ff4444;">
-          <label>⚠️ Complete Uninstall<span class="help-icon" data-explainer="DANGER: Completely removes Mesh Master - kills all processes, removes services, deletes desktop shortcuts. This will terminate the Mesh Master process immediately. You must manually delete the directory afterward." data-explainer-placement="right">?</span></label>
-          <button type="button" id="completeUninstallBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px; background: #ff4444; border-color: #ff4444;">💀 Complete Uninstall (Removes Everything)</button>
-          <p class="passphrase-hint" style="margin-top: 8px; color: #ff4444; font-weight: bold;">⚠️ WARNING: This will terminate Mesh Master immediately! Removes ALL services, shortcuts, and processes. You must manually delete the directory afterward.</p>
+          <label>⚠️ Complete Uninstall<span class="help-icon" data-explainer="DANGER: Completely removes Mesh Master - kills all processes, removes services, deletes desktop shortcuts, and removes the entire directory. This will terminate the Mesh Master process immediately and delete everything." data-explainer-placement="right">?</span></label>
+          <button type="button" id="completeUninstallBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px; background: #ff4444; border-color: #ff4444; color: #ffffff; font-weight: bold;">💀 Complete Uninstall (Removes Everything)</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #ff4444; font-weight: bold;">⚠️ WARNING: This will terminate Mesh Master immediately and DELETE THE ENTIRE DIRECTORY! Removes ALL services, shortcuts, processes, and files.</p>
         </div>
         <div style="padding: 16px 0 0 0; border-top: 1px solid var(--border); margin-top: 16px;">
           <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
@@ -27428,12 +27431,12 @@ def dashboard():
       if (!btn) return;
 
       // First warning
-      if (!confirm('⚠️ COMPLETE UNINSTALL - FINAL WARNING\n\nThis will COMPLETELY remove Mesh Master:\n• Kill ALL running processes\n• Remove ALL services (systemd/LaunchAgent/NSSM)\n• Delete ALL desktop shortcuts\n• Terminate this dashboard immediately\n\n⚠️ YOU WILL NEED TO:\n• Manually delete the Mesh-Master directory afterward\n• Re-clone from GitHub if you want to reinstall\n\nYour data and config will be preserved but the application will be removed.\n\n❌ THIS CANNOT BE UNDONE\n\nAre you ABSOLUTELY SURE?')) {
+      if (!confirm('⚠️ COMPLETE UNINSTALL - FINAL WARNING\n\nThis will COMPLETELY remove Mesh Master:\n• Kill ALL running processes\n• Remove ALL services (systemd/LaunchAgent/NSSM)\n• Delete ALL desktop shortcuts\n• DELETE THE ENTIRE MESH-MASTER DIRECTORY\n• Terminate this dashboard immediately\n\n⚠️ EVERYTHING WILL BE DELETED:\n• The entire application directory\n• All services and shortcuts\n• You will need to re-clone from GitHub to reinstall\n\n✅ Your data and config in the data/ folder will be removed too\n\n❌ THIS CANNOT BE UNDONE\n\nAre you ABSOLUTELY SURE?')) {
         return;
       }
 
       // Second confirmation
-      if (!confirm('⚠️ LAST CHANCE TO CANCEL\n\nThis will terminate Mesh Master NOW.\n\nProceed with complete uninstall?')) {
+      if (!confirm('⚠️ LAST CHANCE TO CANCEL\n\nThis will DELETE EVERYTHING and terminate Mesh Master NOW.\n\nProceed with complete uninstall?')) {
         return;
       }
 
@@ -27449,10 +27452,10 @@ def dashboard():
         const data = await response.json();
 
         if (data.success) {
-          alert(`✅ Complete Uninstall Started!\n\n${data.message}\n\nPlatform: ${data.platform}\n\n⚠️ To finish:\n${data.warning}\n\nThis window will close in a few seconds...`);
+          alert(`✅ Complete Uninstall Started!\n\n${data.message}\n\nPlatform: ${data.platform}\n\nMesh Master is being completely removed...\nThis window will close in a few seconds.`);
 
           // Dashboard will be killed by the uninstaller, so just show success
-          btn.textContent = '✅ Uninstalling...';
+          btn.textContent = '✅ Deleting Everything...';
 
           // Try to close the window after a delay
           setTimeout(() => {

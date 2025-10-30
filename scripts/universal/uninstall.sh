@@ -151,7 +151,28 @@ else
         echo "  • LaunchAgent service"
     fi
     echo ""
-    echo "To completely remove Mesh Master directory:"
-    echo -e "  ${YELLOW}cd ~ && rm -rf Mesh-Master${NC}"
-    echo ""
+
+    # Auto-delete directory if AUTO_DELETE env var is set (used by dashboard)
+    if [[ "$AUTO_DELETE" == "true" ]]; then
+        echo "Auto-deleting Mesh Master directory..."
+        # Get the script directory (Mesh-Master folder)
+        MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
+
+        if [[ -n "$MESH_DIR" ]] && [[ -d "$MESH_DIR" ]]; then
+            # Move up one level and delete
+            cd "$HOME" 2>/dev/null || cd /tmp
+            sleep 2  # Give processes time to terminate
+            rm -rf "$MESH_DIR" 2>/dev/null
+            echo -e "${GREEN}✓${NC} Mesh Master directory deleted: $MESH_DIR"
+            echo ""
+            echo "Mesh Master has been completely removed!"
+        else
+            echo -e "${YELLOW}⚠️${NC} Could not auto-delete directory (path not found)"
+            echo "Please manually delete: cd ~ && rm -rf Mesh-Master"
+        fi
+    else
+        echo "To completely remove Mesh Master directory:"
+        echo -e "  ${YELLOW}cd ~ && rm -rf Mesh-Master${NC}"
+        echo ""
+    fi
 fi
