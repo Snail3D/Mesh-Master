@@ -133,7 +133,7 @@ Control your mesh from Telegram:
 
 **Games & Fun**
 - `/games` — List all games
-- `/hangman start`, `/wordle start`, `/adventure start`
+- `/hangman start`, `/wordle start`, 
 - `/masterquiz`, `/meshtasticquiz`
 - `/rps`, `/coinflip`, `/yahtzee`, `/blackjack`
 
