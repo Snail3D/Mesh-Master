@@ -13524,7 +13524,7 @@ def build_ollama_history(sender_id=None, is_direct=False, channel_idx=None, thre
       except Exception as e:
         dprint(f"Warning: failed checking slow request status: {e}")
 
-  # Limit to last N messages (configurable exchanges) for performance
+    # Limit to last N messages (configurable exchanges) for performance
     # Take from the end (most recent) of the candidates list
     recent_candidates = candidates[-message_limit:] if len(candidates) > message_limit else candidates
     
