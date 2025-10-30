@@ -18852,6 +18852,107 @@ def get_telegram_config():
     return jsonify({"ok": True, "config": telegram_config, "library_available": TELEGRAM_AVAILABLE})
 
 
+@app.route("/api/banned", methods=["GET"])
+@require_auth
+def api_get_banned():
+    """Get list of banned and timed-out users."""
+    try:
+        banned_list = []
+        timeout_list = []
+
+        # Get permanently banned users
+        with ANTISPAM_BAN_LOCK:
+            for user_key in sorted(ANTISPAM_BAN_LIST):
+                try:
+                    node_id = int(user_key.replace("!", ""), 16) if user_key.startswith("!") else None
+                    shortname = get_node_shortname(node_id) if node_id else user_key
+                except:
+                    shortname = user_key
+
+                banned_list.append({
+                    "key": user_key,
+                    "shortname": shortname,
+                    "type": "permanent"
+                })
+
+        # Get timed-out users
+        with TIMEOUT_LOCK:
+            for user_key, expiry in TIMEOUT_LIST.items():
+                try:
+                    node_id = int(user_key.replace("!", ""), 16) if user_key.startswith("!") else None
+                    shortname = get_node_shortname(node_id) if node_id else user_key
+                except:
+                    shortname = user_key
+
+                expiry_dt = datetime.fromtimestamp(expiry)
+                expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
+                remaining = expiry - time.time()
+                hours = int(remaining // 3600)
+                minutes = int((remaining % 3600) // 60)
+
+                timeout_list.append({
+                    "key": user_key,
+                    "shortname": shortname,
+                    "type": "timeout",
+                    "expiry": expiry,
+                    "expiry_str": expiry_str,
+                    "remaining": f"{hours}h {minutes}m"
+                })
+
+        return jsonify({
+            "banned": banned_list,
+            "timeouts": timeout_list
+        })
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/dashboard/banned/unban", methods=["POST"])
+@require_auth
+def dashboard_unban_user():
+    """Unban or remove timeout from a user."""
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+    except Exception as exc:
+        return jsonify({"error": f"Invalid JSON payload: {exc}"}), 400
+
+    user_key = str(payload.get("key") or "").strip()
+    if not user_key:
+        return jsonify({"error": "Missing user key"}), 400
+
+    removed_from_ban = False
+    removed_from_timeout = False
+
+    # Check permanent ban list
+    with ANTISPAM_BAN_LOCK:
+        if user_key in ANTISPAM_BAN_LIST:
+            ANTISPAM_BAN_LIST.remove(user_key)
+            _antispam_save_bans()
+            removed_from_ban = True
+
+    # Check timeout list
+    removed_from_timeout = _timeout_remove(user_key)
+
+    if removed_from_ban or removed_from_timeout:
+        status = []
+        if removed_from_ban:
+            status.append("permanent ban")
+        if removed_from_timeout:
+            status.append("timeout")
+
+        try:
+            node_id = int(user_key.replace("!", ""), 16) if user_key.startswith("!") else None
+            shortname = get_node_shortname(node_id) if node_id else user_key
+        except:
+            shortname = user_key
+
+        clean_log(f"Dashboard unbanned {shortname} ({user_key}) - removed: {', '.join(status)}", "✅")
+        return jsonify({"success": True, "message": f"Removed {', '.join(status)}"})
+    else:
+        return jsonify({"error": "User not banned or timed out"}), 404
+
+
 @app.route("/dashboard/admins/remove", methods=["POST"])
 @require_auth
 def remove_dashboard_admin():
@@ -24229,6 +24330,28 @@ def dashboard():
           </div>
         </div>
         <div class="passphrase-card">
+          <label>🔨 Banned & Timed Out Users<span class="help-icon" data-explainer="Users banned or timed out by admins using /ban, /timeout commands. Click View to see list and unban users. Use /ban <shortname> to ban permanently, /timeout <shortname> for 24-hour timeout." data-explainer-placement="right">?</span></label>
+          <button type="button" id="bannedListBtn" class="config-save-btn" style="width: 100%; margin-top: 8px;">View Banned Users</button>
+          <div class="admin-popover" id="bannedListPopover" role="dialog" aria-labelledby="bannedListTitle" hidden>
+            <div class="admin-popover-header">
+              <h3 id="bannedListTitle">Banned & Timed Out Users</h3>
+              <button type="button" class="admin-popover-close" id="bannedListClose" aria-label="Close banned list">✕</button>
+            </div>
+            <div class="admin-popover-body">
+              <div style="margin-bottom: 16px;">
+                <h4 style="margin: 0 0 8px 0; color: #e74c3c;">🔨 Permanently Banned</h4>
+                <p class="admin-empty" id="bannedListEmpty">No users permanently banned.</p>
+                <ul class="admin-list" id="bannedList"></ul>
+              </div>
+              <div>
+                <h4 style="margin: 0 0 8px 0; color: #f39c12;">⏱️ Timed Out (24 hours)</h4>
+                <p class="admin-empty" id="timeoutListEmpty">No users currently timed out.</p>
+                <ul class="admin-list" id="timeoutList"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="passphrase-card">
           <label>🎓 Onboarding Settings<span class="help-icon" data-explainer="Configure how new users are welcomed and onboarded to the mesh network. Customize the welcome message and enable automatic prompts." data-explainer-placement="right">?</span></label>
           <div class="toggle-row" style="margin-top: 12px;">
             <label class="switch">
@@ -27581,6 +27704,156 @@ def dashboard():
       await commitFeatureSave({ force: true });
     }
 
+    // Banned/Timeout List Management
+    function renderBannedList(banned, timeouts) {
+      const bannedList = $("bannedList");
+      const bannedEmpty = $("bannedListEmpty");
+      const timeoutList = $("timeoutList");
+      const timeoutEmpty = $("timeoutListEmpty");
+
+      if (!bannedList || !bannedEmpty || !timeoutList || !timeoutEmpty) {
+        return;
+      }
+
+      // Render permanently banned users
+      bannedList.innerHTML = '';
+      if (!banned || !banned.length) {
+        bannedEmpty.hidden = false;
+        bannedList.hidden = true;
+      } else {
+        bannedEmpty.hidden = true;
+        bannedList.hidden = false;
+        banned.forEach(entry => {
+          const item = document.createElement('li');
+          item.className = 'admin-item';
+          const info = document.createElement('div');
+          info.className = 'admin-item-info';
+          const name = document.createElement('strong');
+          name.textContent = entry.shortname || entry.key;
+          info.appendChild(name);
+          item.appendChild(info);
+          const unbanBtn = document.createElement('button');
+          unbanBtn.type = 'button';
+          unbanBtn.className = 'admin-remove-btn';
+          unbanBtn.textContent = 'Unban';
+          unbanBtn.dataset.userKey = entry.key;
+          unbanBtn.addEventListener('click', () => unbanUser(entry.key, entry.shortname || entry.key));
+          item.appendChild(unbanBtn);
+          bannedList.appendChild(item);
+        });
+      }
+
+      // Render timed-out users
+      timeoutList.innerHTML = '';
+      if (!timeouts || !timeouts.length) {
+        timeoutEmpty.hidden = false;
+        timeoutList.hidden = true;
+      } else {
+        timeoutEmpty.hidden = true;
+        timeoutList.hidden = false;
+        timeouts.forEach(entry => {
+          const item = document.createElement('li');
+          item.className = 'admin-item';
+          const info = document.createElement('div');
+          info.className = 'admin-item-info';
+          const name = document.createElement('strong');
+          name.textContent = entry.shortname || entry.key;
+          info.appendChild(name);
+          const timeInfo = document.createElement('span');
+          timeInfo.className = 'admin-item-key';
+          timeInfo.textContent = `Until ${entry.expiry_str} (${entry.remaining} left)`;
+          info.appendChild(timeInfo);
+          item.appendChild(info);
+          const unbanBtn = document.createElement('button');
+          unbanBtn.type = 'button';
+          unbanBtn.className = 'admin-remove-btn';
+          unbanBtn.textContent = 'Unban';
+          unbanBtn.dataset.userKey = entry.key;
+          unbanBtn.addEventListener('click', () => unbanUser(entry.key, entry.shortname || entry.key));
+          item.appendChild(unbanBtn);
+          timeoutList.appendChild(item);
+        });
+      }
+    }
+
+    function openBannedPopover() {
+      const popover = $("bannedListPopover");
+      if (!popover || !popover.hidden) {
+        loadMetrics();
+        return;
+      }
+      popover.hidden = false;
+      fetchBannedList();
+    }
+
+    function closeBannedPopover({ restoreFocus = true } = {}) {
+      const popover = $("bannedListPopover");
+      const toggle = $("bannedListBtn");
+      if (!popover) {
+        return;
+      }
+      popover.hidden = true;
+      if (restoreFocus && toggle) {
+        toggle.focus();
+      }
+    }
+
+    function toggleBannedPopover() {
+      const popover = $("bannedListPopover");
+      if (!popover) {
+        return;
+      }
+      if (popover.hidden) {
+        openBannedPopover();
+      } else {
+        closeBannedPopover();
+      }
+    }
+
+    async function fetchBannedList() {
+      try {
+        const res = await fetch('/api/banned');
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderBannedList(data.banned || [], data.timeouts || []);
+      } catch (err) {
+        console.error('Failed to fetch banned list:', err);
+        alert('Could not load banned users. Try again in a moment.');
+      }
+    }
+
+    async function unbanUser(key, shortname) {
+      if (!key) {
+        return;
+      }
+      const promptLabel = shortname || key;
+      if (!window.confirm(`Remove ban/timeout for ${promptLabel}?`)) {
+        return;
+      }
+      try {
+        const res = await fetch('/dashboard/banned/unban', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        });
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`HTTP ${res.status} ${errorText}`);
+        }
+        const data = await res.json();
+        if (data && data.error) {
+          throw new Error(data.error);
+        }
+        // Refresh the list
+        fetchBannedList();
+      } catch (err) {
+        console.error('Failed to unban user:', err);
+        alert('Could not unban user. Try again in a moment.');
+      }
+    }
+
     let weatherValidatedData = null;
 
     async function onWeatherValidate() {
@@ -29066,11 +29339,26 @@ def dashboard():
       if (adminClose) {
         adminClose.addEventListener('click', () => closeAdminPopover());
       }
+      const bannedListBtn = $("bannedListBtn");
+      if (bannedListBtn) {
+        bannedListBtn.addEventListener('click', toggleBannedPopover);
+        bannedListBtn.setAttribute('aria-expanded', 'false');
+        bannedListBtn.setAttribute('aria-controls', 'bannedListPopover');
+        bannedListBtn.setAttribute('aria-haspopup', 'dialog');
+      }
+      const bannedClose = $("bannedListClose");
+      if (bannedClose) {
+        bannedClose.addEventListener('click', () => closeBannedPopover());
+      }
       document.addEventListener('keydown', event => {
         if (event.key === 'Escape') {
           const popRef = $("adminListPopover");
           if (popRef && !popRef.hidden) {
             closeAdminPopover();
+          }
+          const bannedPopRef = $("bannedListPopover");
+          if (bannedPopRef && !bannedPopRef.hidden) {
+            closeBannedPopover();
           }
         }
       });
