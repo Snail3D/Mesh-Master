@@ -50,6 +50,14 @@ nssm stop MeshMaster
 echo Removing service...
 nssm remove MeshMaster confirm
 
+REM Kill any running Mesh Master processes
+echo Stopping any running Mesh Master processes...
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq *mesh-master*" >nul 2>&1
+taskkill /F /IM pythonw.exe /FI "WINDOWTITLE eq *mesh-master*" >nul 2>&1
+for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /NH ^| findstr /C:"mesh-master"') do taskkill /F /PID %%a >nul 2>&1
+timeout /t 1 /nobreak >nul
+echo [OK] Processes stopped
+
 REM Remove desktop shortcuts
 echo Removing desktop shortcuts...
 set DESKTOP=%USERPROFILE%\Desktop
@@ -62,6 +70,12 @@ if exist "%DESKTOP%\Start Mesh Master.lnk" (
 
 if exist "%DESKTOP%\Stop Mesh Master.lnk" (
     del "%DESKTOP%\Stop Mesh Master.lnk"
+    set /a removed_count+=1
+)
+
+REM Also remove the launcher shortcut created by setup.sh
+if exist "%DESKTOP%\Mesh Master.lnk" (
+    del "%DESKTOP%\Mesh Master.lnk"
     set /a removed_count+=1
 )
 
@@ -80,12 +94,15 @@ echo The service has been removed:
 echo   - Service stopped and disabled
 echo   - Auto-start on boot disabled
 echo   - Desktop shortcuts removed
+echo   - All processes stopped
 echo.
 echo Your data and config files are preserved.
 echo.
-echo To run manually:
-echo   cd \path\to\Mesh-Master
-echo   python mesh-master.py
+echo To completely remove Mesh Master (including all data):
+echo   cd .. ^&^& rmdir /S /Q Mesh-Master
+echo.
+echo To reinstall the service, run:
+echo   scripts\windows\install_service.bat
 echo.
 
 pause

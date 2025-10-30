@@ -55,6 +55,14 @@ launchctl unload "$PLIST_PATH" 2>/dev/null || true
 echo "Removing plist file..."
 rm "$PLIST_PATH"
 
+# Kill any running Mesh Master processes
+echo "Stopping any running Mesh Master processes..."
+pkill -f "python.*mesh-master.py" 2>/dev/null || true
+pkill -f "mesh-master.py" 2>/dev/null || true
+ps aux | grep "[m]esh-master.py" | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+sleep 1
+echo -e "${GREEN}✓${NC} Processes stopped"
+
 # Remove desktop shortcuts
 echo "Removing desktop shortcuts..."
 DESKTOP="$HOME/Desktop"
@@ -67,6 +75,12 @@ fi
 
 if [[ -d "$DESKTOP/Stop Mesh Master.app" ]]; then
     rm -rf "$DESKTOP/Stop Mesh Master.app"
+    ((removed_count++))
+fi
+
+# Also remove the launcher shortcut created by setup.sh
+if [[ -d "$DESKTOP/Mesh Master.app" ]]; then
+    rm -rf "$DESKTOP/Mesh Master.app"
     ((removed_count++))
 fi
 
@@ -85,10 +99,13 @@ echo "The service has been removed:"
 echo "  • Service stopped and disabled"
 echo "  • Auto-start on boot disabled"
 echo "  • Desktop shortcuts removed"
+echo "  • All processes stopped"
 echo ""
 echo "Your data and config files are preserved."
 echo ""
-echo "To run manually:"
-echo "  cd /path/to/Mesh-Master"
-echo "  python3 mesh-master.py"
+echo "To completely remove Mesh Master (including all data):"
+echo -e "  ${YELLOW}cd .. && rm -rf Mesh-Master${NC}"
+echo ""
+echo "To reinstall the service, run:"
+echo "  ./scripts/macos/install_service.sh"
 echo ""
