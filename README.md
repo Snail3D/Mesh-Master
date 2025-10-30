@@ -117,7 +117,7 @@ Control your mesh from Telegram:
 
 **Mesh Mail**
 - `/m <box> <msg>` — Send to mailbox _(sending a message to a mailbox that doesn't exist yet will prompt the user to open a new mailbox)_
-- `/c <box> PIN` — Check mail _(pin only needed if one was set when the mailbox was created and for opening for the first time from any radio)_
+- `/c <box> PIN` — Check mail _(pin only needed if one was set when the mailbox was created and for opening for the first time from the radio)_
 - `/emailhelp` — Mail system help
 
 **Notes & Search**
