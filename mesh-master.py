@@ -23245,7 +23245,6 @@ def dashboard():
         <img src="/static/mesh-master-banner.png" alt="Mesh Master" style="max-height: 60px; width: auto; display: block; margin: 0 auto; mix-blend-mode: screen;">
       </div>
       <div class="header-actions">
-        <a href="https://www.buymeacoffee.com/Snail3D" target="_blank" rel="noreferrer" style="margin-bottom: 8px;"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a pizza&emoji=🍕&slug=Snail3D&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" style="height: 40px; border-radius: 8px;" alt="Buy me a pizza" /></a>
         <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.1.1</span>
         <span id="metricsTimestamp" class="panel-subtitle">Waiting for metrics…</span>
         <div style="display: flex; gap: 12px;">
@@ -23740,23 +23739,6 @@ def dashboard():
         </div>
         </article>
 
-        <article class="panel" data-panel-id="commands" data-draggable="true" data-collapsible="true">
-        <div class="panel-header">
-          <div class="panel-title">
-            <h2>/commands menu 📜</h2>
-            <span class="panel-subtitle">All available bot commands and custom command builder</span>
-          </div>
-          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
-        </div>
-        <div class="panel-body">
-          <div style="padding: 0 0 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 16px;">
-            <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
-            <p class="passphrase-hint" style="margin-top: 8px;">Create custom commands and interactive menus. Build your own /joke, /weather, or any command you can imagine!</p>
-          </div>
-          <div class="command-groups" id="commandGroups"></div>
-        </div>
-        </article>
-
         <article class="panel" data-panel-id="telegram" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
           <div class="panel-title">
@@ -23859,6 +23841,23 @@ def dashboard():
         </div>
         </article>
 
+        <article class="panel" data-panel-id="commands" data-draggable="true" data-collapsible="true">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>/commands menu 📜</h2>
+            <span class="panel-subtitle">All available bot commands and custom command builder</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body">
+          <div style="padding: 0 0 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 16px;">
+            <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
+            <p class="passphrase-hint" style="margin-top: 8px;">Create custom commands and interactive menus. Build your own /joke, /weather, or any command you can imagine!</p>
+          </div>
+          <div class="command-groups" id="commandGroups"></div>
+        </div>
+        </article>
+
       </section>
       <aside class="activity-column">
         <!-- Command Line Interface -->
@@ -23896,6 +23895,12 @@ def dashboard():
         </article>
       </aside>
     </main>
+
+    <!-- Support Development -->
+    <div style="padding: 24px; text-align: center; background: var(--bg-primary); border-top: 1px solid var(--border);">
+      <p style="margin: 0 0 16px 0; color: var(--text-secondary); font-size: 13px;">If you find Mesh Master useful, consider supporting development:</p>
+      <a href="https://www.buymeacoffee.com/Snail3D" target="_blank" rel="noreferrer"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a pizza&emoji=🍕&slug=Snail3D&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" style="height: 50px; border-radius: 8px;" alt="Buy me a pizza" /></a>
+    </div>
   </div>
 
   <!-- Modal for offline preview -->
