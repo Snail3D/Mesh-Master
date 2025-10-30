@@ -27731,13 +27731,19 @@ def dashboard():
           credentials: 'include',
         });
         if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
+          const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          if (res.status === 401) {
+            alert('Session expired. Please refresh the page and log in again.');
+            window.location.reload();
+            return;
+          }
+          throw new Error(errorData.error || `HTTP ${res.status}`);
         }
         const data = await res.json();
         renderFeatures(data);
       } catch (err) {
         console.error('Feature save failed:', err);
-        alert('Updating feature toggles failed. Please try again.');
+        alert(`Updating feature toggles failed: ${err.message || 'Please try again.'}`);
       } finally {
         setFeaturesSaving(false);
       }
