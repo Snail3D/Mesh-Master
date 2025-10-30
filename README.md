@@ -135,9 +135,13 @@ Control your mesh from Telegram:
 - `/rps`, `/coinflip`, `/yahtzee`, `/blackjack`
 
 **Knowledge**
-- `/offline wiki <topic>` — Local Wikipedia
+- `/offline wiki <topic>` — Local Wikipedia mirror
+- `/wiki <topic>` — Fetch from online Wikipedia
+- `/web <query>` — DuckDuckGo search (with URL caching)
+- `/web <url>` — Fetch single webpage
+- `/web crawl <domain> [pages]` — Crawl site and extract contacts
 - `/meshtastic <question>` — LoRa field guide
-- `/web <query>` — Web search (with URL caching)
+- `/find <query>` — Search logs, reports, wiki, and crawl cache
 - `/bible [topic]` — Bible verses
 - `/weather` — Weather forecast
 
