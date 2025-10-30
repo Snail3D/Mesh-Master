@@ -23460,7 +23460,23 @@ def dashboard():
             <!-- Serial Connection Content -->
             <div id="serialConnectionContent" class="connection-content" style="display: none;">
               <div class="passphrase-card">
-                <label>Serial / USB Connection<span class="help-icon" data-explainer="Connect to Meshtastic radio via USB serial port. Click 'Scan Ports' to auto-detect connected devices." data-explainer-placement="right">?</span></label>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label>Serial / USB Connection<span class="help-icon" data-explainer="Connect to Meshtastic radio via USB serial port. Click 'Scan Ports' to auto-detect connected devices." data-explainer-placement="right">?</span></label>
+                  <span id="serialConnectionStatus" style="font-size: 12px; color: #888;">
+                    <span id="serialStatusIcon">⚪</span>
+                    <span id="serialStatusText">Not connected</span>
+                  </span>
+                </div>
+
+                <div id="serialConnectedInfo" style="margin-bottom: 16px; padding: 12px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); border-radius: 4px; display: none;">
+                  <div style="font-weight: 500; color: #4CAF50; margin-bottom: 8px;">Connected Device:</div>
+                  <div style="font-size: 12px; line-height: 1.6;">
+                    <div><strong>Node:</strong> <span id="serialNodeName">—</span></div>
+                    <div><strong>Port:</strong> <span id="serialPortPath">—</span></div>
+                    <div><strong>Baud Rate:</strong> <span id="serialBaudRate">—</span></div>
+                    <div><strong>ID:</strong> <span id="serialNodeId" style="font-family: monospace;">—</span></div>
+                  </div>
+                </div>
 
                 <div style="margin-top: 12px;">
                   <button type="button" id="serialScanBtn" class="config-save-btn" style="width: 100%;">🔍 Scan Serial Ports</button>
@@ -28856,7 +28872,7 @@ def dashboard():
 
       loadBluetoothStatus();
 
-      // Poll connection status every 3 seconds to update Bluetooth UI
+      // Poll connection status every 3 seconds to update Bluetooth and Serial UI
       async function pollConnectionStatus() {
         try {
           // Get connection status
@@ -28882,7 +28898,10 @@ def dashboard():
 
           const useBluetooth = configData.use_bluetooth === true || configData.use_bluetooth === 'true';
           const bluetoothDevice = configData.bluetooth_device;
+          const connectionType = configData.connection_type;
+          const nodeInfo = configData.node_info || {};
 
+          // Update Bluetooth UI
           if (useBluetooth && bluetoothDevice) {
             // Update Bluetooth status based on actual connection
             if (statusData.status === 'Connected') {
@@ -28909,6 +28928,40 @@ def dashboard():
             bluetoothStatusText.textContent = 'Not configured';
             bluetoothStatusText.style.color = '#888';
             bluetoothConnectedDevice.style.display = 'none';
+          }
+
+          // Update Serial UI
+          const serialStatusIcon = document.getElementById('serialStatusIcon');
+          const serialStatusText = document.getElementById('serialStatusText');
+          const serialConnectedInfo = document.getElementById('serialConnectedInfo');
+          const serialNodeName = document.getElementById('serialNodeName');
+          const serialPortPath = document.getElementById('serialPortPath');
+          const serialBaudRate = document.getElementById('serialBaudRate');
+          const serialNodeId = document.getElementById('serialNodeId');
+
+          if (serialStatusIcon && serialStatusText && serialConnectedInfo) {
+            if (connectionType === 'Serial' && statusData.status === 'Connected') {
+              serialStatusIcon.textContent = '🟢';
+              serialStatusText.textContent = 'Connected';
+              serialStatusText.style.color = '#6a9955';
+              serialConnectedInfo.style.display = 'block';
+
+              const nodeName = nodeInfo.long_name || radioName || 'Unknown';
+              serialNodeName.textContent = `${nodeName} (${nodeInfo.short_name || '?'})`;
+              serialPortPath.textContent = configData.serial_port || '—';
+              serialBaudRate.textContent = configData.serial_baud || '—';
+              serialNodeId.textContent = nodeInfo.id || '—';
+            } else if (configData.serial_port) {
+              serialStatusIcon.textContent = '🔴';
+              serialStatusText.textContent = 'Disconnected';
+              serialStatusText.style.color = '#f44747';
+              serialConnectedInfo.style.display = 'none';
+            } else {
+              serialStatusIcon.textContent = '⚪';
+              serialStatusText.textContent = 'Not configured';
+              serialStatusText.style.color = '#888';
+              serialConnectedInfo.style.display = 'none';
+            }
           }
         } catch (error) {
           console.error('Failed to poll connection status:', error);
@@ -29707,6 +29760,33 @@ def _log_config_change(key: str, old_value: Any, new_value: Any, is_security_sen
 @app.route('/dashboard/config/snapshot', methods=['GET'])
 def get_config_snapshot():
     """Return a snapshot of the current configuration for the dashboard."""
+    # Get connection type and node info
+    connection_type = "Not Connected"
+    node_info = {}
+
+    if interface:
+        if USE_WIFI:
+            connection_type = "WiFi"
+        elif USE_BLUETOOTH:
+            connection_type = "Bluetooth"
+        elif SERIAL_PORT:
+            connection_type = "Serial"
+        else:
+            connection_type = "Unknown"
+
+        # Try to get node info
+        try:
+            if hasattr(interface, 'myInfo') and interface.myInfo:
+                my_node_num = interface.myInfo.my_node_num
+                if my_node_num and my_node_num in interface.nodes:
+                    node = interface.nodes[my_node_num]
+                    if hasattr(node, 'user'):
+                        node_info['long_name'] = node.user.longName if hasattr(node.user, 'longName') else ''
+                        node_info['short_name'] = node.user.shortName if hasattr(node.user, 'shortName') else ''
+                        node_info['id'] = node.user.id if hasattr(node.user, 'id') else ''
+        except:
+            pass
+
     return jsonify({
         'ok': True,
         'config': {
@@ -29717,6 +29797,10 @@ def get_config_snapshot():
             'wifi_host': WIFI_HOST,
             'wifi_port': WIFI_PORT,
             'serial_port': SERIAL_PORT,
+            'serial_baud': SERIAL_BAUD,
+            'connection_type': connection_type,
+            'connection_status': connection_status,
+            'node_info': node_info,
         }
     })
 
@@ -31377,26 +31461,39 @@ def bluetooth_connect():
 @require_auth
 def bluetooth_forget():
     """Forget/unpair a Bluetooth device."""
+    global USE_BLUETOOTH, BLUETOOTH_DEVICE
     try:
         # Clear Bluetooth config
         config['bluetooth_device'] = ''
         config['bluetooth_preferred_device'] = ''
         config['use_bluetooth'] = False
 
+        # Update global variables immediately
+        USE_BLUETOOTH = False
+        BLUETOOTH_DEVICE = None
+
         # Save config
         with open('config.json', 'w') as f:
             json.dump(config, f, indent=2)
 
-        clean_log(f"🔌 Bluetooth device forgotten", show_always=False, rate_limit=False)
+        # Close the interface and trigger reconnection
+        global interface
+        if interface:
+            try:
+                interface.close()
+            except:
+                pass
+            interface = None
 
-        return jsonify({'success': True, 'message': 'Bluetooth device forgotten'})
+        # Trigger reconnection with new settings
+        reset_event.set()
+
+        clean_log(f"🔌 Bluetooth device forgotten and disconnected", show_always=False, rate_limit=False)
+
+        return jsonify({'success': True, 'message': 'Bluetooth device forgotten and disconnected'})
 
     except Exception as exc:
         clean_log(f"❌ Failed to forget device: {exc}", show_always=False, rate_limit=False)
-        return jsonify({'success': False, 'error': str(exc)}), 500
-
-    except Exception as exc:
-        clean_log(f"❌ Failed to delete custom command: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
