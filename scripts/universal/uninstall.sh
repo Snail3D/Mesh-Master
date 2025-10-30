@@ -156,22 +156,37 @@ else
     # Get the script directory (Mesh-Master folder)
     MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
 
+    # CRITICAL SAFETY CHECK: Ensure MESH_DIR is valid and not a system directory
+    if [[ -z "$MESH_DIR" ]] || [[ "$MESH_DIR" == "/" ]] || [[ "$MESH_DIR" == "/usr" ]] || [[ "$MESH_DIR" == "/etc" ]] || [[ "$MESH_DIR" == "/var" ]] || [[ "$MESH_DIR" == "/home" ]] || [[ "$MESH_DIR" == "/root" ]]; then
+        echo -e "${RED}❌ ERROR: Could not safely detect Mesh Master directory${NC}"
+        echo "Detected path: $MESH_DIR"
+        echo ""
+        echo "To manually remove Mesh Master, run from inside the Mesh-Master directory:"
+        echo -e "  ${YELLOW}cd /path/to/Mesh-Master && rm -rf \"\$(pwd)\"${NC}"
+        echo ""
+        exit 1
+    fi
+
+    # Additional safety: Check if directory name contains "Mesh-Master" or "mesh-master"
+    if [[ ! "$MESH_DIR" =~ [Mm]esh-[Mm]aster ]]; then
+        echo -e "${RED}❌ ERROR: Directory path doesn't look like Mesh Master${NC}"
+        echo "Detected path: $MESH_DIR"
+        echo ""
+        echo "For safety, refusing to delete. To manually remove:"
+        echo -e "  ${YELLOW}rm -rf \"$MESH_DIR\"${NC}"
+        echo ""
+        exit 1
+    fi
+
     # Auto-delete if AUTO_DELETE env var is set (used by dashboard)
     if [[ "$AUTO_DELETE" == "true" ]]; then
         echo "Auto-deleting Mesh Master directory..."
-
-        if [[ -n "$MESH_DIR" ]] && [[ -d "$MESH_DIR" ]]; then
-            # Move up one level and delete
-            cd "$HOME" 2>/dev/null || cd /tmp
-            sleep 2  # Give processes time to terminate
-            rm -rf "$MESH_DIR" 2>/dev/null
-            echo -e "${GREEN}✓${NC} Mesh Master directory deleted: $MESH_DIR"
-            echo ""
-            echo "Mesh Master has been completely removed!"
-        else
-            echo -e "${YELLOW}⚠️${NC} Could not auto-delete directory (path not found)"
-            echo "Please manually delete: cd ~ && rm -rf Mesh-Master"
-        fi
+        cd "$HOME" 2>/dev/null || cd /tmp
+        sleep 2  # Give processes time to terminate
+        rm -rf "$MESH_DIR" 2>/dev/null
+        echo -e "${GREEN}✓${NC} Mesh Master directory deleted: $MESH_DIR"
+        echo ""
+        echo "Mesh Master has been completely removed!"
     else
         # Interactive mode - delete directory with countdown
         echo ""
