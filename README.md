@@ -63,23 +63,17 @@ For auto-start on boot and auto-restart on crashes:
 
 ### 🗑️ Quick Uninstall (One Command)
 
-**Universal uninstaller - works on macOS, Linux, Raspberry Pi, and Windows:**
-
 ```bash
 curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/universal/uninstall.sh | bash
 ```
 
 **That's it!** The script automatically:
 - ✅ Detects your platform (macOS, Linux, Windows)
+- ✅ Elevates to root/admin as needed
 - ✅ Removes the Mesh Master service
 - ✅ Kills all running processes
 - ✅ Cleans up desktop shortcuts
 - ✅ Leaves your data intact (data/ directory preserved)
-
-**Note:** On Linux/Raspberry Pi, use sudo:
-```bash
-curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/universal/uninstall.sh | sudo bash
-```
 
 Completely removes Mesh Master service — no leftovers.
 
