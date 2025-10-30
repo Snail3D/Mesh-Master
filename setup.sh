@@ -697,14 +697,17 @@ fi
 
 echo "Next steps:"
 echo ""
-echo "1. Edit your configuration:"
+echo "1. Access the dashboard to configure:"
+echo "   http://localhost:5001/dashboard"
+echo ""
+echo "   IMPORTANT: Change admin_password in Dashboard → Configuration Overview"
+echo ""
+echo "   Or edit manually:"
 if [[ "$OS" == "Windows (Git Bash)" ]]; then
     echo "   notepad config.json"
 else
     echo "   nano config.json"
 fi
-echo ""
-echo "   IMPORTANT: Change admin_password from default!"
 echo ""
 if [[ "$SERVICE_INSTALLED" == "true" ]]; then
     echo "2. The service will start automatically on next boot"
@@ -714,9 +717,6 @@ if [[ "$SERVICE_INSTALLED" == "true" ]]; then
     elif [[ "$OS" == "macOS" ]]; then
         echo "   launchctl load ~/Library/LaunchAgents/com.meshmaster.plist"
     fi
-    echo ""
-    echo "3. Access dashboard:"
-    echo "   http://localhost:5001/dashboard"
 else
     echo "2. Start Mesh Master:"
     echo "   Double-click the Mesh Master icon on your desktop"
