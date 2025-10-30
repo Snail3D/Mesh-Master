@@ -2547,8 +2547,6 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         {
             "label": "System",
             "keys": [
-                "admin_password",
-                "admin_password_hint",
                 "auto_update_enabled",
                 "auto_update_check_interval_hours",
                 "debug",
@@ -23725,6 +23723,17 @@ def dashboard():
             </div>
           </div>
         </div>
+
+        <!-- Dashboard Password Section -->
+        <div class="passphrase-card" style="margin-top: 20px; border: 2px solid var(--accent);">
+          <label>🔐 Dashboard Password<span class="help-icon" data-explainer="Password required to access the dashboard. Change this from the default 'password' for security." data-explainer-placement="right">?</span></label>
+          <input type="password" id="configAdminPassword" class="config-input" placeholder="Enter new password" style="margin-top: 8px;">
+          <label style="margin-top: 12px;">Password Hint<span class="help-icon" data-explainer="Helpful hint shown on the login page to remind you of the password." data-explainer-placement="right">?</span></label>
+          <input type="text" id="configAdminPasswordHint" class="config-input" placeholder="Enter password hint" style="margin-top: 8px;">
+          <button type="button" id="configPasswordSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px;">Save Password</button>
+          <p class="passphrase-hint" style="margin-top: 8px;">⚠️ Changing the password will log you out. You'll need to log back in with the new password.</p>
+        </div>
+
         <div class="config-select-row">
           <label for="configCategorySelect">Category</label>
           <select id="configCategorySelect" class="config-select"></select>
@@ -27043,6 +27052,63 @@ def dashboard():
       }
     }
 
+    async function onConfigPasswordSave() {
+      const passwordInput = $("configAdminPassword");
+      const hintInput = $("configAdminPasswordHint");
+      const saveBtn = $("configPasswordSaveBtn");
+
+      if (!passwordInput || !hintInput || !saveBtn) return;
+
+      const newPassword = passwordInput.value.trim();
+      const newHint = hintInput.value.trim();
+
+      if (!newPassword) {
+        alert('Password cannot be empty');
+        return;
+      }
+
+      if (!confirm('⚠️ Changing the password will log you out. Continue?')) {
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        // Save password
+        const passResponse = await fetch('/dashboard/config/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'admin_password', value: newPassword })
+        });
+        const passData = await passResponse.json();
+
+        if (!passData.ok) {
+          throw new Error(passData.error || 'Failed to save password');
+        }
+
+        // Save hint
+        const hintResponse = await fetch('/dashboard/config/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'admin_password_hint', value: newHint })
+        });
+        const hintData = await hintResponse.json();
+
+        if (!hintData.ok) {
+          throw new Error(hintData.error || 'Failed to save hint');
+        }
+
+        alert('✅ Password updated successfully. You will now be logged out.');
+        // Redirect to login page
+        window.location.href = '/dashboard';
+      } catch (err) {
+        alert(`❌ Failed to save password: ${err.message}`);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Password';
+      }
+    }
+
     let availableUpdates = [];
 
     async function onUpdateCheck() {
@@ -28346,6 +28412,10 @@ def dashboard():
         autoOnboardToggle.addEventListener('change', (e) => {
           $("autoOnboardStatus").textContent = e.target.checked ? 'Enabled' : 'Disabled';
         });
+      }
+      const configPasswordSaveBtn = $("configPasswordSaveBtn");
+      if (configPasswordSaveBtn) {
+        configPasswordSaveBtn.addEventListener('click', onConfigPasswordSave);
       }
       loadVersion();
       loadMetrics();
