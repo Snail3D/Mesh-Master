@@ -6974,7 +6974,7 @@ try:
 except (ValueError, TypeError):
     HOME_ASSISTANT_CHANNEL_INDEX = -1
 MAX_CHUNK_SIZE = config.get("chunk_size", 200)
-MAX_CHUNKS = 5
+MAX_CHUNKS = config.get("max_ai_chunks", 2)  # Use config value for AI response chunk limit
 CHUNK_DELAY = config.get("chunk_buffer_seconds", config.get("chunk_delay", 4))
 MAX_RESPONSE_LENGTH = MAX_CHUNK_SIZE * MAX_CHUNKS
 
