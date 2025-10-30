@@ -17122,7 +17122,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       return PendingReply("▶️ Resumed. I'll reply to your messages again.", "resume command")
     # Blacklist requests (various phrasings)
     # Delete me - complete data deletion
-    if any(phrase in lower for phrase in {"delete me", "deleteme", "/deleteme", "delete all my data", "remove all my data"}):
+    if any(phrase in lower for phrase in {"delete me", "deleteme", "/deleteme", "delete all my data", "remove all my data", "remove my data", "delete my data"}):
       if check_only:
         return True
       PENDING_WIPE_REQUESTS[sender_key] = {
