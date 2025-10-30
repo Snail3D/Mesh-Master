@@ -2560,18 +2560,6 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         },
     ),
     (
-        "bluetooth",
-        {
-            "label": "Bluetooth 📡",
-            "keys": [
-                "use_bluetooth",
-                "bluetooth_device",
-                "bluetooth_preferred_device",
-                "bluetooth_auto_pin",
-            ],
-        },
-    ),
-    (
         "ai",
         {
             "label": "AI Configuration",
