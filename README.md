@@ -41,8 +41,11 @@ curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/uni
 ### Network Relay
 Send messages to any node by shortname:
 ```
-alice how's the weather?
-/alice how's the weather?
+(snmo is the shortname put the shortname
+first while DM'ing the bot with or without the '/'
+in order to send the relay)
+snmo how's the weather?
+/snmo how's the weather?
 ```
 - Real-time ACK tracking with 20-second timeout
 - Multi-chunk support for long messages
