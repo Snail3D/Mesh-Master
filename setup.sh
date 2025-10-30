@@ -108,7 +108,7 @@ else
             fi
         elif [[ "$OS" == "Raspberry Pi" || "$OS" == "Linux" ]]; then
             sudo apt-get update
-            sudo apt-get install -y python3 python3-pip python3-venv
+            sudo apt-get install -y python3 python3-pip python3-venv bluez libbluetooth-dev
         elif [[ "$OS" == "Windows (Git Bash)" ]]; then
             echo -e "${RED}❌ Cannot auto-install on Windows${NC}"
             echo "Please download Python from: https://www.python.org/downloads/"
@@ -244,8 +244,8 @@ if [[ -f "requirements.txt" ]]; then
         echo "Installing system packages..."
 
         # Install all required system packages (including all meshtastic AND mesh-master.py dependencies)
-        # Added python3-bleak for Bluetooth support
-        SYSTEM_PKGS="python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate python3-serial python3-yaml python3-pypubsub python3-packaging python3-urllib3 python3-certifi python3-charset-normalizer python3-idna python3-six python3-dotenv python3-dateutil python3-werkzeug python3-jinja2 python3-click python3-itsdangerous python3-markupsafe python3-blinker python3-cffi python3-pycparser python3-unidecode python3-bcrypt python3-bleak"
+        # Added python3-bleak and bluez for Bluetooth support
+        SYSTEM_PKGS="python3-protobuf python3-tornado python3-requests python3-flask python3-pil python3-numpy python3-cryptography python3-tabulate python3-serial python3-yaml python3-pypubsub python3-packaging python3-urllib3 python3-certifi python3-charset-normalizer python3-idna python3-six python3-dotenv python3-dateutil python3-werkzeug python3-jinja2 python3-click python3-itsdangerous python3-markupsafe python3-blinker python3-cffi python3-pycparser python3-unidecode python3-bcrypt python3-bleak bluez libbluetooth-dev"
 
         for pkg in $SYSTEM_PKGS; do
             if dpkg -l 2>/dev/null | grep -q "^ii.*$pkg"; then
@@ -401,6 +401,30 @@ else
     fi
 fi
 echo ""
+
+# Install Bluetooth support packages on Linux (if not already installed)
+if [[ "$OS" == "Linux" ]] || [[ "$OS" == "Raspberry Pi" ]]; then
+    echo "Installing Bluetooth support packages..."
+
+    # Check if bluez is already installed
+    if ! dpkg -l 2>/dev/null | grep -q "^ii.*bluez"; then
+        echo "Installing bluez..."
+        sudo apt-get install -y bluez 2>&1 | tail -1
+    else
+        echo -e "${GREEN}✓${NC} bluez already installed"
+    fi
+
+    # Check if libbluetooth-dev is already installed
+    if ! dpkg -l 2>/dev/null | grep -q "^ii.*libbluetooth-dev"; then
+        echo "Installing libbluetooth-dev..."
+        sudo apt-get install -y libbluetooth-dev 2>&1 | tail -1
+    else
+        echo -e "${GREEN}✓${NC} libbluetooth-dev already installed"
+    fi
+
+    echo -e "${GREEN}✓${NC} Bluetooth support installed"
+    echo ""
+fi
 
 # Scan for Bluetooth Meshtastic devices (if on Pi/Linux)
 if [[ "$OS" == "Raspberry Pi" ]] || [[ "$OS" == "Linux" ]]; then
