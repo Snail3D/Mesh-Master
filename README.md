@@ -181,6 +181,55 @@ Control your mesh from Telegram:
 
 ---
 
+## Telegram Bot Integration
+
+Control your Mesh Master remotely via Telegram:
+
+### Setup
+
+1. **Create a bot** with [@BotFather](https://t.me/BotFather) on Telegram
+2. **Copy the bot token** (e.g., `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+3. **Get your chat ID:**
+   - Message your new bot
+   - Open dashboard → Telegram panel to see your chat ID
+4. **Edit config.json:**
+   ```json
+   {
+     "telegram_bot_enabled": true,
+     "telegram_bot_token": "YOUR_TOKEN_HERE",
+     "telegram_chat_ids": [123456789, 987654321]
+   }
+   ```
+5. **Restart** Mesh Master
+
+### Usage
+
+Send commands from Telegram:
+```
+/nodes                    # List all mesh nodes
+/ai what's the weather?   # Ask AI questions
+/relay alice hello        # Send relay messages
+/c mailbox search         # Check mesh mail
+/status                   # System health
+```
+
+### Features
+
+- ✅ **Remote command control** — Send any mesh command
+- ✅ **Real-time notifications** — Relay ACK confirmations, system alerts
+- ✅ **Bidirectional messaging** — Send to mesh, receive from mesh
+- ✅ **System monitoring** — Check node status, network health
+- ✅ **Secure access** — Only whitelisted chat IDs can control
+
+### Security
+
+- Only listed chat IDs can use the bot
+- Commands execute with same permissions as dashboard
+- Bot token stored securely (never logged)
+- Supports multiple authorized users
+
+---
+
 ## Dashboard
 
 Access at: **http://localhost:5001/dashboard**
