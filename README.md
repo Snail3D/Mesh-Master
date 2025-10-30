@@ -103,6 +103,7 @@ Control your mesh from Telegram:
 ---
 
 ## Commands (Quick Reference)
+[COMMANDS.md](COMMANDS.md) (all commands),
 
 **Network & Relay**
 - `<shortname> <msg>` — Relay message to shortname
