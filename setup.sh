@@ -75,12 +75,36 @@ else
         echo "Installing Python 3..."
         if [[ "$OS" == "macOS" ]]; then
             if command -v brew &> /dev/null; then
+                echo "Using Homebrew to install Python..."
                 brew install python3
             else
-                echo -e "${RED}❌ Homebrew not found${NC}"
-                echo "Please install Homebrew first: https://brew.sh"
-                echo "Or download Python from: https://www.python.org/downloads/"
-                exit 1
+                echo -e "${YELLOW}⚠️  Homebrew not found, using Python installer...${NC}"
+                # Download and run Python installer for macOS
+                PYTHON_VERSION="3.12.7"
+                INSTALLER_URL="https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-macos11.pkg"
+                INSTALLER_PATH="/tmp/python-installer.pkg"
+
+                echo "Downloading Python ${PYTHON_VERSION}..."
+                curl -fsSL -o "$INSTALLER_PATH" "$INSTALLER_URL"
+
+                if [[ -f "$INSTALLER_PATH" ]]; then
+                    echo "Installing Python (requires admin/sudo)..."
+                    sudo installer -pkg "$INSTALLER_PATH" -target /
+                    rm "$INSTALLER_PATH"
+
+                    # Verify installation
+                    if command -v python3 &> /dev/null; then
+                        echo -e "${GREEN}✓${NC} Python 3 installed successfully"
+                    else
+                        echo -e "${RED}❌ Python installation failed${NC}"
+                        echo "Please try manual installation: https://www.python.org/downloads/"
+                        exit 1
+                    fi
+                else
+                    echo -e "${RED}❌ Failed to download Python installer${NC}"
+                    echo "Please install manually from: https://www.python.org/downloads/"
+                    exit 1
+                fi
             fi
         elif [[ "$OS" == "Raspberry Pi" || "$OS" == "Linux" ]]; then
             sudo apt-get update

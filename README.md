@@ -39,7 +39,7 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 
 **Platform-specific notes:**
 - **Raspberry Pi:** Takes 5-10 minutes (uses system packages to avoid compilation)
-- **macOS:** Requires Homebrew for auto-install features
+- **macOS:** Auto-installs Python and Ollama (uses Homebrew if available, otherwise downloads .pkg installer)
 - **Windows:** Python and Ollama must be installed manually (script will guide you)
 - **Linux:** Fully automatic with sudo access
 
