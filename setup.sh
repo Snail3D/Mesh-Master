@@ -604,19 +604,97 @@ else
 fi
 echo ""
 
+# Ask about auto-start service installation
+echo ""
+echo "=========================================="
+echo "  Auto-Start on Boot (Optional)"
+echo "=========================================="
+echo ""
+echo "Would you like Mesh Master to start automatically when your system boots?"
+echo ""
+echo "This will install a system service that:"
+echo "  • Starts Mesh Master automatically on boot"
+echo "  • Restarts automatically if it crashes"
+echo "  • Runs in the background"
+echo ""
+
+if [[ "$OS" == "Windows (Git Bash)" ]]; then
+    echo -e "${YELLOW}Note:${NC} Windows service requires NSSM and Administrator privileges"
+elif [[ "$OS" == "Linux" ]] || [[ "$OS" == "Raspberry Pi" ]]; then
+    echo -e "${YELLOW}Note:${NC} Linux service uses systemd and requires sudo"
+elif [[ "$OS" == "macOS" ]]; then
+    echo -e "${YELLOW}Note:${NC} macOS service uses LaunchAgent (no sudo needed)"
+fi
+echo ""
+
+read -p "Install auto-start service? (y/N) " -n 1 -r
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo ""
+    echo "Installing auto-start service..."
+
+    if [[ -f "scripts/universal/install_service.sh" ]]; then
+        bash scripts/universal/install_service.sh
+
+        if [[ $? -eq 0 ]]; then
+            echo -e "${GREEN}✓${NC} Auto-start service installed successfully!"
+            SERVICE_INSTALLED=true
+        else
+            echo -e "${YELLOW}⚠️${NC}  Service installation failed (you can install later)"
+            SERVICE_INSTALLED=false
+        fi
+    else
+        echo -e "${RED}❌${NC} Service installation script not found"
+        SERVICE_INSTALLED=false
+    fi
+else
+    echo "Skipping auto-start service installation"
+    echo ""
+    echo "You can install it later with:"
+    echo "  ./scripts/universal/install_service.sh"
+    SERVICE_INSTALLED=false
+fi
+echo ""
+
 echo ""
 echo "=========================================="
 echo -e "  ${GREEN}✅ Setup Complete!${NC}"
 echo "=========================================="
 echo ""
-echo "✨ Desktop shortcut created! Look for:"
-echo "   📱 Mesh Master (with blue MM icon)"
-echo ""
-echo "What the shortcut does:"
-echo "  • Kills any old/zombie instances"
-echo "  • Starts fresh Mesh Master"
-echo "  • Opens dashboard automatically"
-echo ""
+if [[ "$SERVICE_INSTALLED" == "true" ]]; then
+    echo "✨ Auto-start service installed!"
+    echo ""
+    echo "Mesh Master will now:"
+    echo "  • Start automatically on boot"
+    echo "  • Restart if it crashes"
+    echo "  • Run in the background"
+    echo ""
+    if [[ "$OS" == "Linux" ]] || [[ "$OS" == "Raspberry Pi" ]]; then
+        echo "Service commands:"
+        echo "  • Check status: sudo systemctl status mesh-ai"
+        echo "  • View logs: sudo journalctl -u mesh-ai -f"
+        echo "  • Stop: sudo systemctl stop mesh-ai"
+        echo "  • Start: sudo systemctl start mesh-ai"
+    elif [[ "$OS" == "macOS" ]]; then
+        echo "Service commands:"
+        echo "  • Check status: launchctl list | grep meshmaster"
+        echo "  • View logs: tail -f mesh-master.log"
+        echo "  • Stop: launchctl unload ~/Library/LaunchAgents/com.meshmaster.plist"
+        echo "  • Start: launchctl load ~/Library/LaunchAgents/com.meshmaster.plist"
+    fi
+    echo ""
+else
+    echo "✨ Desktop shortcut created! Look for:"
+    echo "   📱 Mesh Master (with blue MM icon)"
+    echo ""
+    echo "What the shortcut does:"
+    echo "  • Kills any old/zombie instances"
+    echo "  • Starts fresh Mesh Master"
+    echo "  • Opens dashboard automatically"
+    echo ""
+fi
+
 echo "Next steps:"
 echo ""
 echo "1. Edit your configuration:"
@@ -628,12 +706,25 @@ fi
 echo ""
 echo "   IMPORTANT: Change admin_password from default!"
 echo ""
-echo "2. Start Mesh Master:"
-echo "   Double-click the Mesh Master icon on your desktop"
-echo "   OR run: ./mesh-master.sh"
-echo ""
-echo "3. Access dashboard:"
-echo "   http://localhost:5001/dashboard"
+if [[ "$SERVICE_INSTALLED" == "true" ]]; then
+    echo "2. The service will start automatically on next boot"
+    echo "   To start now:"
+    if [[ "$OS" == "Linux" ]] || [[ "$OS" == "Raspberry Pi" ]]; then
+        echo "   sudo systemctl start mesh-ai"
+    elif [[ "$OS" == "macOS" ]]; then
+        echo "   launchctl load ~/Library/LaunchAgents/com.meshmaster.plist"
+    fi
+    echo ""
+    echo "3. Access dashboard:"
+    echo "   http://localhost:5001/dashboard"
+else
+    echo "2. Start Mesh Master:"
+    echo "   Double-click the Mesh Master icon on your desktop"
+    echo "   OR run: ./mesh-master.sh"
+    echo ""
+    echo "3. Access dashboard:"
+    echo "   http://localhost:5001/dashboard"
+fi
 echo ""
 echo "Platform-specific notes:"
 if [[ "$OS" == "macOS" ]]; then
