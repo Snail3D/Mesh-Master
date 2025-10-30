@@ -72,7 +72,7 @@ Async messaging system (like email on the mesh):
 Chess, Blackjack, Hangman, Wordle, Morse code, Quizzes, and more. All DM-friendly.
 
 ### AI Assistant (With conversation memory!)
-Ask questions, get help, adjust personality: _(note that while DMing the bot, you can just speak naturally without the '/' commands to trigger the AI responses)_
+Ask questions, get help, adjust personality
 ```
 ```
 ### Offline Knowledge
