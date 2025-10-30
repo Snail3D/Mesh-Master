@@ -18950,6 +18950,57 @@ def dashboard_uninstall_service():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@app.route("/dashboard/uninstall/complete", methods=["POST"])
+@require_auth
+def dashboard_complete_uninstall():
+    """Complete uninstall - removes service, shortcuts, processes, and optionally the directory"""
+    try:
+        import subprocess
+        import platform
+
+        # Get project directory
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        system = platform.system()
+
+        clean_log(f"🗑️ Starting complete uninstall on {system}...", show_always=False, rate_limit=False)
+
+        # Run the universal uninstaller script
+        uninstall_script = os.path.join(project_dir, "scripts", "universal", "uninstall.sh")
+
+        if system == "Darwin":  # macOS
+            cmd = ["/bin/bash", uninstall_script]
+        elif system == "Linux":
+            cmd = ["sudo", "/bin/bash", uninstall_script]
+        elif system == "Windows":
+            # Windows uses the universal script with Git Bash
+            cmd = ["bash", uninstall_script]
+        else:
+            return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
+
+        # Run the uninstaller in background and immediately return success
+        # The uninstaller will kill this process, so we can't wait for completion
+        subprocess.Popen(
+            cmd,
+            cwd=project_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True
+        )
+
+        clean_log(f"✅ Complete uninstall initiated on {system}", show_always=False, rate_limit=False)
+
+        return jsonify({
+            "success": True,
+            "message": f"Complete uninstall started! All services, shortcuts, and processes will be removed. The Mesh Master process will terminate in a few seconds.",
+            "platform": system,
+            "warning": "To completely remove the directory, run: cd ~ && rm -rf Mesh-Master"
+        })
+
+    except Exception as exc:
+        clean_log(f"❌ Complete uninstall failed: {exc}", show_always=False, rate_limit=False)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 def auto_update_worker():
     """Background worker that checks for updates from GitHub and notifies admins via DM."""
     global LAST_UPDATE_CHECK_TIME, AUTO_UPDATE_ENABLED
@@ -23672,9 +23723,14 @@ def dashboard():
           <p class="passphrase-hint" style="margin-top: 8px; color: #4CAF50;">Automatically installs service, enables auto-start on boot, auto-restart on crashes, and creates desktop Start/Stop icons.</p>
         </div>
         <div class="passphrase-card">
-          <label>🗑️ Uninstall Everything<span class="help-icon" data-explainer="Completely removes Mesh Master service, disables auto-start, and removes desktop shortcuts. Your data and config are preserved." data-explainer-placement="right">?</span></label>
+          <label>🗑️ Uninstall Service<span class="help-icon" data-explainer="Removes Mesh Master service, disables auto-start, and removes desktop shortcuts. Your data and config are preserved." data-explainer-placement="right">?</span></label>
           <button type="button" id="uninstallServiceBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px;">🗑️ Uninstall Service + Remove Shortcuts</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff6b6b;">Stops service, disables auto-start, removes all service files and desktop shortcuts. Data and config preserved.</p>
+        </div>
+        <div class="passphrase-card" style="border: 2px solid #ff4444;">
+          <label>⚠️ Complete Uninstall<span class="help-icon" data-explainer="DANGER: Completely removes Mesh Master - kills all processes, removes services, deletes desktop shortcuts. This will terminate the Mesh Master process immediately. You must manually delete the directory afterward." data-explainer-placement="right">?</span></label>
+          <button type="button" id="completeUninstallBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px; background: #ff4444; border-color: #ff4444;">💀 Complete Uninstall (Removes Everything)</button>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #ff4444; font-weight: bold;">⚠️ WARNING: This will terminate Mesh Master immediately! Removes ALL services, shortcuts, and processes. You must manually delete the directory afterward.</p>
         </div>
         <div style="padding: 16px 0 0 0; border-top: 1px solid var(--border); margin-top: 16px;">
           <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
@@ -27367,6 +27423,53 @@ def dashboard():
       }
     }
 
+    async function onCompleteUninstall() {
+      const btn = $("completeUninstallBtn");
+      if (!btn) return;
+
+      // First warning
+      if (!confirm('⚠️ COMPLETE UNINSTALL - FINAL WARNING\n\nThis will COMPLETELY remove Mesh Master:\n• Kill ALL running processes\n• Remove ALL services (systemd/LaunchAgent/NSSM)\n• Delete ALL desktop shortcuts\n• Terminate this dashboard immediately\n\n⚠️ YOU WILL NEED TO:\n• Manually delete the Mesh-Master directory afterward\n• Re-clone from GitHub if you want to reinstall\n\nYour data and config will be preserved but the application will be removed.\n\n❌ THIS CANNOT BE UNDONE\n\nAre you ABSOLUTELY SURE?')) {
+        return;
+      }
+
+      // Second confirmation
+      if (!confirm('⚠️ LAST CHANCE TO CANCEL\n\nThis will terminate Mesh Master NOW.\n\nProceed with complete uninstall?')) {
+        return;
+      }
+
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '💀 Uninstalling...';
+
+      try {
+        const response = await fetch('/dashboard/uninstall/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Complete Uninstall Started!\n\n${data.message}\n\nPlatform: ${data.platform}\n\n⚠️ To finish:\n${data.warning}\n\nThis window will close in a few seconds...`);
+
+          // Dashboard will be killed by the uninstaller, so just show success
+          btn.textContent = '✅ Uninstalling...';
+
+          // Try to close the window after a delay
+          setTimeout(() => {
+            window.close();
+          }, 5000);
+        } else {
+          alert(`❌ Complete Uninstall Failed\n\n${data.error}\n\nYou may need to run the uninstall script manually:\ncurl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/universal/uninstall.sh | bash`);
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert(`❌ Complete uninstall request failed: ${err.message}`);
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+
     async function onSystemReboot() {
       if (!confirm('⚠️ SYSTEM REBOOT\n\nThis will restart the entire mesh-master server.\n\nAre you sure you want to reboot?')) {
         return;
@@ -28205,6 +28308,10 @@ def dashboard():
       const uninstallServiceBtn = $("uninstallServiceBtn");
       if (uninstallServiceBtn) {
         uninstallServiceBtn.addEventListener('click', onUninstallService);
+      }
+      const completeUninstallBtn = $("completeUninstallBtn");
+      if (completeUninstallBtn) {
+        completeUninstallBtn.addEventListener('click', onCompleteUninstall);
       }
       const onboardSaveBtn = $("onboardSaveBtn");
       if (onboardSaveBtn) {
