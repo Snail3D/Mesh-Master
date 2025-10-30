@@ -2629,11 +2629,8 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
     (
         "localization",
         {
-            "label": "Language & Location",
+            "label": "Call Sign and Location",
             "keys": [
-                "language_selection",
-                "auto_language_detect_enabled",
-                "auto_language_min_votes",
                 "local_location_string",
                 "ai_node_name",
             ],
