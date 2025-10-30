@@ -181,7 +181,7 @@ See [INSTALL.md](INSTALL.md) for advanced setup options.
 Access at: **http://localhost:5001/dashboard**
 
 Features:
-- Real-time activity feed with emoji icons
+- Real-time activity feed 
 - Per-channel metrics with 30-day charts
 - Relay tracking and ACK telemetry
 - Radio configuration controls
@@ -228,7 +228,7 @@ nano config.json  # Edit configuration
 
 ## Support
 
-- 📖 **Docs:** See [INSTALL.md](INSTALL.md), [COMMANDS.md](COMMANDS.md), `docs/mail_readme.md`
+- 📖 **Docs:** See [COMMANDS.md](COMMANDS.md), `docs/mail_readme.md`
 - 🐛 **Issues:** Report on GitHub
 - 💙 **Support Development:** [buymeacoffee.com/Snail3D](https://buymeacoffee.com/Snail3D)
 - ⭐ **Star the Project:** [github.com/Snail3D/Mesh-Master](https://github.com/Snail3D/Mesh-Master)
