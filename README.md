@@ -17,17 +17,14 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 - ✅ Auto-detects your platform (macOS, Linux, Raspberry Pi, Windows)
 - ✅ Installs Python 3, Ollama, and all dependencies
 - ✅ Creates config.json and desktop shortcut
-- ✅ Prompts for optional setup (Ollama model, etc.)
+- ✅ Prompts for optional setup (Ollama model, system service, etc.)
 
 ### After Installation
-1. Double-click the **Mesh Master** desktop icon
+1. Double-click the **Mesh Master** desktop icon (or service starts automatically if installed)
 2. Open dashboard: http://localhost:5001/dashboard
 3. Edit config.json to set your radio connection
 
-### Install as System Service (Auto-Start)
-```bash
-./scripts/universal/install_service.sh
-```
+**Tip:** Install as system service later from the dashboard (Operations Center → Install Service button)
 
 ### Uninstall
 ```bash
