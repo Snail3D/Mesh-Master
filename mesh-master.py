@@ -2733,6 +2733,10 @@ CONFIG_HIDDEN_KEYS = {
     "ollama_model",
     "message_archive_rotation_enabled",
     "message_archive_max_days",
+    "debug",
+    "clean_logs",
+    "start_on_boot",
+    "max_message_log",
 }
 
 CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
