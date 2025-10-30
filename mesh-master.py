@@ -23325,50 +23325,6 @@ def dashboard():
         </div>
         </article>
 
-<article class="panel config-panel" data-panel-id="config-overview" data-draggable="true" data-collapsible="true">
-        <div class="panel-header">
-          <div class="panel-title">
-            <h2>Configuration Overview ⚙️</h2>
-            <span class="panel-subtitle">Inspect current config.json values</span>
-          </div>
-          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
-        </div>
-        <div class="panel-body" id="configOverviewBody">
-        <div class="model-selector" id="ollamaModelSelector">
-          <div class="model-selector-header">
-            <label for="ollamaModelSelect">Ollama model<span class="help-icon" data-explainer="Select the AI model to use for responses. Smaller models (1b-3b) are faster but less accurate. Larger models (7b+) are smarter but slower. Search to find and download new models from the Ollama registry." data-explainer-placement="right">?</span></label>
-            <span class="model-status" id="ollamaModelStatus"></span>
-          </div>
-          <div class="model-picker">
-            <select id="ollamaModelSelect" class="config-select"></select>
-            <button type="button" id="ollamaRefreshModels" class="config-save-btn">Refresh</button>
-            <button type="button" id="ollamaDeleteModel" class="config-cancel-btn">Delete</button>
-          </div>
-          <div class="model-search">
-            <input type="text" id="ollamaModelSearch" class="config-input" placeholder="Search registry (e.g. llama3)" autocomplete="off">
-            <button type="button" id="ollamaModelSearchBtn" class="config-save-btn">Search</button>
-          </div>
-          <div class="model-search-results" id="ollamaModelSearchResults"></div>
-          <div class="model-download" id="ollamaModelDownload" hidden>
-            <div class="model-download-header">
-              <span id="ollamaModelDownloadLabel">Preparing download…</span>
-              <button type="button" id="ollamaModelDownloadCancel" class="config-save-btn" hidden>Cancel</button>
-            </div>
-            <div class="model-progress-track">
-              <div class="model-progress-bar" id="ollamaModelDownloadBar"></div>
-            </div>
-          </div>
-        </div>
-        <div class="config-select-row">
-          <label for="configCategorySelect">Category</label>
-          <select id="configCategorySelect" class="config-select"></select>
-        </div>
-          <div class="config-table" id="configSettingsList">
-            <p class="config-empty">Config snapshot unavailable.</p>
-          </div>
-        </div>
-        </article>
-
         <article class="panel radio-panel" data-panel-id="radio-settings" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
           <div class="panel-title">
@@ -23752,6 +23708,50 @@ def dashboard():
           <button type="button" id="completeUninstallBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px; background: #ff4444; border-color: #ff4444; color: #ffffff; font-weight: bold;">💀 Complete Uninstall (Removes Everything)</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff4444; font-weight: bold;">⚠️ WARNING: This will terminate Mesh Master immediately and DELETE THE ENTIRE DIRECTORY! Removes ALL services, shortcuts, processes, and files.</p>
         </div>
+        </div>
+        </article>
+
+        <article class="panel config-panel" data-panel-id="config-overview" data-draggable="true" data-collapsible="true">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>Configuration Overview ⚙️</h2>
+            <span class="panel-subtitle">Inspect current config.json values</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body" id="configOverviewBody">
+        <div class="model-selector" id="ollamaModelSelector">
+          <div class="model-selector-header">
+            <label for="ollamaModelSelect">Ollama model<span class="help-icon" data-explainer="Select the AI model to use for responses. Smaller models (1b-3b) are faster but less accurate. Larger models (7b+) are smarter but slower. Search to find and download new models from the Ollama registry." data-explainer-placement="right">?</span></label>
+            <span class="model-status" id="ollamaModelStatus"></span>
+          </div>
+          <div class="model-picker">
+            <select id="ollamaModelSelect" class="config-select"></select>
+            <button type="button" id="ollamaRefreshModels" class="config-save-btn">Refresh</button>
+            <button type="button" id="ollamaDeleteModel" class="config-cancel-btn">Delete</button>
+          </div>
+          <div class="model-search">
+            <input type="text" id="ollamaModelSearch" class="config-input" placeholder="Search registry (e.g. llama3)" autocomplete="off">
+            <button type="button" id="ollamaModelSearchBtn" class="config-save-btn">Search</button>
+          </div>
+          <div class="model-search-results" id="ollamaModelSearchResults"></div>
+          <div class="model-download" id="ollamaModelDownload" hidden>
+            <div class="model-download-header">
+              <span id="ollamaModelDownloadLabel">Preparing download…</span>
+              <button type="button" id="ollamaModelDownloadCancel" class="config-save-btn" hidden>Cancel</button>
+            </div>
+            <div class="model-progress-track">
+              <div class="model-progress-bar" id="ollamaModelDownloadBar"></div>
+            </div>
+          </div>
+        </div>
+        <div class="config-select-row">
+          <label for="configCategorySelect">Category</label>
+          <select id="configCategorySelect" class="config-select"></select>
+        </div>
+          <div class="config-table" id="configSettingsList">
+            <p class="config-empty">Config snapshot unavailable.</p>
+          </div>
         </div>
         </article>
 
