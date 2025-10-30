@@ -2509,6 +2509,7 @@ LOG_FILE = "messages.log"
 ARCHIVE_FILE = "messages_archive.json"
 FEATURE_FLAGS_FILE = "data/feature_flags.json"
 ANTISPAM_BAN_FILE = "data/antispam_bans.json"
+TIMEOUT_FILE = "data/timeouts.json"
 ONBOARDING_STATE_FILE = "data/onboarding_state.json"
 
 print("Loading config files...")
@@ -3753,6 +3754,9 @@ ANTISPAM_LOCK = threading.Lock()
 ANTISPAM_STATE: Dict[str, Dict[str, Any]] = {}
 ANTISPAM_BAN_LIST: Set[str] = set()  # Permanently banned users
 ANTISPAM_BAN_LOCK = threading.Lock()
+TIMEOUT_LIST: Dict[str, float] = {}  # Timed-out users: {user_key: expiry_timestamp}
+TIMEOUT_LOCK = threading.Lock()
+TIMEOUT_DURATION = 24 * 60 * 60  # 24 hours in seconds
 
 # Load anti-spam config with defaults
 def _get_antispam_config():
@@ -8132,6 +8136,69 @@ def _antispam_check_banned(sender_key: Optional[str]) -> bool:
         return False
     with ANTISPAM_BAN_LOCK:
         return sender_key in ANTISPAM_BAN_LIST
+
+
+def _timeout_load() -> None:
+    """Load timeout list from disk."""
+    try:
+        if os.path.exists(TIMEOUT_FILE):
+            with open(TIMEOUT_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    with TIMEOUT_LOCK:
+                        TIMEOUT_LIST.clear()
+                        TIMEOUT_LIST.update(data)
+                    clean_log(f"Loaded {len(TIMEOUT_LIST)} timed-out users", "⏱️")
+    except Exception as exc:
+        clean_log(f"Failed to load timeout list: {exc}", "⚠️")
+
+
+def _timeout_save() -> None:
+    """Save timeout list to disk."""
+    try:
+        os.makedirs(os.path.dirname(TIMEOUT_FILE), exist_ok=True)
+        with TIMEOUT_LOCK:
+            timeout_data = dict(TIMEOUT_LIST)
+        with open(TIMEOUT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(timeout_data, f, indent=2)
+    except Exception as exc:
+        clean_log(f"Failed to save timeout list: {exc}", "⚠️")
+
+
+def _timeout_check(sender_key: Optional[str]) -> Optional[float]:
+    """Check if user is timed out. Returns expiry timestamp if timed out, None otherwise."""
+    if not sender_key:
+        return None
+    with TIMEOUT_LOCK:
+        if sender_key in TIMEOUT_LIST:
+            expiry = TIMEOUT_LIST[sender_key]
+            # Check if timeout has expired
+            if time.time() >= expiry:
+                # Timeout expired, remove from list
+                del TIMEOUT_LIST[sender_key]
+                _timeout_save()
+                return None
+            return expiry
+    return None
+
+
+def _timeout_add(sender_key: str, duration: int = TIMEOUT_DURATION) -> float:
+    """Add user to timeout list. Returns expiry timestamp."""
+    expiry = time.time() + duration
+    with TIMEOUT_LOCK:
+        TIMEOUT_LIST[sender_key] = expiry
+    _timeout_save()
+    return expiry
+
+
+def _timeout_remove(sender_key: str) -> bool:
+    """Remove user from timeout list. Returns True if user was timed out, False otherwise."""
+    with TIMEOUT_LOCK:
+        if sender_key in TIMEOUT_LIST:
+            del TIMEOUT_LIST[sender_key]
+            _timeout_save()
+            return True
+    return False
 
 
 def _cooldown_register(sender_key: Optional[str], sender_node, interface_ref) -> None:
@@ -15052,26 +15119,159 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
     PENDING_REBOOT_CONFIRM[sender_key] = {"ts": _now()}
     return PendingReply("⚠️ SYSTEM REBOOT requested.\n\nThis will restart the entire mesh-master server.\n\nReply Y to confirm or N to cancel.", "/reboot confirm")
 
+  elif cmd == "/ban":
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    if not remainder:
+      return _cmd_reply(cmd, "Usage: /ban <shortname>\n\nPermanently ban a user from the system.")
+
+    target_shortname = remainder.strip()
+
+    # Look up the target user's key from their shortname
+    target_node_id = get_node_id_from_shortname(target_shortname)
+    if not target_node_id:
+      return _cmd_reply(cmd, f"❌ User '{target_shortname}' not found. Use the exact shortname from /nodes.")
+
+    target_key = _safe_sender_key(target_node_id)
+    if not target_key:
+      return _cmd_reply(cmd, f"❌ Could not determine key for '{target_shortname}'.")
+
+    # Prevent banning other admins
+    if target_key in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, f"❌ Cannot ban {target_shortname} - they are an admin.")
+
+    # Check if already banned
+    with ANTISPAM_BAN_LOCK:
+      if target_key in ANTISPAM_BAN_LIST:
+        return _cmd_reply(cmd, f"⚠️ {target_shortname} is already banned.")
+      ANTISPAM_BAN_LIST.add(target_key)
+      _antispam_save_bans()
+
+    # Remove from timeout list if present
+    _timeout_remove(target_key)
+
+    clean_log(f"Admin {sender_key} banned {target_shortname} ({target_key})", "🔨")
+    return _cmd_reply(cmd, f"🔨 {target_shortname} has been permanently banned.")
+
+  elif cmd == "/timeout":
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+    if not remainder:
+      return _cmd_reply(cmd, "Usage: /timeout <shortname>\n\nTimeout a user for 24 hours.")
+
+    target_shortname = remainder.strip()
+
+    # Look up the target user's key from their shortname
+    target_node_id = get_node_id_from_shortname(target_shortname)
+    if not target_node_id:
+      return _cmd_reply(cmd, f"❌ User '{target_shortname}' not found. Use the exact shortname from /nodes.")
+
+    target_key = _safe_sender_key(target_node_id)
+    if not target_key:
+      return _cmd_reply(cmd, f"❌ Could not determine key for '{target_shortname}'.")
+
+    # Prevent timing out other admins
+    if target_key in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, f"❌ Cannot timeout {target_shortname} - they are an admin.")
+
+    # Check if already permanently banned
+    with ANTISPAM_BAN_LOCK:
+      if target_key in ANTISPAM_BAN_LIST:
+        return _cmd_reply(cmd, f"⚠️ {target_shortname} is already permanently banned. Use /unban to remove the ban first.")
+
+    # Add to timeout list
+    expiry_timestamp = _timeout_add(target_key)
+    expiry_dt = datetime.fromtimestamp(expiry_timestamp)
+    expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+    clean_log(f"Admin {sender_key} timed out {target_shortname} ({target_key}) until {expiry_str}", "⏱️")
+    return _cmd_reply(cmd, f"⏱️ {target_shortname} has been timed out until {expiry_str}.")
+
+  elif cmd == "/showbanned":
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
+
+    lines = []
+
+    # Show permanently banned users
+    with ANTISPAM_BAN_LOCK:
+      if ANTISPAM_BAN_LIST:
+        lines.append("🔨 Permanently Banned:")
+        for user_key in sorted(ANTISPAM_BAN_LIST):
+          # Try to get shortname from key
+          try:
+            node_id = int(user_key.replace("!", ""), 16) if user_key.startswith("!") else None
+            shortname = get_node_shortname(node_id) if node_id else user_key
+          except:
+            shortname = user_key
+          lines.append(f"  • {shortname}")
+      else:
+        lines.append("🔨 No permanently banned users")
+
+    lines.append("")
+
+    # Show timed-out users
+    with TIMEOUT_LOCK:
+      if TIMEOUT_LIST:
+        lines.append("⏱️ Timed Out Users:")
+        for user_key, expiry in sorted(TIMEOUT_LIST.items(), key=lambda x: x[1]):
+          # Try to get shortname from key
+          try:
+            node_id = int(user_key.replace("!", ""), 16) if user_key.startswith("!") else None
+            shortname = get_node_shortname(node_id) if node_id else user_key
+          except:
+            shortname = user_key
+
+          expiry_dt = datetime.fromtimestamp(expiry)
+          expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
+          remaining = expiry - time.time()
+          hours = int(remaining // 3600)
+          minutes = int((remaining % 3600) // 60)
+          lines.append(f"  • {shortname} - until {expiry_str} ({hours}h {minutes}m left)")
+      else:
+        lines.append("⏱️ No timed-out users")
+
+    return _cmd_reply(cmd, "\n".join(lines))
+
   elif cmd == "/unban":
     if not sender_key or sender_key not in AUTHORIZED_ADMINS:
       return _cmd_reply(cmd, "🔐 Admin only. This command is limited to whitelisted operators.")
     if not remainder:
-      # Show current ban list
-      with ANTISPAM_BAN_LOCK:
-        if not ANTISPAM_BAN_LIST:
-          return _cmd_reply(cmd, "No users are currently banned.")
-        ban_list = "\n".join(f"• {user}" for user in sorted(ANTISPAM_BAN_LIST))
-        return _cmd_reply(cmd, f"🔨 Banned users:\n{ban_list}\n\nUsage: /unban <shortname>")
+      return _cmd_reply(cmd, "Usage: /unban <shortname>\n\nRemove permanent ban or timeout from a user.\n\nUse /showbanned to see current list.")
 
-    target_user = remainder.strip()
+    target_shortname = remainder.strip()
+
+    # Look up the target user's key from their shortname
+    target_node_id = get_node_id_from_shortname(target_shortname)
+    if not target_node_id:
+      return _cmd_reply(cmd, f"❌ User '{target_shortname}' not found. Use the exact shortname from /nodes.")
+
+    target_key = _safe_sender_key(target_node_id)
+    if not target_key:
+      return _cmd_reply(cmd, f"❌ Could not determine key for '{target_shortname}'.")
+
+    # Check permanent ban list
+    removed_from_ban = False
     with ANTISPAM_BAN_LOCK:
-      if target_user in ANTISPAM_BAN_LIST:
-        ANTISPAM_BAN_LIST.remove(target_user)
+      if target_key in ANTISPAM_BAN_LIST:
+        ANTISPAM_BAN_LIST.remove(target_key)
         _antispam_save_bans()
-        clean_log(f"Admin {sender_key} unbanned {target_user}", "✅")
-        return _cmd_reply(cmd, f"✅ {target_user} has been unbanned.")
-      else:
-        return _cmd_reply(cmd, f"❌ {target_user} is not banned.")
+        removed_from_ban = True
+
+    # Check timeout list
+    removed_from_timeout = _timeout_remove(target_key)
+
+    if removed_from_ban or removed_from_timeout:
+      status = []
+      if removed_from_ban:
+        status.append("permanent ban")
+      if removed_from_timeout:
+        status.append("timeout")
+
+      clean_log(f"Admin {sender_key} unbanned {target_shortname} ({target_key}) - removed: {', '.join(status)}", "✅")
+      return _cmd_reply(cmd, f"✅ {target_shortname} has been unbanned (removed {', '.join(status)}).")
+    else:
+      return _cmd_reply(cmd, f"❌ {target_shortname} is not banned or timed out.")
 
   elif cmd == "/hop":
     if not sender_key or sender_key not in AUTHORIZED_ADMINS:
@@ -17224,10 +17424,59 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
   # If blocked, suppress everything except 'unblock' handled above
   if sender_key and _is_user_blocked(sender_key):
     return None if not check_only else False
+  # Check if user is timed out
+  if sender_key:
+    timeout_expiry = _timeout_check(sender_key)
+    if timeout_expiry:
+      if not check_only:
+        # Get admin list for contact info
+        admin_shortnames = []
+        for admin_key in AUTHORIZED_ADMINS:
+          try:
+            node_id = int(admin_key.replace("!", ""), 16) if admin_key.startswith("!") else None
+            if node_id:
+              shortname = get_node_shortname(node_id)
+              if shortname:
+                admin_shortnames.append(shortname)
+          except:
+            pass
+
+        admin_list = ", ".join(admin_shortnames) if admin_shortnames else "system administrators"
+
+        # Format expiry time in local timezone
+        expiry_dt = datetime.fromtimestamp(timeout_expiry)
+        expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+        msg = (
+          f"⏱️ You are currently timed out until {expiry_str}\n\n"
+          f"You can regain access after this time expires.\n\n"
+          f"Contact admins: {admin_list}"
+        )
+        return PendingReply(msg, "timed out")
+      return False
+
   # Check if user is permanently banned
   if sender_key and _antispam_check_banned(sender_key):
     if not check_only:
-      return PendingReply("🚫 I'm not allowed to talk with you anymore. Contact an admin if you believe this is an error.", "banned")
+      # Get admin list for contact info
+      admin_shortnames = []
+      for admin_key in AUTHORIZED_ADMINS:
+        try:
+          node_id = int(admin_key.replace("!", ""), 16) if admin_key.startswith("!") else None
+          if node_id:
+            shortname = get_node_shortname(node_id)
+            if shortname:
+              admin_shortnames.append(shortname)
+        except:
+          pass
+
+      admin_list = ", ".join(admin_shortnames) if admin_shortnames else "system administrators"
+
+      msg = (
+        f"🚫 You are permanently banned from this system.\n\n"
+        f"Contact admins to appeal: {admin_list}"
+      )
+      return PendingReply(msg, "banned")
     return False
   # If muted, suppress auto/AI replies; let commands still pass
   if sender_key and _is_user_muted(sender_key) and not text.startswith('/'):
@@ -32779,6 +33028,9 @@ def main():
 
     # Load anti-spam ban list
     _antispam_load_bans()
+
+    # Load timeout list
+    _timeout_load()
 
     # Load Telegram configuration and start bot if enabled
     load_telegram_config()
