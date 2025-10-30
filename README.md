@@ -8,15 +8,7 @@
 
 ## 🚀 Quick Start
 
-### One-Click Installation
-
-Click the button for your platform to copy the install command:
-
-[![Install on Linux/Raspberry Pi](https://img.shields.io/badge/Install-Linux%2FRaspberry%20Pi-success?style=for-the-badge&logo=linux)](https://github.com/Snail3D/Mesh-Master#installation-commands)
-[![Install on macOS](https://img.shields.io/badge/Install-macOS-blue?style=for-the-badge&logo=apple)](https://github.com/Snail3D/Mesh-Master#installation-commands)
-[![Install on Windows](https://img.shields.io/badge/Install-Windows-0078D4?style=for-the-badge&logo=windows)](https://github.com/Snail3D/Mesh-Master#installation-commands)
-
-#### Installation Commands
+#### Installation Command
 
 **All Platforms (Universal):**
 ```bash
@@ -37,8 +29,6 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 **Tip:** Install as system service later from the dashboard (Operations Center → Install Service button)
 
 ### Uninstall
-
-[![Uninstall](https://img.shields.io/badge/Uninstall-Remove%20Everything-red?style=for-the-badge)](https://github.com/Snail3D/Mesh-Master#uninstall-command)
 
 #### Uninstall Command
 ```bash
@@ -277,9 +267,3 @@ Meshtastic is a trademark of Meshtastic LLC.
 - Meshtastic community for hardware, testing, and feedback
 
 ---
-
-## Support Development
-
-If you find Mesh Master useful, consider supporting development:
-
-<a href="https://www.buymeacoffee.com/Snail3D"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a pizza&emoji=🍕&slug=Snail3D&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" /></a>
