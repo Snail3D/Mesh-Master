@@ -74,11 +74,13 @@ if [[ -n "$SCRIPT_PATH" ]] && [[ -f "$SCRIPT_PATH" ]]; then
             bash "$SCRIPT_PATH" "$MESH_DIR_EXPORT"
         fi
     elif [[ "$PLATFORM" == "Windows" ]]; then
-        echo -e "${YELLOW}⚠️  Windows Setup${NC}"
+        echo -e "${YELLOW}⚠️  Windows detected${NC}"
         echo ""
-        echo "Please run as Administrator:"
-        echo -e "${BLUE}powershell -ExecutionPolicy Bypass -Command \"& '$SCRIPT_PATH'\"${NC}"
+        echo "Running Windows uninstaller..."
+        echo "Note: You may need to run this script as Administrator for full functionality"
         echo ""
+        # Pass MESH_DIR as argument to Windows batch script
+        cmd.exe /c "$SCRIPT_PATH" "$MESH_DIR_EXPORT"
     fi
 else
     # Standalone mode - do the uninstall inline

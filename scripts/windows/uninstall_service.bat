@@ -96,13 +96,122 @@ echo   - Auto-start on boot disabled
 echo   - Desktop shortcuts removed
 echo   - All processes stopped
 echo.
-echo Your data and config files are preserved.
-echo.
-echo To completely remove Mesh Master (including all data):
-echo   cd .. ^&^& rmdir /S /Q Mesh-Master
-echo.
-echo To reinstall the service, run:
-echo   scripts\windows\install_service.bat
-echo.
 
+REM Handle directory deletion
+REM Get Mesh-Master directory (passed as argument or detect)
+set MESH_DIR=%~1
+if not defined MESH_DIR (
+    REM Try to detect from script location
+    set MESH_DIR=%~dp0..\..
+)
+
+REM Resolve to absolute path
+pushd "%MESH_DIR%" 2>nul
+if %errorLevel% equ 0 (
+    set MESH_DIR=%CD%
+    popd
+) else (
+    echo ERROR: Could not detect Mesh Master directory
+    echo.
+    echo To manually remove Mesh Master:
+    echo   cd C:\path\to\Mesh-Master\.. ^&^& rmdir /S /Q Mesh-Master
+    pause
+    exit /b 1
+)
+
+REM CRITICAL SAFETY CHECK: Prevent deletion of system directories
+REM Check if MESH_DIR is empty or a system directory
+if "%MESH_DIR%"=="" (
+    echo ERROR: Could not safely detect Mesh Master directory
+    echo Detected path is empty
+    echo.
+    echo To manually remove Mesh Master:
+    echo   cd C:\path\to\Mesh-Master\.. ^&^& rmdir /S /Q Mesh-Master
+    pause
+    exit /b 1
+)
+
+REM Check for common system directories
+echo %MESH_DIR% | findstr /I /C:"C:\" >nul && (
+    if "%MESH_DIR%"=="C:\" (
+        echo ERROR: Refusing to delete C:\
+        pause
+        exit /b 1
+    )
+)
+echo %MESH_DIR% | findstr /I /C:"C:\Windows" >nul && (
+    echo ERROR: Refusing to delete Windows directory
+    pause
+    exit /b 1
+)
+echo %MESH_DIR% | findstr /I /C:"C:\Program Files" >nul && (
+    echo ERROR: Refusing to delete Program Files
+    pause
+    exit /b 1
+)
+echo %MESH_DIR% | findstr /I /C:"C:\Users" >nul && (
+    if "%MESH_DIR%"=="C:\Users" (
+        echo ERROR: Refusing to delete Users directory
+        pause
+        exit /b 1
+    )
+)
+
+REM Additional safety: Check if directory name contains "Mesh-Master" or "mesh-master"
+echo %MESH_DIR% | findstr /I /C:"Mesh-Master" >nul
+if %errorLevel% neq 0 (
+    echo ERROR: Directory path doesn't look like Mesh Master
+    echo Detected path: %MESH_DIR%
+    echo.
+    echo For safety, refusing to delete. To manually remove:
+    echo   rmdir /S /Q "%MESH_DIR%"
+    pause
+    exit /b 1
+)
+
+REM Check if AUTO_DELETE is set (from dashboard)
+if "%AUTO_DELETE%"=="true" (
+    echo Auto-deleting Mesh Master directory...
+    cd /d "%USERPROFILE%"
+    timeout /t 2 /nobreak >nul
+    rmdir /S /Q "%MESH_DIR%" 2>nul
+    if not exist "%MESH_DIR%" (
+        echo [OK] Mesh Master directory deleted: %MESH_DIR%
+        echo.
+        echo Mesh Master has been completely removed!
+    ) else (
+        echo [ERROR] Failed to delete directory
+        echo Please run manually: rmdir /S /Q "%MESH_DIR%"
+    )
+) else (
+    REM Interactive mode - ask user
+    echo.
+    echo DIRECTORY DELETION IN PROGRESS
+    echo.
+    echo The Mesh Master directory will be DELETED:
+    echo   %MESH_DIR%
+    echo.
+    echo This includes:
+    echo   - config.json (your settings and passwords)
+    echo   - data\ (logs, reports, mail, saved contexts)
+    echo   - All source code
+    echo.
+    echo Deleting in 5 seconds... Press Ctrl+C to cancel!
+    echo.
+    timeout /t 5 /nobreak
+    echo.
+    echo Deleting Mesh Master directory...
+    cd /d "%USERPROFILE%"
+    rmdir /S /Q "%MESH_DIR%" 2>nul
+    if not exist "%MESH_DIR%" (
+        echo [OK] Mesh Master directory deleted: %MESH_DIR%
+        echo.
+        echo Mesh Master has been completely removed!
+    ) else (
+        echo [ERROR] Failed to delete directory
+        echo Please run manually: rmdir /S /Q "%MESH_DIR%"
+    )
+)
+
+echo.
 pause
