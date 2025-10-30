@@ -8,7 +8,17 @@
 
 ## 🚀 Quick Start
 
-### Install (One Command)
+### One-Click Installation
+
+Click the button for your platform to copy the install command:
+
+[![Install on Linux/Raspberry Pi](https://img.shields.io/badge/Install-Linux%2FRaspberry%20Pi-success?style=for-the-badge&logo=linux)](https://github.com/Snail3D/Mesh-Master#installation-commands)
+[![Install on macOS](https://img.shields.io/badge/Install-macOS-blue?style=for-the-badge&logo=apple)](https://github.com/Snail3D/Mesh-Master#installation-commands)
+[![Install on Windows](https://img.shields.io/badge/Install-Windows-0078D4?style=for-the-badge&logo=windows)](https://github.com/Snail3D/Mesh-Master#installation-commands)
+
+#### Installation Commands
+
+**All Platforms (Universal):**
 ```bash
 rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd Mesh-Master && ./setup.sh
 ```
@@ -27,6 +37,10 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 **Tip:** Install as system service later from the dashboard (Operations Center → Install Service button)
 
 ### Uninstall
+
+[![Uninstall](https://img.shields.io/badge/Uninstall-Remove%20Everything-red?style=for-the-badge)](https://github.com/Snail3D/Mesh-Master#uninstall-command)
+
+#### Uninstall Command
 ```bash
 curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/universal/uninstall.sh | bash
 ```
