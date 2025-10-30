@@ -66,19 +66,22 @@ sudo ./scripts/linux/install_service.sh
 
 ### 🗑️ Quick Uninstall (One Command)
 
-**macOS:**
+**Universal uninstaller - works on macOS, Linux, Raspberry Pi, and Windows:**
+
 ```bash
-curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/macos/uninstall_service.sh | bash
+curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/universal/uninstall.sh | bash
 ```
 
-**Linux/Raspberry Pi:**
-```bash
-curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/linux/uninstall_service.sh | sudo bash
-```
+**That's it!** The script automatically:
+- ✅ Detects your platform (macOS, Linux, Windows)
+- ✅ Removes the Mesh Master service
+- ✅ Kills all running processes
+- ✅ Cleans up desktop shortcuts
+- ✅ Leaves your data intact (data/ directory preserved)
 
-**Windows:** (Run as Administrator in PowerShell)
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/uninstall_service.bat" -OutFile "$env:TEMP\uninstall_mesh.bat"; & "$env:TEMP\uninstall_mesh.bat"
+**Note:** On Linux/Raspberry Pi, use sudo:
+```bash
+curl -sSL https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/universal/uninstall.sh | sudo bash
 ```
 
 Completely removes Mesh Master service — no leftovers.
