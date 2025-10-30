@@ -113,8 +113,23 @@ echo "  • Desktop shortcuts removed"
 echo "  • All processes stopped"
 echo ""
 
-# Get the Mesh-Master directory (two levels up from scripts/linux)
+# Get the Mesh-Master directory (try multiple methods)
+# Method 1: From script location
 MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
+
+# Method 2: If that failed, try from current directory
+if [[ -z "$MESH_DIR" ]] || [[ ! -d "$MESH_DIR" ]]; then
+    # Check if we're already in Mesh-Master directory
+    if [[ -f "mesh-master.py" ]] && [[ -d "scripts" ]]; then
+        MESH_DIR=$(pwd)
+    # Check if we're in scripts/ subdirectory
+    elif [[ -f "../mesh-master.py" ]]; then
+        MESH_DIR=$(cd .. && pwd)
+    # Check if we're in scripts/linux/ subdirectory
+    elif [[ -f "../../mesh-master.py" ]]; then
+        MESH_DIR=$(cd ../.. && pwd)
+    fi
+fi
 
 # CRITICAL SAFETY CHECK: Ensure MESH_DIR is valid and not a system directory
 if [[ -z "$MESH_DIR" ]] || [[ "$MESH_DIR" == "/" ]] || [[ "$MESH_DIR" == "/usr" ]] || [[ "$MESH_DIR" == "/etc" ]] || [[ "$MESH_DIR" == "/var" ]] || [[ "$MESH_DIR" == "/home" ]] || [[ "$MESH_DIR" == "/root" ]]; then
