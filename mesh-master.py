@@ -3758,12 +3758,6 @@ TIMEOUT_LIST: Dict[str, float] = {}  # Timed-out users: {user_key: expiry_timest
 TIMEOUT_LOCK = threading.Lock()
 TIMEOUT_DURATION = 24 * 60 * 60  # 24 hours in seconds
 
-# Ollama slow request tracking
-OLLAMA_SLOW_THRESHOLD = 45.0  # seconds - threshold for context trimming
-OLLAMA_SLOW_USERS: Dict[str, float] = {}  # {user_key: last_slow_time}
-OLLAMA_SLOW_LOCK = threading.Lock()
-OLLAMA_REDUCED_MESSAGES = 4  # 2 back-and-forths = 4 messages (2 user + 2 AI)
-
 # Load anti-spam config with defaults
 def _get_antispam_config():
     """Get anti-spam configuration from config with fallback defaults."""
@@ -13450,8 +13444,6 @@ def build_ollama_history(sender_id=None, is_direct=False, channel_idx=None, thre
   - For channel messages: include recent channel messages for `channel_idx`.
   Limits to the last N messages (configurable via ollama_max_messages, default 20) for performance.
   This means ~10 back-and-forth exchanges to keep the model fast.
-
-  If sender had a slow request (>45s) recently, context is automatically trimmed to last 2 back-and-forths (4 messages).
   """
   try:
     with messages_lock:
@@ -13505,28 +13497,9 @@ def build_ollama_history(sender_id=None, is_direct=False, channel_idx=None, thre
 
     clean_log(f"📝 Found {len(candidates)} history candidates for context", "🔍", show_always=False)
 
-    # Check if this user had a slow request recently
-    # If so, use reduced context (last 2 back-and-forths only)
-    message_limit = OLLAMA_MAX_MESSAGES
-    if sender_id:
-      try:
-        sender_key = _safe_sender_key(sender_id)
-        with OLLAMA_SLOW_LOCK:
-          if sender_key in OLLAMA_SLOW_USERS:
-            # Check if slow request was recent (within last 5 minutes)
-            last_slow = OLLAMA_SLOW_USERS[sender_key]
-            if time.time() - last_slow < 300:  # 5 minutes
-              message_limit = OLLAMA_REDUCED_MESSAGES
-              clean_log(f"⚡ Using reduced context ({OLLAMA_REDUCED_MESSAGES} msgs) for {sender_key} due to recent slow request", "🔍", show_always=False)
-            else:
-              # Clear old entry
-              del OLLAMA_SLOW_USERS[sender_key]
-      except Exception as e:
-        dprint(f"Warning: failed checking slow request status: {e}")
-
-    # Limit to last N messages (configurable exchanges) for performance
+  # Limit to last N messages (configurable exchanges) for performance
     # Take from the end (most recent) of the candidates list
-    recent_candidates = candidates[-message_limit:] if len(candidates) > message_limit else candidates
+    recent_candidates = candidates[-OLLAMA_MAX_MESSAGES:] if len(candidates) > OLLAMA_MAX_MESSAGES else candidates
     
     # Build output lines in chronological order
     out_lines = []
@@ -13849,17 +13822,6 @@ def send_to_ollama(
                 resp = "Mongo no know... Mongo only pawn in game of life"
             elapsed = max(0.01, time.perf_counter() - start_time)
             clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=False, rate_limit=False)
-
-            # Track slow requests for context trimming
-            if elapsed > OLLAMA_SLOW_THRESHOLD and sender_id:
-              try:
-                sender_key = _safe_sender_key(sender_id)
-                with OLLAMA_SLOW_LOCK:
-                  OLLAMA_SLOW_USERS[sender_key] = time.time()
-                clean_log(f"⚡ Slow request detected ({elapsed:.1f}s) for {sender_key} - context will be trimmed on next request", "🐌", show_always=False)
-              except Exception as e:
-                dprint(f"Warning: failed tracking slow request: {e}")
-
             # Append processing time to response
             resp_with_time = f"{resp} ({int(round(elapsed))}s)"
             return (resp_with_time or "")[:MAX_RESPONSE_LENGTH]
