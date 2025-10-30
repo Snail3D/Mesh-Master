@@ -19086,15 +19086,16 @@ def dashboard_complete_uninstall():
             return jsonify({"success": False, "error": error_msg}), 500
 
         # Build command based on platform
+        # Pass project_dir as argument so script can find it even with sudo
         if system == "Darwin":  # macOS
             # macOS doesn't need sudo for LaunchAgent in ~/Library
-            cmd = ["/bin/bash", uninstall_script]
+            cmd = ["/bin/bash", uninstall_script, project_dir]
         elif system == "Linux":
             # Linux needs sudo for systemd service
-            cmd = ["sudo", "/bin/bash", uninstall_script]
+            cmd = ["sudo", "/bin/bash", uninstall_script, project_dir]
         elif system == "Windows":
             # Windows uses Git Bash
-            cmd = ["bash", uninstall_script]
+            cmd = ["bash", uninstall_script, project_dir]
         else:
             return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
 
@@ -19119,7 +19120,7 @@ def dashboard_complete_uninstall():
             clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
             return jsonify({
                 "success": False,
-                "error": f"{error_msg}\n\nPlease run manually:\ncd {project_dir}\nbash scripts/universal/uninstall.sh"
+                "error": f"{error_msg}\n\nPlease run manually:\ncd {project_dir}\nAUTO_DELETE=true bash scripts/universal/uninstall.sh"
             }), 500
 
         # Launch the uninstaller in the background
