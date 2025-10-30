@@ -51,10 +51,6 @@ alice how's the weather?
 
 ### Mesh Mail
 Async messaging system (like email on the mesh):
-```
-/m operations Low on batteries
-/c operations  
-```
 
 ### 20+ Games
 Chess, Blackjack, Hangman, Wordle, Morse code, Quizzes, and more. All DM-friendly.
