@@ -155,9 +155,6 @@ Control your mesh from Telegram:
 - **Windows:** Download Python and Ollama manually (setup.sh will guide)
 - **Linux:** Fully automatic with sudo
 
-### Manual Installation
-See [INSTALL.md](INSTALL.md) for advanced setup options.
-
 ---
 
 ## Security Notes
@@ -228,7 +225,7 @@ nano config.json  # Edit configuration
 
 ## Support
 
-- 📖 **Docs:** See [COMMANDS.md](COMMANDS.md), `docs/mail_readme.md`
+- 📖 **Docs:** [COMMANDS.md](COMMANDS.md) (all commands), [README_SERVICE.md](README_SERVICE.md) (systemd/LaunchAgent), `docs/mail_readme.md` (mail internals)
 - 🐛 **Issues:** Report on GitHub
 - 💙 **Support Development:** [buymeacoffee.com/Snail3D](https://buymeacoffee.com/Snail3D)
 - ⭐ **Star the Project:** [github.com/Snail3D/Mesh-Master](https://github.com/Snail3D/Mesh-Master)
