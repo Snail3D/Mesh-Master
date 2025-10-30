@@ -1,5 +1,6 @@
-<div align="center">
-  <img src="static/mesh-master-banner.png" alt="Mesh Master" width="600">
+<img src="static/mesh-master-banner.png" alt="Mesh Master" width="600">
+
+### v2.5 — Off-Grid AI Operations Suite
 
 **MESH MASTER** is a resilient copilot for Meshtastic LoRa mesh networks. It remembers conversations, relays messages across networks, handles async messaging, runs games, and maintains operations even when internet is unavailable.
 
