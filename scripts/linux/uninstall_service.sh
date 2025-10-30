@@ -36,30 +36,33 @@ SERVICE_FILE="/etc/systemd/system/mesh-ai.service"
 
 # Check if service is installed
 if [[ ! -f "$SERVICE_FILE" ]]; then
-    echo -e "${YELLOW}⚠️  Mesh Master service is not installed${NC}"
+    echo -e "${YELLOW}⚠️  Mesh Master systemd service is not installed${NC}"
     echo ""
-    echo "Service file not found: $SERVICE_FILE"
-    exit 0
+    echo "Will still clean up desktop shortcuts and processes..."
+    echo ""
+else
+    echo "Found service file: $SERVICE_FILE"
+    echo ""
+
+    # Stop the service if running
+    echo "Stopping mesh-ai service..."
+    systemctl stop mesh-ai 2>/dev/null || true
+
+    # Disable the service
+    echo "Disabling mesh-ai service..."
+    systemctl disable mesh-ai 2>/dev/null || true
+
+    # Remove service file
+    echo "Removing service file..."
+    rm -f "$SERVICE_FILE"
+
+    # Reload systemd
+    echo "Reloading systemd daemon..."
+    systemctl daemon-reload
+
+    echo -e "${GREEN}✓${NC} Service removed"
+    echo ""
 fi
-
-echo "Found service file: $SERVICE_FILE"
-echo ""
-
-# Stop the service if running
-echo "Stopping mesh-ai service..."
-systemctl stop mesh-ai 2>/dev/null || true
-
-# Disable the service
-echo "Disabling mesh-ai service..."
-systemctl disable mesh-ai 2>/dev/null || true
-
-# Remove service file
-echo "Removing service file..."
-rm -f "$SERVICE_FILE"
-
-# Reload systemd
-echo "Reloading systemd daemon..."
-systemctl daemon-reload
 
 # Remove desktop shortcuts (run as original user, not root)
 echo "Removing desktop shortcuts..."
