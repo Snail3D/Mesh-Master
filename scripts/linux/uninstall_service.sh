@@ -78,11 +78,25 @@ if [[ -f "$DESKTOP/stop-mesh-master.desktop" ]]; then
     ((removed_count++))
 fi
 
+# Also remove the launcher shortcut created by setup.sh
+if [[ -f "$DESKTOP/Mesh Master.desktop" ]]; then
+    rm -f "$DESKTOP/Mesh Master.desktop"
+    ((removed_count++))
+fi
+
 if [[ $removed_count -gt 0 ]]; then
     echo -e "${GREEN}✓${NC} Removed $removed_count desktop shortcut(s)"
 else
     echo -e "${YELLOW}⚠️${NC} No desktop shortcuts found"
 fi
+
+# Kill any running Mesh Master processes
+echo "Stopping any running Mesh Master processes..."
+pkill -f "python.*mesh-master.py" 2>/dev/null || true
+pkill -f "mesh-master.py" 2>/dev/null || true
+ps aux | grep "[m]esh-master.py" | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+sleep 1
+echo -e "${GREEN}✓${NC} Processes stopped"
 
 echo ""
 echo -e "${GREEN}=========================================="
@@ -93,9 +107,13 @@ echo "The service has been removed:"
 echo "  • Service stopped and disabled"
 echo "  • Auto-start on boot disabled"
 echo "  • Desktop shortcuts removed"
+echo "  • All processes stopped"
 echo ""
 echo "Your data and config files are preserved."
 echo ""
-echo "To reinstall, run:"
+echo "To completely remove Mesh Master (including all data):"
+echo -e "  ${YELLOW}cd .. && rm -rf Mesh-Master${NC}"
+echo ""
+echo "To reinstall the service, run:"
 echo "  sudo ./scripts/linux/install_service.sh"
 echo ""

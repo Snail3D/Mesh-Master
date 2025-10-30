@@ -388,12 +388,17 @@ fi
 # Install additional required packages not in requirements.txt
 echo ""
 if [[ "$OS" == "Raspberry Pi" ]]; then
-    # Skip additional pip packages on Raspberry Pi - pip hangs on index lookups
-    echo "Skipping additional pip packages on Raspberry Pi"
-    echo -e "${YELLOW}ℹ${NC}  Optional packages can be installed later if needed"
+    # Install critical packages from piwheels (fast pre-compiled binaries)
+    echo "Installing critical packages from piwheels..."
+    pip install python-chess==1.999 reportlab==4.4.4 pytest==8.3.3 --no-cache-dir
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✓${NC} Installed python-chess, reportlab, and pytest"
+    else
+        echo -e "${YELLOW}⚠️${NC}  Some packages may have failed (can install manually later)"
+    fi
 else
     echo "Installing additional dependencies..."
-    pip install cryptography python-telegram-bot bcrypt --no-cache-dir
+    pip install cryptography python-telegram-bot bcrypt python-chess==1.999 reportlab==4.4.4 pytest==8.3.3 --no-cache-dir
     if [[ $? -eq 0 ]]; then
         echo -e "${GREEN}✓${NC} Installed additional dependencies"
     else
