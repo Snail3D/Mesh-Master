@@ -29764,12 +29764,16 @@ def get_config_snapshot():
     connection_type = "Not Connected"
     node_info = {}
 
-    if interface:
-        if USE_WIFI:
+    # Only show connection type if interface exists AND connection_status is "Connected"
+    if interface and connection_status == "Connected":
+        # Determine actual connection type based on interface class
+        interface_class_name = interface.__class__.__name__
+
+        if interface_class_name == 'TCPInterface' or USE_WIFI:
             connection_type = "WiFi"
-        elif USE_BLUETOOTH:
+        elif interface_class_name == 'BLEInterface' or USE_BLUETOOTH:
             connection_type = "Bluetooth"
-        elif SERIAL_PORT:
+        elif interface_class_name == 'SerialInterface':
             connection_type = "Serial"
         else:
             connection_type = "Unknown"
@@ -31461,7 +31465,7 @@ def bluetooth_connect():
 @require_auth
 def bluetooth_forget():
     """Forget/unpair a Bluetooth device."""
-    global USE_BLUETOOTH, BLUETOOTH_DEVICE
+    global USE_BLUETOOTH, BLUETOOTH_DEVICE, connection_status
     try:
         # Clear Bluetooth config
         config['bluetooth_device'] = ''
@@ -31471,6 +31475,7 @@ def bluetooth_forget():
         # Update global variables immediately
         USE_BLUETOOTH = False
         BLUETOOTH_DEVICE = None
+        connection_status = "Disconnected"
 
         # Save config
         with open('config.json', 'w') as f:
