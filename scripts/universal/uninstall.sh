@@ -152,11 +152,13 @@ else
     fi
     echo ""
 
-    # Auto-delete directory if AUTO_DELETE env var is set (used by dashboard)
+    # Handle directory deletion
+    # Get the script directory (Mesh-Master folder)
+    MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
+
+    # Auto-delete if AUTO_DELETE env var is set (used by dashboard)
     if [[ "$AUTO_DELETE" == "true" ]]; then
         echo "Auto-deleting Mesh Master directory..."
-        # Get the script directory (Mesh-Master folder)
-        MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
 
         if [[ -n "$MESH_DIR" ]] && [[ -d "$MESH_DIR" ]]; then
             # Move up one level and delete
@@ -171,8 +173,40 @@ else
             echo "Please manually delete: cd ~ && rm -rf Mesh-Master"
         fi
     else
-        echo "To completely remove Mesh Master directory:"
-        echo -e "  ${YELLOW}cd ~ && rm -rf Mesh-Master${NC}"
+        # Interactive mode - delete directory with countdown
         echo ""
+        echo -e "${YELLOW}⚠️  DIRECTORY DELETION IN PROGRESS${NC}"
+        echo ""
+        echo "The Mesh Master directory will be DELETED:"
+        echo -e "  ${BLUE}$MESH_DIR${NC}"
+        echo ""
+        echo "This includes:"
+        echo "  • config.json (your settings and passwords)"
+        echo "  • data/ (logs, reports, mail, saved contexts)"
+        echo "  • All source code"
+        echo ""
+        echo -e "${RED}Deleting in 5 seconds... Press Ctrl+C to cancel!${NC}"
+        echo ""
+
+        # Countdown
+        for i in 5 4 3 2 1; do
+            echo -ne "  ${i}... \r"
+            sleep 1
+        done
+        echo ""
+
+        echo "Deleting Mesh Master directory..."
+        cd "$HOME" 2>/dev/null || cd /tmp
+        sleep 1
+        rm -rf "$MESH_DIR" 2>/dev/null
+
+        if [[ ! -d "$MESH_DIR" ]]; then
+            echo -e "${GREEN}✓${NC} Mesh Master directory deleted: $MESH_DIR"
+            echo ""
+            echo "Mesh Master has been completely removed!"
+        else
+            echo -e "${RED}❌${NC} Failed to delete directory. Please run manually:"
+            echo -e "  ${YELLOW}rm -rf \"$MESH_DIR\"${NC}"
+        fi
     fi
 fi

@@ -18004,7 +18004,7 @@ def api_password_hint():
     """Get password hint (public endpoint)."""
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
-# Version caching
+# Version caching - force fetch on startup by setting last_fetch to 0
 _version_cache = {'version': 'v2.5', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
@@ -18075,17 +18075,17 @@ def _check_for_updates():
 
 @app.route("/api/version", methods=["GET"])
 def api_version():
-    """Get current version from GitHub (cached)."""
+    """Get current version from git tags (cached with TTL)."""
     import time
     import subprocess
 
     current_time = time.time()
 
-    # Return cached version if still valid
-    if current_time - _version_cache['last_fetch'] < _version_cache_ttl:
+    # Return cached version if still valid (but always fetch once on startup when last_fetch is 0)
+    if _version_cache['last_fetch'] > 0 and current_time - _version_cache['last_fetch'] < _version_cache_ttl:
         return jsonify({'version': _version_cache['version']})
 
-    # Try to fetch latest tag from GitHub
+    # Fetch current version from git
     try:
         # Get project directory dynamically
         project_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18101,9 +18101,10 @@ def api_version():
             version = result.stdout.strip()
             _version_cache['version'] = version
             _version_cache['last_fetch'] = current_time
+            clean_log(f"📌 Current version: {version}", show_always=False, rate_limit=False)
             return jsonify({'version': version})
     except Exception as e:
-        clean_log(f"⚠️ Failed to fetch version from git: {e}", "⚠️")
+        clean_log(f"⚠️ Failed to fetch version from git: {e}", show_always=False, rate_limit=False)
 
     # Fallback to cached version
     return jsonify({'version': _version_cache['version']})
@@ -18700,28 +18701,146 @@ def dashboard_update_apply():
         # Get project directory dynamically (works on any machine)
         project_dir = os.path.dirname(os.path.abspath(__file__))
 
-        # Create update script that will run after Python exits (cross-platform)
+        # PRE-CHECK 1: Test git authentication
+        clean_log(f"🔐 Checking git authentication...", show_always=False, rate_limit=False)
+        auth_check = subprocess.run(
+            ["git", "ls-remote", "--exit-code", "origin"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+
+        if auth_check.returncode != 0:
+            error_details = auth_check.stderr.strip() if auth_check.stderr else "Unknown error"
+
+            # Detect remote URL type
+            remote_check = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            remote_url = remote_check.stdout.strip() if remote_check.returncode == 0 else "unknown"
+
+            # Build helpful error message based on remote type
+            if "https://" in remote_url:
+                help_msg = (
+                    f"Git authentication failed. You're using HTTPS ({remote_url}). "
+                    "To fix this:\n\n"
+                    "Option 1 (Recommended): Switch to SSH\n"
+                    f"  cd {project_dir}\n"
+                    "  git remote set-url origin git@github.com:Snail3D/Mesh-Master.git\n\n"
+                    "Option 2: Enable credential caching\n"
+                    "  git config --global credential.helper cache\n"
+                    "  git config --global credential.helper 'cache --timeout=3600'\n"
+                    "  Then run: git fetch\n\n"
+                    f"Error details: {error_details}"
+                )
+            elif "git@" in remote_url:
+                help_msg = (
+                    f"Git authentication failed. You're using SSH ({remote_url}). "
+                    "To fix this:\n\n"
+                    "1. Test SSH connection: ssh -T git@github.com\n"
+                    "2. If that fails, add your SSH key to GitHub:\n"
+                    "   - Generate key: ssh-keygen -t ed25519 -C 'your_email@example.com'\n"
+                    "   - Copy key: cat ~/.ssh/id_ed25519.pub\n"
+                    "   - Add to GitHub: https://github.com/settings/keys\n\n"
+                    f"Error details: {error_details}"
+                )
+            else:
+                help_msg = (
+                    f"Git authentication failed with remote: {remote_url}\n\n"
+                    f"Error details: {error_details}\n\n"
+                    "Try switching to SSH:\n"
+                    f"  cd {project_dir}\n"
+                    "  git remote set-url origin git@github.com:Snail3D/Mesh-Master.git"
+                )
+
+            clean_log(f"❌ {help_msg}", show_always=False, rate_limit=False)
+            return jsonify({"success": False, "error": help_msg}), 500
+
+        # PRE-CHECK 2: Check for uncommitted changes
+        clean_log(f"📝 Checking for uncommitted changes...", show_always=False, rate_limit=False)
+        status_check = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if status_check.stdout.strip():
+            uncommitted_files = status_check.stdout.strip().split('\n')
+            help_msg = (
+                "⚠️ You have uncommitted changes that will be lost during update:\n\n"
+                + "\n".join(uncommitted_files[:10])
+                + ("\n... and more" if len(uncommitted_files) > 10 else "")
+                + "\n\nTo fix:\n"
+                f"  cd {project_dir}\n"
+                "  git stash  # Save changes temporarily\n"
+                "  # Then try update again\n"
+                "  git stash pop  # Restore changes after update (if needed)"
+            )
+            clean_log(f"⚠️ {help_msg}", show_always=False, rate_limit=False)
+            return jsonify({"success": False, "error": help_msg}), 400
+
+        clean_log(f"✅ Pre-checks passed, proceeding with update...", show_always=False, rate_limit=False)
+
+        # Create update script with error logging
+        log_file = f"/tmp/mesh_update_{version}.log"
         update_script = """#!/bin/bash
+set -e  # Exit on error
+exec > {log_file} 2>&1  # Log all output
+
+echo "=== Mesh Master Update to {version} ==="
+echo "Started at: $(date)"
+echo ""
+
 cd {project_dir}
-git fetch --all --tags
-git checkout {version}
+
+echo "Fetching updates from GitHub..."
+if ! git fetch --all --tags; then
+    echo "ERROR: Git fetch failed"
+    echo "This usually means:"
+    echo "  - No internet connection"
+    echo "  - GitHub is unreachable"
+    echo "  - Authentication issue"
+    exit 1
+fi
+
+echo "Checking out version {version}..."
+if ! git checkout {version}; then
+    echo "ERROR: Git checkout failed"
+    echo "Version {version} may not exist or there are conflicts"
+    exit 1
+fi
+
+echo "Update successful! Restarting service..."
 
 # Detect platform and restart appropriately
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS: Try launchctl restart, fallback to kill
     if launchctl list | grep -q com.meshmaster; then
+        echo "Restarting via launchctl..."
         launchctl kickstart -k gui/$(id -u)/com.meshmaster
     else
+        echo "Restarting via pkill..."
         pkill -f mesh-master.py
     fi
 else
     # Linux: Try systemd restart, fallback to kill
     if sudo systemctl restart mesh-ai 2>/dev/null; then
+        echo "Restarted via systemd"
         exit 0
     fi
+    echo "Restarting via pkill..."
     pkill -f mesh-master.py
 fi
-""".format(project_dir=project_dir, version=version)
+
+echo "Completed at: $(date)"
+""".format(project_dir=project_dir, version=version, log_file=log_file)
 
         script_path = "/tmp/mesh_update.sh"
         with open(script_path, "w") as f:
@@ -18732,11 +18851,19 @@ fi
         # Launch the update script in the background
         subprocess.Popen(["/bin/bash", script_path], start_new_session=True)
 
-        return jsonify({"success": True, "message": f"Updating to {version}. Server will restart shortly."})
+        return jsonify({
+            "success": True,
+            "message": f"✅ Pre-checks passed. Updating to {version}. Server will restart shortly.\n\nUpdate log: {log_file}"
+        })
 
+    except subprocess.TimeoutExpired:
+        error_msg = "Update check timed out. Check your internet connection and try again."
+        clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
+        return jsonify({"success": False, "error": error_msg}), 500
     except Exception as exc:
-        clean_log(f"❌ Update apply failed: {exc}", show_always=False, rate_limit=False)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        error_msg = f"Update failed: {str(exc)}\n\nIf this persists, try manual update:\n  cd {project_dir}\n  git fetch --all --tags\n  git checkout {version}"
+        clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
+        return jsonify({"success": False, "error": error_msg}), 500
 
 
 @app.route("/api/platform", methods=["GET"])
@@ -18952,22 +19079,52 @@ def dashboard_complete_uninstall():
         # Run the universal uninstaller script
         uninstall_script = os.path.join(project_dir, "scripts", "universal", "uninstall.sh")
 
+        # Check if script exists
+        if not os.path.exists(uninstall_script):
+            error_msg = f"Uninstaller script not found at: {uninstall_script}"
+            clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
+            return jsonify({"success": False, "error": error_msg}), 500
+
+        # Build command based on platform
         if system == "Darwin":  # macOS
+            # macOS doesn't need sudo for LaunchAgent in ~/Library
             cmd = ["/bin/bash", uninstall_script]
         elif system == "Linux":
+            # Linux needs sudo for systemd service
             cmd = ["sudo", "/bin/bash", uninstall_script]
         elif system == "Windows":
-            # Windows uses the universal script with Git Bash
+            # Windows uses Git Bash
             cmd = ["bash", uninstall_script]
         else:
             return jsonify({"success": False, "error": f"Unsupported platform: {system}"}), 400
 
-        # Run the uninstaller in background with AUTO_DELETE env var
-        # The uninstaller will kill this process, so we can't wait for completion
+        # Set up environment with AUTO_DELETE flag
         env = os.environ.copy()
-        env["AUTO_DELETE"] = "true"  # Tell the script to auto-delete the directory
+        env["AUTO_DELETE"] = "true"
 
-        subprocess.Popen(
+        # Test script execution first (quick check)
+        try:
+            test_result = subprocess.run(
+                [cmd[0], "-c", "echo test"],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if test_result.returncode != 0:
+                error_msg = f"Shell not available: {test_result.stderr}"
+                clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
+                return jsonify({"success": False, "error": error_msg}), 500
+        except Exception as e:
+            error_msg = f"Cannot execute bash: {str(e)}"
+            clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
+            return jsonify({
+                "success": False,
+                "error": f"{error_msg}\n\nPlease run manually:\ncd {project_dir}\nbash scripts/universal/uninstall.sh"
+            }), 500
+
+        # Launch the uninstaller in the background
+        # It will kill this process, so we can't wait for it
+        process = subprocess.Popen(
             cmd,
             cwd=project_dir,
             env=env,
@@ -18976,17 +19133,30 @@ def dashboard_complete_uninstall():
             start_new_session=True
         )
 
-        clean_log(f"✅ Complete uninstall initiated on {system}", show_always=False, rate_limit=False)
+        clean_log(f"✅ Complete uninstall initiated on {system} (PID: {process.pid})", show_always=False, rate_limit=False)
 
         return jsonify({
             "success": True,
-            "message": f"Complete uninstall started! All services, shortcuts, processes, and the directory will be removed. The Mesh Master process will terminate in a few seconds.",
+            "message": (
+                f"✅ Complete uninstall started!\n\n"
+                f"The uninstaller will:\n"
+                f"• Stop all Mesh Master processes\n"
+                f"• Remove desktop shortcuts\n"
+                f"• Remove {'LaunchAgent service' if system == 'Darwin' else 'systemd service' if system == 'Linux' else 'Windows service'}\n"
+                f"• Delete the Mesh Master directory\n\n"
+                f"This dashboard will close in a few seconds."
+            ),
             "platform": system
         })
 
+    except PermissionError as e:
+        error_msg = f"Permission denied: {str(e)}\n\nPlease run manually:\ncd {project_dir}\nbash scripts/universal/uninstall.sh"
+        clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
+        return jsonify({"success": False, "error": error_msg}), 500
     except Exception as exc:
-        clean_log(f"❌ Complete uninstall failed: {exc}", show_always=False, rate_limit=False)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        error_msg = f"Uninstall failed: {str(exc)}\n\nPlease run manually:\ncd {project_dir}\nbash scripts/universal/uninstall.sh"
+        clean_log(f"❌ {error_msg}", show_always=False, rate_limit=False)
+        return jsonify({"success": False, "error": error_msg}), 500
 
 
 def auto_update_worker():
@@ -23230,7 +23400,6 @@ def dashboard():
       </div>
       <div class="header-actions">
         <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.5</span>
-        <span id="metricsTimestamp" class="panel-subtitle">Waiting for metrics…</span>
         <div style="display: flex; gap: 12px;">
           <a class="header-meta-link" href="/logs/verbose" target="_blank" rel="noreferrer">verbose logs</a>
         </div>
@@ -23893,7 +24062,7 @@ def dashboard():
 
         <article class="panel log-panel" data-panel-id="log">
         <div class="panel-header">
-          <h2>Activity 📡</h2>
+          <h2>Activity</h2>
           <div class="activity-header-meta">
             <div class="queue-meta" id="queueMeta">Queue —</div>
           </div>
@@ -27192,17 +27361,102 @@ def dashboard():
         const data = await response.json();
 
         if (data.success) {
-          alert(`✅ Update to ${selectedVersion} initiated. Server will restart shortly.`);
+          // Show success with update log location
+          showUpdateDialog('success', data.message || `✅ Update to ${selectedVersion} initiated. Server will restart shortly.`);
         } else {
-          alert(`❌ Update failed: ${data.error || 'Unknown error'}`);
+          // Show detailed error with troubleshooting steps
+          showUpdateDialog('error', data.error || 'Unknown error');
           applyBtn.disabled = false;
           applyBtn.textContent = 'Apply Update';
         }
       } catch (err) {
-        alert(`❌ Update request failed: ${err.message}`);
+        showUpdateDialog('error', `Update request failed: ${err.message}`);
         applyBtn.disabled = false;
         applyBtn.textContent = 'Apply Update';
       }
+    }
+
+    function showUpdateDialog(type, message) {
+      // Create modal dialog for better multi-line message display
+      const existingModal = $("updateModal");
+      if (existingModal) {
+        existingModal.remove();
+      }
+
+      const modal = document.createElement('div');
+      modal.id = 'updateModal';
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 20px;
+      `;
+
+      const dialog = document.createElement('div');
+      dialog.style.cssText = `
+        background: var(--bg-secondary);
+        border: 2px solid ${type === 'success' ? '#4ade80' : '#ef4444'};
+        border-radius: 8px;
+        padding: 24px;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      `;
+
+      const icon = type === 'success' ? '✅' : '❌';
+      const title = type === 'success' ? 'Update In Progress' : 'Update Failed';
+
+      dialog.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: ${type === 'success' ? '#4ade80' : '#ef4444'};">
+          ${icon} ${title}
+        </h3>
+        <pre style="
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          font-family: 'Courier New', monospace;
+          font-size: 13px;
+          line-height: 1.6;
+          margin: 0 0 20px 0;
+          color: var(--text-primary);
+          background: var(--bg-primary);
+          padding: 12px;
+          border-radius: 4px;
+          border: 1px solid var(--border);
+        ">${message}</pre>
+        <button id="updateModalClose" style="
+          width: 100%;
+          padding: 10px;
+          background: var(--accent);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+        ">Close</button>
+      `;
+
+      modal.appendChild(dialog);
+      document.body.appendChild(modal);
+
+      const closeBtn = $("updateModalClose");
+      const closeModal = () => modal.remove();
+
+      closeBtn.addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeModal();
+      }, { once: true });
     }
 
     async function loadOnboardingSettings() {

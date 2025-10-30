@@ -112,11 +112,54 @@ echo "  • Auto-start on boot disabled"
 echo "  • Desktop shortcuts removed"
 echo "  • All processes stopped"
 echo ""
-echo "Your data and config files are preserved."
-echo ""
-echo "To completely remove Mesh Master (including all data):"
-echo -e "  ${YELLOW}cd .. && rm -rf Mesh-Master${NC}"
-echo ""
-echo "To reinstall the service, run:"
-echo "  sudo ./scripts/linux/install_service.sh"
+
+# Get the Mesh-Master directory (two levels up from scripts/linux)
+MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)
+
+# Check for AUTO_DELETE env var (set by dashboard)
+if [[ "$AUTO_DELETE" == "true" ]]; then
+    echo "Auto-deleting Mesh Master directory..."
+    cd "$HOME" 2>/dev/null || cd /tmp
+    sleep 2
+    rm -rf "$MESH_DIR" 2>/dev/null
+    echo -e "${GREEN}✓${NC} Mesh Master directory deleted: $MESH_DIR"
+    echo ""
+    echo "Mesh Master has been completely removed!"
+else
+    # Interactive mode - delete with countdown
+    echo ""
+    echo -e "${YELLOW}⚠️  DIRECTORY DELETION IN PROGRESS${NC}"
+    echo ""
+    echo "The Mesh Master directory will be DELETED:"
+    echo -e "  ${BLUE}$MESH_DIR${NC}"
+    echo ""
+    echo "This includes:"
+    echo "  • config.json (your settings and passwords)"
+    echo "  • data/ (logs, reports, mail, saved contexts)"
+    echo "  • All source code"
+    echo ""
+    echo -e "${RED}Deleting in 5 seconds... Press Ctrl+C to cancel!${NC}"
+    echo ""
+
+    # Countdown
+    for i in 5 4 3 2 1; do
+        echo -ne "  ${i}... \r"
+        sleep 1
+    done
+    echo ""
+
+    echo "Deleting Mesh Master directory..."
+    cd "$HOME" 2>/dev/null || cd /tmp
+    sleep 1
+    rm -rf "$MESH_DIR" 2>/dev/null
+
+    if [[ ! -d "$MESH_DIR" ]]; then
+        echo -e "${GREEN}✓${NC} Mesh Master directory deleted: $MESH_DIR"
+        echo ""
+        echo "Mesh Master has been completely removed!"
+    else
+        echo -e "${RED}❌${NC} Failed to delete directory. Please run manually:"
+        echo -e "  ${YELLOW}rm -rf \"$MESH_DIR\"${NC}"
+    fi
+fi
 echo ""
