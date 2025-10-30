@@ -23736,12 +23736,24 @@ def dashboard():
           <button type="button" id="completeUninstallBtn" class="config-cancel-btn" style="width: 100%; margin-top: 8px; font-size: 15px; padding: 12px; background: #ff4444; border-color: #ff4444; color: #ffffff; font-weight: bold;">💀 Complete Uninstall (Removes Everything)</button>
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff4444; font-weight: bold;">⚠️ WARNING: This will terminate Mesh Master immediately and DELETE THE ENTIRE DIRECTORY! Removes ALL services, shortcuts, processes, and files.</p>
         </div>
-        <div style="padding: 16px 0 0 0; border-top: 1px solid var(--border); margin-top: 16px;">
-          <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
         </div>
-        </div>
+        </article>
 
-        <div class="command-groups" id="commandGroups"></div>
+        <article class="panel" data-panel-id="commands" data-draggable="true" data-collapsible="true">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>/commands menu 📜</h2>
+            <span class="panel-subtitle">All available bot commands and custom command builder</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body">
+          <div style="padding: 0 0 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 16px;">
+            <a id="commandBuilderLink" class="header-meta-link" href="/command-builder" target="_blank" rel="noreferrer" style="font-size: 13px; padding: 8px 12px; display: inline-block; background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3); border-radius: 6px;">📝 Command Builder</a>
+            <p class="passphrase-hint" style="margin-top: 8px;">Create custom commands and interactive menus. Build your own /joke, /weather, or any command you can imagine!</p>
+          </div>
+          <div class="command-groups" id="commandGroups"></div>
+        </div>
         </article>
 
         <article class="panel" data-panel-id="telegram" data-draggable="true" data-collapsible="true">
