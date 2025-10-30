@@ -126,8 +126,7 @@ Control your mesh from Telegram:
 - `/find <query>` — Search across everything
 
 **AI & Personality**
-- `/ai <question>` — Ask AI
-- `/aipersonality` — List/set/prompt personalities
+- `/ai <question>` — Ask AI (no /ai prefix needed in DM mode, just speak normally)
 - `/vibe [tone]` — Adjust conversation tone
 - `/save [name]` — Capture context
 - `/recall [name]` — Restore context
