@@ -2560,17 +2560,6 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         },
     ),
     (
-        "connection",
-        {
-            "label": "Mesh Connection",
-            "keys": [
-                "use_mesh_interface", "serial_port", "serial_baud",
-                "use_wifi", "wifi_host", "wifi_port",
-                "radio_settings_info",
-            ],
-        },
-    ),
-    (
         "bluetooth",
         {
             "label": "Bluetooth 📡",
