@@ -101,6 +101,7 @@ Control your mesh from Telegram:
 - URL filter blocks adult/warez sites
 - All user data excluded from git
 - Security audit trail with Telegram alerts
+- **Self-service blocking:** Users can blacklist themselves to stop all bot replies (DM `blacklist me` and confirm with Y). Unblock anytime with `/unblock`.
 
 ---
 
@@ -147,13 +148,19 @@ Control your mesh from Telegram:
 - `/bible [topic]` — Bible verses
 - `/weather` — Weather forecast
 
+**User Controls**
+- `/stop` — Pause AI replies (DM your messages without responses)
+- `/resume` — Re-enable AI replies
+- `blacklist me` — Block all bot replies (reply Y/N to confirm)
+- `/unblock` — Restore bot replies after blacklist
+
 **Admin (DM-only)**
 - `/menu` — Main menu
 - `/about` — Version info
 - `/help` — Help system
 - `/status` — System status
 - `/update` — Pull latest from GitHub
-- `/stop`, `/reboot` — System control
+- `/reboot` — Restart server (reply Y/N to confirm)
 
 ---
 
