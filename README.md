@@ -62,17 +62,18 @@ snmo how's the weather?
 ```
 - Real-time ACK tracking with 20-second timeout
 - Multi-chunk support for long messages
+- Respects no nag quiet hours _(set in dashboard)_
 - Auto-delivery queue when recipient is offline
 - Privacy controls: `/optout` and `/optin`
 
 ### Mesh Mail
-Async messaging system (like email on the mesh):
+Async messaging system (like email on the mesh)
 
 ### 20+ Games
 Chess, Blackjack, Hangman, Wordle, Morse code, Quizzes, and more. All DM-friendly.
 
 ### AI Assistant (With conversation memory!)
-Ask questions, get help, adjust personality
+Ask questions, get help, adjust personality. Use any Ollama model!
 ```
 ```
 ### Offline Knowledge
@@ -142,7 +143,7 @@ Control your mesh from Telegram:
 - `/wiki <topic>` — Fetch from online Wikipedia
 - `/web <query>` — DuckDuckGo search (with URL caching)
 - `/web <url>` — Fetch single webpage
-- `/web crawl <domain> [pages]` — Crawl site and extract contacts
+- `/web crawl <domain>` — Crawl site and extract contacts
 - `/meshtastic <question>` — LoRa field guide
 - `/find <query>` — Search logs, reports, wiki, and crawl cache
 - `/bible [topic]` — Bible verses
