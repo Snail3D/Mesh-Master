@@ -29,10 +29,8 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 
 ### After Installation
 1. Double-click the **Mesh Master** desktop icon (or service starts automatically if installed)
-2. Open dashboard: http://localhost:5001/dashboard
-3. Edit config.json to set your radio connection
 
-**Tip:** Install as system service later from the dashboard (Operations Center → Install Service button)
+**Tip:** Install as system service later from the dashboard (Operations Center)
 
 ### Uninstall
 
@@ -221,8 +219,6 @@ MIT License — See [LICENSE](LICENSE)
 
 Meshtastic is a trademark of Meshtastic LLC
 ---
-
-## Acknowledgements
 
 - Original Mesh Master by [MR_TBOT](https://github.com/mr-tbot/mesh-master)
 - Meshtastic community for hardware, testing, and feedback
