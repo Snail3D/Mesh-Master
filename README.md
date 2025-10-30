@@ -188,6 +188,8 @@ Features:
 - Ollama model management
 - Command browser with descriptions
 - GitHub branch/version selector
+- Redacted Log, Activity feed, and telegram
+ output for user privacy on managed systems. 
 - Configuration editor
 
 ---
