@@ -163,6 +163,10 @@ Control your mesh from Telegram:
 - `/status` — System status
 - `/update` — Pull latest from GitHub
 - `/reboot` — Restart server (reply Y/N to confirm)
+- `/ban <shortname>` — Permanently ban a user
+- `/timeout <shortname>` — Timeout a user for 24 hours
+- `/unban <shortname>` — Remove ban or timeout
+- `/showbanned` — View all banned and timed-out users
 
 ---
 

@@ -911,11 +911,111 @@ Gracefully shuts down the entire Mesh Master system. **Note:** Regular users sho
 
 ### `/reboot`
 **Function:** Reboot the host system
+**Scope:** Admin DM only
 **Example:**
 ```
 /reboot
 ```
-Reboots Raspberry Pi or host machine.
+Requires Y/N confirmation. Reboots Raspberry Pi or host machine.
+
+---
+
+### `/ban`
+**Function:** Permanently ban a user from the system
+**Scope:** Admin DM only
+**Usage:** `/ban <shortname>`
+**Example:**
+```
+/ban john
+```
+**What it does:**
+- Permanently blocks user from sending messages or using commands
+- Cannot ban other admins (safety check)
+- Removes user from timeout list if present
+- User sees ban message with admin contact list
+- Persistent across restarts
+
+**Banned user experience:**
+```
+🚫 You are permanently banned from this system.
+
+Contact admins to appeal: alice, bob, charlie
+```
+
+Use `/unban <shortname>` to remove the ban.
+
+---
+
+### `/timeout`
+**Function:** Temporarily ban a user for 24 hours
+**Scope:** Admin DM only
+**Usage:** `/timeout <shortname>`
+**Example:**
+```
+/timeout john
+```
+**What it does:**
+- Blocks user for exactly 24 hours
+- Cannot timeout other admins (safety check)
+- Cannot timeout already-banned users (must unban first)
+- Auto-expires after 24 hours
+- User sees timeout message with expiry time and admin contacts
+
+**Timed-out user experience:**
+```
+⏱️ You are currently timed out until 2025-10-31 14:30:00 MST
+
+You can regain access after this time expires.
+
+Contact admins: alice, bob, charlie
+```
+
+Use `/unban <shortname>` to remove timeout early.
+
+---
+
+### `/showbanned`
+**Function:** View all banned and timed-out users
+**Scope:** Admin DM only
+**Example:**
+```
+/showbanned
+```
+**Output format:**
+```
+🔨 Permanently Banned:
+  • john
+  • spammer
+
+⏱️ Timed Out Users:
+  • alice - until 2025-10-31 14:30:00 (18h 45m left)
+  • bob - until 2025-10-31 22:15:00 (1h 30m left)
+```
+
+Shows both permanent bans and active timeouts with remaining duration.
+
+---
+
+### `/unban`
+**Function:** Remove permanent ban or timeout from a user
+**Scope:** Admin DM only
+**Usage:** `/unban <shortname>`
+**Example:**
+```
+/unban john
+```
+**What it does:**
+- Removes permanent ban if present
+- Removes timeout if present
+- Works for both ban types
+- Shows what was removed in response
+
+**Response:**
+```
+✅ john has been unbanned (removed permanent ban, timeout).
+```
+
+Use `/showbanned` to see current ban list before unbanning.
 
 ---
 
