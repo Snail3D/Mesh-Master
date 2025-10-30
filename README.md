@@ -53,8 +53,7 @@ alice how's the weather?
 Async messaging system (like email on the mesh):
 ```
 /m operations Low on batteries
-/c operations  # Check all messages
-/c ops battery # Search for "battery"
+/c operations  
 ```
 
 ### 20+ Games
