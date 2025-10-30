@@ -2737,6 +2737,8 @@ CONFIG_HIDDEN_KEYS = {
     "clean_logs",
     "start_on_boot",
     "max_message_log",
+    "onboard_auto_enable",
+    "onboard_custom_welcome",
 }
 
 CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
