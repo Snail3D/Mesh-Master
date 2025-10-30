@@ -102,6 +102,7 @@ Control your mesh from Telegram:
 - All user data excluded from git
 - Security audit trail with Telegram alerts
 - **Self-service blocking:** Users can blacklist themselves to stop all bot replies (DM `blacklist me` and confirm with Y). Unblock anytime with `/unblock`.
+- **Data deletion:** Users can permanently delete all their data with `/deleteme` (logs, reports, sole-owner mailboxes, conversation history, AI settings).
 
 ---
 
@@ -153,6 +154,7 @@ Control your mesh from Telegram:
 - `/resume` — Re-enable AI replies
 - `blacklist me` — Block all bot replies (reply Y/N to confirm)
 - `/unblock` — Restore bot replies after blacklist
+- `/deleteme` or `delete me` — Delete ALL your data permanently (logs, reports, mailboxes, history)
 
 **Admin (DM-only)**
 - `/menu` — Main menu

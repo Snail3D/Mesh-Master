@@ -12986,7 +12986,124 @@ def _process_wipe_confirmation(sender_id: Any, message: str, is_direct: bool, ch
         aggregated = "\n".join(line for line in lines if line)
         return PendingReply(aggregated, "/wipe confirm")
 
-        return PendingReply("Unknown wipe action. Try /wipe again.", "/wipe confirm")
+    if action == "deleteme":
+        # Complete user data deletion
+        lines: List[str] = []
+        deleted_count = 0
+
+        try:
+            # Get user's shortname for file identification
+            try:
+                user_shortname = get_node_shortname(sender_id)
+            except Exception:
+                user_shortname = str(sender_id)
+
+            # 1. Delete all private logs created by this user
+            log_files = list(LOGS_DIR.glob(f"{user_shortname}_*.json"))
+            for log_file in log_files:
+                try:
+                    log_file.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    dprint(f"Failed to delete log {log_file}: {e}")
+            if log_files:
+                lines.append(f"🗑️ Deleted {len(log_files)} private log(s)")
+
+            # 2. Delete all public reports created by this user
+            report_count = 0
+            for report_file in REPORTS_DIR.glob("*.json"):
+                try:
+                    with open(report_file, 'r', encoding='utf-8') as f:
+                        report_data = json.load(f)
+                    # Check if this user created the report
+                    if report_data.get('author_key') == sender_key or report_data.get('author') == user_shortname:
+                        report_file.unlink()
+                        report_count += 1
+                        deleted_count += 1
+                except Exception as e:
+                    dprint(f"Failed to delete report {report_file}: {e}")
+            if report_count > 0:
+                lines.append(f"📄 Deleted {report_count} public report(s)")
+
+            # 3. Delete mailboxes where user is the ONLY owner
+            mailboxes_wiped = []
+            user_mailboxes = MAIL_MANAGER.mailboxes_for_user(sender_key)
+            for mailbox_name in user_mailboxes:
+                try:
+                    mailbox_data = MAIL_MANAGER.store.get_mailbox(mailbox_name)
+                    if mailbox_data:
+                        owners = mailbox_data.get('owners', [])
+                        # Only delete if this user is the sole owner
+                        if len(owners) == 1 and sender_key in owners:
+                            wipe_result = MAIL_MANAGER.handle_wipe(mailbox_name, actor_key=sender_key, is_admin=True)
+                            mailboxes_wiped.append(mailbox_name)
+                            deleted_count += 1
+                except Exception as e:
+                    dprint(f"Failed to wipe mailbox {mailbox_name}: {e}")
+            if mailboxes_wiped:
+                lines.append(f"📬 Deleted {len(mailboxes_wiped)} mailbox(es): {', '.join(mailboxes_wiped)}")
+
+            # 4. Clear conversation history
+            if is_direct:
+                removed_msgs = _clear_direct_history(sender_id)
+                if removed_msgs > 0:
+                    lines.append(f"💬 Cleared {removed_msgs} conversation message(s)")
+                    deleted_count += removed_msgs
+
+            # 5. Clear context session
+            if sender_key:
+                _clear_context_session(sender_key)
+                lines.append("🧠 Cleared conversation context")
+
+            # 6. Reset personality
+            _reset_user_personality(sender_key)
+            lines.append("🎭 Reset AI personality to default")
+
+            # 7. Delete saved contexts
+            try:
+                _ensure_saved_contexts_loaded()
+                if sender_key in SAVED_CONTEXTS:
+                    context_count = len(SAVED_CONTEXTS[sender_key])
+                    SAVED_CONTEXTS.pop(sender_key, None)
+                    _persist_saved_contexts()
+                    if context_count > 0:
+                        lines.append(f"💾 Deleted {context_count} saved context(s)")
+                        deleted_count += context_count
+            except Exception as e:
+                dprint(f"Failed to delete saved contexts: {e}")
+
+            # 8. Remove from user AI settings
+            try:
+                with USER_AI_SETTINGS_LOCK:
+                    if sender_key in USER_AI_SETTINGS:
+                        USER_AI_SETTINGS.pop(sender_key, None)
+                        _save_user_ai_settings_to_disk(_snapshot_user_ai_settings())
+                        lines.append("⚙️ Removed AI preferences")
+            except Exception as e:
+                dprint(f"Failed to remove AI settings: {e}")
+
+            clean_log(f"Complete data deletion for {user_shortname} ({deleted_count} items)", "🗑️")
+
+            if lines:
+                summary = "\n".join(lines)
+                return PendingReply(
+                    f"✅ COMPLETE DATA DELETION\n\n{summary}\n\nAll your data has been permanently removed.",
+                    "/deleteme confirm"
+                )
+            else:
+                return PendingReply(
+                    "✅ No user data found to delete. Your account had no stored data.",
+                    "/deleteme confirm"
+                )
+
+        except Exception as e:
+            dprint(f"Error during deleteme: {e}")
+            return PendingReply(
+                f"❌ Data deletion encountered an error: {str(e)}\n\nSome data may not have been deleted. Please contact an admin.",
+                "/deleteme confirm"
+            )
+
+    return PendingReply("Unknown wipe action. Try /wipe again.", "/wipe confirm")
 
 
 def _process_update_confirmation(sender_key: str, message: str) -> PendingReply:
@@ -14418,6 +14535,34 @@ Every coffee helps keep the mesh alive! 🚀"""
       )
 
     return _cmd_reply(cmd, "Unknown wipe option. Use /wipe mailbox <name> | /wipe chathistory | /wipe personality | /wipe all <name>.")
+
+  elif cmd == "/deleteme":
+    if not is_direct:
+      return _cmd_reply(cmd, "❌ This command can only be used in a direct message.")
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key:
+      return _cmd_reply(cmd, "⚠️ I couldn't identify your DM session. Try again in a moment.")
+
+    # Set up pending deletion request
+    if sender_key:
+      PENDING_WIPE_REQUESTS[sender_key] = {
+        "action": "deleteme",
+        "language": lang,
+      }
+
+    warning_msg = (
+      "⚠️ COMPLETE DATA DELETION\n\n"
+      "This will permanently delete ALL your data:\n"
+      "• All private logs you created\n"
+      "• All public reports you created\n"
+      "• All mailboxes where you're the ONLY owner\n"
+      "• Your conversation history\n"
+      "• Your AI personality settings\n"
+      "• Your saved contexts\n\n"
+      "⚠️ THIS CANNOT BE UNDONE ⚠️\n\n"
+      "Reply Y to confirm complete deletion, or N to cancel."
+    )
+    return PendingReply(warning_msg, "/deleteme confirm")
 
   elif cmd == "/snooze":
     if not is_direct:
@@ -16976,6 +17121,29 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
         pass
       return PendingReply("▶️ Resumed. I'll reply to your messages again.", "resume command")
     # Blacklist requests (various phrasings)
+    # Delete me - complete data deletion
+    if any(phrase in lower for phrase in {"delete me", "deleteme", "/deleteme", "delete all my data", "remove all my data"}):
+      if check_only:
+        return True
+      PENDING_WIPE_REQUESTS[sender_key] = {
+        "action": "deleteme",
+        "language": lang,
+      }
+      warning_msg = (
+        "⚠️ COMPLETE DATA DELETION\n\n"
+        "This will permanently delete ALL your data:\n"
+        "• All private logs you created\n"
+        "• All public reports you created\n"
+        "• All mailboxes where you're the ONLY owner\n"
+        "• Your conversation history\n"
+        "• Your AI personality settings\n"
+        "• Your saved contexts\n\n"
+        "⚠️ THIS CANNOT BE UNDONE ⚠️\n\n"
+        "Reply Y to confirm complete deletion, or N to cancel."
+      )
+      return PendingReply(warning_msg, "/deleteme confirm")
+
+    # Blacklist - block bot replies
     if any(phrase in lower for phrase in {"/blacklistme", "blacklistme", "black list me", "add me to the black list", "add me to blacklist"}):
       if check_only:
         return True
