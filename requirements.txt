@@ -1,4 +1,4 @@
-protobuf==5.29.5
+protobuf==4.25.3
 tornado==6.5.1
 meshtastic==2.6.4
 pubsub==0.1.2
