@@ -16874,6 +16874,8 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
         dprint(f"⚠️ Flow session check failed: {exc}")
 
     if sender_key in PENDING_REBOOT_CONFIRM and not lower.startswith('/'):
+      if check_only:
+        return False  # Process immediately, not async
       choice = lower.strip()
       if choice in {"y", "yes", "yeah", "yep"}:
         PENDING_REBOOT_CONFIRM.pop(sender_key, None)
@@ -16891,6 +16893,8 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
 
     # Handle pending blacklist confirmations
     if sender_key in PENDING_BLOCK_CONFIRM and not lower.startswith('/'):
+      if check_only:
+        return False  # Process immediately, not async
       choice = lower.strip()
       if choice in {"y", "yes", "yeah", "yep"}:
         PENDING_BLOCK_CONFIRM.pop(sender_key, None)
