@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 # Mesh Master Universal Uninstallation Script
-# Auto-detects platform and calls the appropriate uninstaller
-# Automatically handles platform-specific requirements (sudo, PowerShell, etc.)
+# Can be run standalone (curl | bash) or from within the repo
 
 # Colors
 RED='\033[0;31m'
@@ -20,13 +19,10 @@ echo ""
 # Detect OS
 if [[ "$OSTYPE" == "darwin"* ]]; then
     PLATFORM="macOS"
-    SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/macos/uninstall_service.sh"
 elif [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "linux"* ]]; then
     PLATFORM="Linux"
-    SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/linux/uninstall_service.sh"
 elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then
     PLATFORM="Windows"
-    SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/windows/uninstall_service.bat"
 else
     echo -e "${RED}❌ Unknown platform: $OSTYPE${NC}"
     exit 1
@@ -35,46 +31,127 @@ fi
 echo -e "Detected platform: ${BLUE}$PLATFORM${NC}"
 echo ""
 
-# Check if script exists
-if [[ ! -f "$SCRIPT_PATH" ]]; then
-    echo -e "${RED}❌ Uninstall script not found: $SCRIPT_PATH${NC}"
-    exit 1
+# Try to find the script path (if running from repo)
+if [[ -n "${BASH_SOURCE[0]}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    if [[ "$PLATFORM" == "macOS" ]]; then
+        SCRIPT_PATH="$SCRIPT_DIR/macos/uninstall_service.sh"
+    elif [[ "$PLATFORM" == "Linux" ]]; then
+        SCRIPT_PATH="$SCRIPT_DIR/linux/uninstall_service.sh"
+    elif [[ "$PLATFORM" == "Windows" ]]; then
+        SCRIPT_PATH="$SCRIPT_DIR/windows/uninstall_service.bat"
+    fi
 fi
 
-echo -e "Using uninstaller: ${BLUE}$SCRIPT_PATH${NC}"
-echo ""
+# If script exists, use it
+if [[ -n "$SCRIPT_PATH" ]] && [[ -f "$SCRIPT_PATH" ]]; then
+    echo -e "Using uninstaller: ${BLUE}$SCRIPT_PATH${NC}"
+    echo ""
 
-# Execute the appropriate uninstaller
-if [[ "$PLATFORM" == "macOS" ]]; then
-    # macOS - run directly (no sudo needed)
-    bash "$SCRIPT_PATH"
-
-elif [[ "$PLATFORM" == "Linux" ]]; then
-    # Linux - auto-elevate with sudo if needed
-    if [[ $EUID -ne 0 ]]; then
-        echo -e "${YELLOW}Elevating to root with sudo...${NC}"
-        echo ""
-        sudo bash "$SCRIPT_PATH"
-    else
+    if [[ "$PLATFORM" == "macOS" ]]; then
         bash "$SCRIPT_PATH"
+    elif [[ "$PLATFORM" == "Linux" ]]; then
+        if [[ $EUID -ne 0 ]]; then
+            echo -e "${YELLOW}Elevating to root with sudo...${NC}"
+            echo ""
+            sudo bash "$SCRIPT_PATH"
+        else
+            bash "$SCRIPT_PATH"
+        fi
+    elif [[ "$PLATFORM" == "Windows" ]]; then
+        echo -e "${YELLOW}⚠️  Windows Setup${NC}"
+        echo ""
+        echo "Please run as Administrator:"
+        echo -e "${BLUE}powershell -ExecutionPolicy Bypass -Command \"& '$SCRIPT_PATH'\"${NC}"
+        echo ""
+    fi
+else
+    # Standalone mode - do the uninstall inline
+    echo -e "${YELLOW}Running standalone uninstaller...${NC}"
+    echo ""
+
+    # Kill any running Mesh Master processes
+    echo "Stopping any running Mesh Master processes..."
+    pkill -f "python.*mesh-master.py" 2>/dev/null || true
+    pkill -f "mesh-master.py" 2>/dev/null || true
+    ps aux | grep "[m]esh-master.py" | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+    sleep 1
+    echo -e "${GREEN}✓${NC} Processes stopped"
+
+    # Remove desktop shortcuts
+    echo "Removing desktop shortcuts..."
+    DESKTOP="$HOME/Desktop"
+    removed_count=0
+
+    if [[ "$PLATFORM" == "Linux" ]]; then
+        # Linux .desktop files
+        for shortcut in "Mesh Master.desktop" "Start Mesh Master.desktop" "Stop Mesh Master.desktop"; do
+            if [[ -f "$DESKTOP/$shortcut" ]]; then
+                rm -f "$DESKTOP/$shortcut"
+                ((removed_count++))
+            fi
+        done
+    elif [[ "$PLATFORM" == "macOS" ]]; then
+        # macOS .app bundles
+        for shortcut in "Mesh Master.app" "Start Mesh Master.app" "Stop Mesh Master.app"; do
+            if [[ -d "$DESKTOP/$shortcut" ]]; then
+                rm -rf "$DESKTOP/$shortcut"
+                ((removed_count++))
+            fi
+        done
     fi
 
-elif [[ "$PLATFORM" == "Windows" ]]; then
-    # Windows - provide helpful instructions
-    echo -e "${YELLOW}⚠️  Windows Setup${NC}"
+    if [[ $removed_count -gt 0 ]]; then
+        echo -e "${GREEN}✓${NC} Removed $removed_count desktop shortcut(s)"
+    else
+        echo -e "${YELLOW}⚠️${NC} No desktop shortcuts found"
+    fi
+
+    # Handle systemd service (Linux)
+    if [[ "$PLATFORM" == "Linux" ]] && [[ -f "/etc/systemd/system/mesh-ai.service" ]]; then
+        echo ""
+        echo "Found systemd service. Removing..."
+
+        if [[ $EUID -ne 0 ]]; then
+            echo -e "${YELLOW}⚠️  Need sudo to remove systemd service${NC}"
+            sudo systemctl stop mesh-ai 2>/dev/null || true
+            sudo systemctl disable mesh-ai 2>/dev/null || true
+            sudo rm -f /etc/systemd/system/mesh-ai.service
+            sudo systemctl daemon-reload
+        else
+            systemctl stop mesh-ai 2>/dev/null || true
+            systemctl disable mesh-ai 2>/dev/null || true
+            rm -f /etc/systemd/system/mesh-ai.service
+            systemctl daemon-reload
+        fi
+
+        echo -e "${GREEN}✓${NC} Systemd service removed"
+    fi
+
+    # Handle LaunchAgent (macOS)
+    if [[ "$PLATFORM" == "macOS" ]] && [[ -f "$HOME/Library/LaunchAgents/com.meshmaster.plist" ]]; then
+        echo ""
+        echo "Found LaunchAgent service. Removing..."
+        launchctl unload "$HOME/Library/LaunchAgents/com.meshmaster.plist" 2>/dev/null || true
+        rm "$HOME/Library/LaunchAgents/com.meshmaster.plist"
+        echo -e "${GREEN}✓${NC} LaunchAgent removed"
+    fi
+
     echo ""
-    echo "The next step requires PowerShell with Administrator privileges."
+    echo -e "${GREEN}=========================================="
+    echo "  ✅ Mesh Master Uninstalled"
+    echo "==========================================${NC}"
     echo ""
-    echo "Follow these steps:"
-    echo "  1. Press ${BLUE}Win+X${NC} and select ${BLUE}Terminal (Admin)${NC}"
-    echo "  2. Copy and paste this command:"
+    echo "Removed:"
+    echo "  • All desktop shortcuts"
+    echo "  • All running processes"
+    if [[ "$PLATFORM" == "Linux" ]] && [[ -f "/etc/systemd/system/mesh-ai.service" ]]; then
+        echo "  • Systemd service"
+    elif [[ "$PLATFORM" == "macOS" ]] && [[ -f "$HOME/Library/LaunchAgents/com.meshmaster.plist" ]]; then
+        echo "  • LaunchAgent service"
+    fi
     echo ""
-    echo -e "${BLUE}powershell -ExecutionPolicy Bypass -Command \"& '$SCRIPT_PATH'\"${NC}"
-    echo ""
-    echo "Then press Enter."
+    echo "To completely remove Mesh Master directory:"
+    echo -e "  ${YELLOW}cd ~ && rm -rf Mesh-Master${NC}"
     echo ""
 fi
-
-echo ""
-echo -e "${GREEN}✅ Uninstallation complete!${NC}"
-echo ""
