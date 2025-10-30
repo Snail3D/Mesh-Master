@@ -2,8 +2,7 @@
 
 # Mesh Master Universal Service Installation Script
 # Auto-detects platform and calls the appropriate installer
-
-set -e
+# Automatically handles platform-specific requirements (sudo, PowerShell, etc.)
 
 # Colors
 RED='\033[0;31m'
@@ -47,30 +46,37 @@ echo ""
 
 # Execute the appropriate installer
 if [[ "$PLATFORM" == "macOS" ]]; then
-    # macOS - run directly
+    # macOS - run directly (no sudo needed)
     bash "$SCRIPT_PATH"
+
 elif [[ "$PLATFORM" == "Linux" ]]; then
-    # Linux - check for sudo
+    # Linux - auto-elevate with sudo if needed
     if [[ $EUID -ne 0 ]]; then
-        echo -e "${YELLOW}⚠️  This script requires sudo for Linux${NC}"
+        echo -e "${YELLOW}Elevating to root with sudo...${NC}"
         echo ""
-        echo "Please run with sudo:"
-        echo -e "${YELLOW}sudo bash $SCRIPT_PATH${NC}"
-        exit 1
+        sudo bash "$SCRIPT_PATH"
+    else
+        bash "$SCRIPT_PATH"
     fi
-    bash "$SCRIPT_PATH"
+
 elif [[ "$PLATFORM" == "Windows" ]]; then
-    # Windows - run batch file (requires Git Bash or similar)
-    echo -e "${YELLOW}Note: Run this in PowerShell as Administrator for Windows${NC}"
+    # Windows - provide helpful instructions
+    echo -e "${YELLOW}⚠️  Windows Setup${NC}"
     echo ""
-    echo "Windows service install script:"
-    echo -e "${BLUE}$SCRIPT_PATH${NC}"
+    echo "The next step requires PowerShell with Administrator privileges."
+    echo ""
+    echo "Follow these steps:"
+    echo "  1. Press ${BLUE}Win+X${NC} and select ${BLUE}Terminal (Admin)${NC}"
+    echo "  2. Copy and paste this command:"
+    echo ""
+    echo -e "${BLUE}powershell -ExecutionPolicy Bypass -Command \"& '$SCRIPT_PATH'\"${NC}"
+    echo ""
+    echo "Then press Enter."
     echo ""
     echo "Requirements:"
-    echo "  - NSSM (Non-Sucking Service Manager) - will be installed automatically"
-    echo "  - Run PowerShell as Administrator"
+    echo "  • NSSM (Non-Sucking Service Manager) will be installed automatically"
+    echo "  • Administrator privileges required"
     echo ""
-    exit 1
 fi
 
 echo ""

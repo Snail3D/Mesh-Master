@@ -49,25 +49,17 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 
 For auto-start on boot and auto-restart on crashes:
 
-**Universal service installer - works on macOS, Linux, Raspberry Pi, and Windows:**
-
 ```bash
 ./scripts/universal/install_service.sh
 ```
 
 **That's it!** The script automatically:
 - ✅ Detects your platform (macOS, Linux, Windows)
+- ✅ Elevates to root/admin as needed
 - ✅ Installs the system service (LaunchAgent on macOS, systemd on Linux, NSSM on Windows)
 - ✅ Enables auto-start on boot
 - ✅ Enables auto-restart on crashes
 - ✅ Starts the service immediately
-
-**Note:** On Linux/Raspberry Pi, use sudo:
-```bash
-sudo ./scripts/universal/install_service.sh
-```
-
-**Windows requirements:** Run PowerShell as Administrator (NSSM will be installed automatically)
 
 ### 🗑️ Quick Uninstall (One Command)
 
