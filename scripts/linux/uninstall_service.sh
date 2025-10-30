@@ -114,8 +114,11 @@ echo "  • All processes stopped"
 echo ""
 
 # Get the Mesh-Master directory (try multiple methods)
-# Method 0: Use hint from parent script if available
-if [[ -n "$MESH_DIR_HINT" ]] && [[ -d "$MESH_DIR_HINT" ]] && [[ -f "$MESH_DIR_HINT/mesh-master.py" ]]; then
+# Method 0: Use argument from parent script if provided (works with sudo)
+if [[ -n "$1" ]] && [[ -d "$1" ]] && [[ -f "$1/mesh-master.py" ]]; then
+    MESH_DIR="$1"
+# Method 0b: Use hint from environment variable if available
+elif [[ -n "$MESH_DIR_HINT" ]] && [[ -d "$MESH_DIR_HINT" ]] && [[ -f "$MESH_DIR_HINT/mesh-master.py" ]]; then
     MESH_DIR="$MESH_DIR_HINT"
 else
     # Method 1: From script location

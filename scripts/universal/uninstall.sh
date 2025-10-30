@@ -63,14 +63,15 @@ if [[ -n "$SCRIPT_PATH" ]] && [[ -f "$SCRIPT_PATH" ]]; then
     fi
 
     if [[ "$PLATFORM" == "macOS" ]]; then
-        MESH_DIR_HINT="$MESH_DIR_EXPORT" bash "$SCRIPT_PATH"
+        bash "$SCRIPT_PATH" "$MESH_DIR_EXPORT"
     elif [[ "$PLATFORM" == "Linux" ]]; then
         if [[ $EUID -ne 0 ]]; then
             echo -e "${YELLOW}Elevating to root with sudo...${NC}"
             echo ""
-            sudo MESH_DIR_HINT="$MESH_DIR_EXPORT" bash "$SCRIPT_PATH"
+            # Pass MESH_DIR as argument instead of environment variable (sudo blocks env vars)
+            sudo bash "$SCRIPT_PATH" "$MESH_DIR_EXPORT"
         else
-            MESH_DIR_HINT="$MESH_DIR_EXPORT" bash "$SCRIPT_PATH"
+            bash "$SCRIPT_PATH" "$MESH_DIR_EXPORT"
         fi
     elif [[ "$PLATFORM" == "Windows" ]]; then
         echo -e "${YELLOW}⚠️  Windows Setup${NC}"
