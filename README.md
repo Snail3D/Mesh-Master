@@ -1,6 +1,6 @@
-# MESH MASTER v2.5 — Off-Grid AI Operations Suite
+# MESH MASTER -- 
 
-**MESH MASTER** is a resilient AI copilot for Meshtastic LoRa mesh networks. It remembers conversations, relays messages across networks, handles async messaging, runs games, and maintains operations even when internet is unavailable.
+**MESH MASTER** is a resilient copilot for Meshtastic LoRa mesh networks. It remembers conversations, relays messages across networks, handles async messaging, runs games, and maintains operations even when internet is unavailable.
 
 > **Disclaimer:** This is a community project, not affiliated with the official Meshtastic project. Always maintain backup communication paths for emergencies.
 
@@ -62,21 +62,10 @@ Chess, Blackjack, Hangman, Wordle, Morse code, Quizzes, and more. All DM-friendl
 ### AI Assistant (With conversation memory!)
 Ask questions, get help, adjust personality: _(note that while DMing the bot, you can just speak naturally without the '/' commands to trigger the AI responses)_
 ```
-/ai How do I configure my node?
-/aipersonality set scholar
-/save mission_context
-/recall mission_context
 ```
-
 ### Offline Knowledge
-- `/offline wiki <topic>` — Local Wikipedia mirror
-- `/meshtastic <question>` — Curated field guide
-- `/find <query>` — Search logs, reports, wiki, web cache
 
 ### Logs & Reports
-- `/log my_entry` — Private notes (DM-only)
-- `/report findings` — Public searchable reports
-- `/find query` — Fuzzy search everything
 
 ### Dashboard
 Real-time web interface for monitoring and control:
@@ -89,7 +78,7 @@ Real-time web interface for monitoring and control:
 
 ### Telegram Bot
 Control your mesh from Telegram:
-- Send commands remotely: `/nodes`, `/ai question`, `/relay message`
+- Send commands remotely
 - Receive relay ACK notifications
 - Monitor system health
 
@@ -156,16 +145,6 @@ Control your mesh from Telegram:
 
 ---
 
-## Installation Details
-
-### Platform-Specific Notes
-- **Raspberry Pi:** Takes 5-10 minutes (uses system packages)
-- **macOS:** Auto-installs Python and Ollama (Homebrew preferred, .pkg fallback)
-- **Windows:** Download Python and Ollama manually (setup.sh will guide)
-- **Linux:** Fully automatic with sudo
-
----
-
 ## Security Notes
 
 **Before making code changes, read:**
@@ -213,38 +192,6 @@ Features:
 
 ---
 
-## Development
-
-**Initial Setup:**
-```bash
-git clone https://github.com/Snail3D/Mesh-Master.git
-cd Mesh-Master
-./setup.sh
-nano config.json  # Edit configuration
-```
-
-**Project Structure:**
-- `mesh-master.py` — Main application (~28k lines)
-- `mesh_master/` — Package modules
-  - `relay_manager.py` — Network relay system
-  - `mail_manager.py` — Mesh mail system
-  - `system_context.py` — AI help system
-  - `games/game_manager.py` — 20+ games
-  - `offline_wiki.py`, `offline_crawl.py`, `offline_ddg.py` — Offline knowledge
-- `static/` — Dashboard frontend
-- `scripts/` — Installation scripts
-- `data/` — User data (gitignored)
-
-**Tech Stack:**
-- Language: Python 3.11+
-- Framework: Flask (dashboard)
-- Mesh: Meshtastic
-- AI: Ollama (local LLMs)
-- Database: SQLite
-- Platform: macOS, Linux, Raspberry Pi, Windows
-
----
-
 ## Support
 
 - 📖 **Docs:** [COMMANDS.md](COMMANDS.md) (all commands), [README_SERVICE.md](README_SERVICE.md) (systemd/LaunchAgent), `docs/mail_readme.md` (mail internals)
@@ -257,8 +204,7 @@ nano config.json  # Edit configuration
 
 MIT License — See [LICENSE](LICENSE)
 
-Meshtastic is a trademark of Meshtastic LLC.
-
+Meshtastic is a trademark of Meshtastic LLC
 ---
 
 ## Acknowledgements
