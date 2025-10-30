@@ -6978,9 +6978,6 @@ MAX_CHUNKS = config.get("max_ai_chunks", 2)  # Use config value for AI response 
 CHUNK_DELAY = config.get("chunk_buffer_seconds", config.get("chunk_delay", 4))
 MAX_RESPONSE_LENGTH = MAX_CHUNK_SIZE * MAX_CHUNKS
 
-# Debug: Print chunking config at startup
-print(f"🔧 Chunking Config: MAX_CHUNK_SIZE={MAX_CHUNK_SIZE}, MAX_CHUNKS={MAX_CHUNKS}, MAX_RESPONSE_LENGTH={MAX_RESPONSE_LENGTH}")
-
 
 @dataclass
 class StreamingResult:
