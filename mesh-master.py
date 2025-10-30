@@ -8188,10 +8188,12 @@ def _log_high_cost(sender_id: Any, label: str, detail: Optional[str] = None) -> 
         sender_key = _safe_sender_key(sender_id)
     except Exception:
         sender_key = str(sender_id)
-    fragment = f" for {sender_key}" if sender_key else ""
+    # Redact shortname for privacy
+    fragment = " for [user]" if sender_key else ""
     if detail:
-        detail = textwrap.shorten(str(detail), width=80, placeholder="…")
-        clean_log(f"High-cost {label}{fragment}: {detail}", "💸", show_always=False)
+        # Redact the question/detail content
+        detail_len = len(str(detail))
+        clean_log(f"High-cost {label}{fragment}: [{detail_len} chars]", "💸", show_always=False)
     else:
         clean_log(f"High-cost {label}{fragment}", "💸", show_always=False)
 
@@ -13580,9 +13582,8 @@ def send_to_ollama(
             full_text = "Mongo no know... Mongo only pawn in game of life"
         elapsed = max(0.01, time.perf_counter() - start_time)
 
-        # ALWAYS log response length for debugging
-        resp_preview = (full_text[:80] + "...") if full_text and len(full_text) > 80 else (full_text or "[EMPTY]")
-        add_script_log(f"Ollama STREAMING response ({len(full_text) if full_text else 0} chars): {resp_preview}")
+        # Log response length only (redact content for privacy)
+        add_script_log(f"Ollama STREAMING response ({len(full_text) if full_text else 0} chars)")
 
         clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=False, rate_limit=False)
         # Append processing time to buffer before final flush
