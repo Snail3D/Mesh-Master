@@ -17841,7 +17841,7 @@ def on_receive(packet=None, interface=None, **kwargs):
         return
 
       # Queue the response for async processing instead of blocking here
-      info_print(f"🤖 [AsyncAI] Queueing response for {sender_node}: {_redact_message_content(text)}")
+      info_print(f"🤖 [AsyncAI] Queueing response for [user]: {_redact_message_content(text)}")
       try:
         current_depth = response_queue.qsize()
       except Exception:
