@@ -259,7 +259,6 @@ nano config.json  # Edit configuration
 
 - 📖 **Docs:** [COMMANDS.md](COMMANDS.md) (all commands), [README_SERVICE.md](README_SERVICE.md) (systemd/LaunchAgent), `docs/mail_readme.md` (mail internals)
 - 🐛 **Issues:** Report on GitHub
-- 💙 **Support Development:** [buymeacoffee.com/Snail3D](https://buymeacoffee.com/Snail3D)
 - ⭐ **Star the Project:** [github.com/Snail3D/Mesh-Master](https://github.com/Snail3D/Mesh-Master)
 
 ---
@@ -276,3 +275,11 @@ Meshtastic is a trademark of Meshtastic LLC.
 
 - Original Mesh Master by [MR_TBOT](https://github.com/mr-tbot/mesh-master)
 - Meshtastic community for hardware, testing, and feedback
+
+---
+
+## Support Development
+
+If you find Mesh Master useful, consider supporting development:
+
+<a href="https://www.buymeacoffee.com/Snail3D"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a pizza&emoji=🍕&slug=Snail3D&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" /></a>

@@ -23245,6 +23245,7 @@ def dashboard():
         <img src="/static/mesh-master-banner.png" alt="Mesh Master" style="max-height: 60px; width: auto; display: block; margin: 0 auto; mix-blend-mode: screen;">
       </div>
       <div class="header-actions">
+        <a href="https://www.buymeacoffee.com/Snail3D" target="_blank" rel="noreferrer" style="margin-bottom: 8px;"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a pizza&emoji=🍕&slug=Snail3D&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" style="height: 40px; border-radius: 8px;" alt="Buy me a pizza" /></a>
         <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.1.1</span>
         <span id="metricsTimestamp" class="panel-subtitle">Waiting for metrics…</span>
         <div style="display: flex; gap: 12px;">
