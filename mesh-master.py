@@ -2070,6 +2070,18 @@ def add_script_log(message):
     if any(p in message for p in TELEGRAM_ALERT_PATTERNS):
         return
 
+    # Don't spam Activity Center with connection errors (especially for fresh installs)
+    CONNECTION_ERROR_PATTERNS = (
+        "Could not open serial device",
+        "Retry",
+        "failed opening serial",
+        "Unhandled error in main",
+        "Fatal exclusive-lock on serial",
+        "could not set baudrate",
+    )
+    if not DEBUG_ENABLED and any(p in message for p in CONNECTION_ERROR_PATTERNS):
+        return
+
     # Use local system time for script logs (viewer shows this clock)
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     log_entry = f"{timestamp} - {message}"
