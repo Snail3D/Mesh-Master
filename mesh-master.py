@@ -24067,7 +24067,7 @@ def dashboard():
                         <div style="font-weight: 500; margin-bottom: 4px;" id="bluetoothConnectedName">—</div>
                         <div style="font-size: 11px; color: #888; font-family: monospace;" id="bluetoothConnectedAddress">—</div>
                       </div>
-                      <button type="button" id="bluetoothForgetBtn" class="config-cancel-btn" style="padding: 6px 12px; font-size: 12px;">Forget Device</button>
+                      <button type="button" id="bluetoothForgetBtn" class="config-cancel-btn" style="padding: 6px 12px; font-size: 12px;">Disconnect</button>
                     </div>
                   </div>
                 </div>
