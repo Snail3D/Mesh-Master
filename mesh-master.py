@@ -23879,7 +23879,7 @@ def dashboard():
               type="text"
               id="cliInput"
               name="cliInput"
-              placeholder="Type message or command..."
+              placeholder="Type <shortname> <message>"
               style="flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); color: var(--text-primary); font-family: monospace; font-size: 14px;"
             />
             <button
