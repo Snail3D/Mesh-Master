@@ -2741,6 +2741,12 @@ CONFIG_HIDDEN_KEYS = {
     "email_alert_recipients",
     "email_alert_on_spam",
     "email_alert_on_errors",
+    "channel_names",
+    "antispam",
+    "ollama_stream",
+    "ollama_model",
+    "message_archive_rotation_enabled",
+    "message_archive_max_days",
 }
 
 CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
