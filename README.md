@@ -14,9 +14,9 @@
 
 ## 🚀 Quick Start
 
-#### Installation Command
+#### Installation 
 
-**All Platforms (Universal):**
+**Installation Command (Universal):**
 ```bash
 rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd Mesh-Master && ./setup.sh
 ```
@@ -24,8 +24,7 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 **What it does:**
 - ✅ Auto-detects your platform (macOS, Linux, Raspberry Pi, Windows)
 - ✅ Installs Python 3, Ollama, and all dependencies
-- ✅ Creates config.json and desktop shortcut
-- ✅ Prompts for optional setup (Ollama model, system service, etc.)
+- ✅ Creates desktop shortcut
 
 ### After Installation
 1. Double-click the **Mesh Master** desktop icon (or service starts automatically if installed)
