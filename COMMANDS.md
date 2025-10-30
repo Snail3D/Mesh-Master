@@ -21,6 +21,7 @@ Complete reference for all commands available in Mesh Master v2.0.
 - [Games](#games)
 - [Personality & Context](#personality--context)
 - [Location & Status](#location--status)
+- [User Controls & Privacy](#user-controls--privacy)
 - [Admin Commands](#admin-commands)
 
 ---
@@ -761,6 +762,81 @@ Returns quick status message.
 
 ---
 
+## User Controls & Privacy
+
+Self-service commands for managing your interaction with the bot and your data.
+
+### `/stop`
+**Aliases:** None
+**Function:** Pause AI replies to your messages
+**Scope:** DM only
+**Example:**
+```
+/stop
+```
+Temporarily stops the bot from replying to your messages. You can still send messages and use commands, but won't get AI responses.
+
+---
+
+### `/resume`
+**Aliases:** None
+**Function:** Re-enable AI replies after using /stop
+**Scope:** DM only
+**Example:**
+```
+/resume
+```
+Restores bot responses after pausing with `/stop`.
+
+---
+
+### `blacklist me`
+**Aliases:** `/blacklistme`, `black list me`, `add me to blacklist`
+**Function:** Block all bot replies (with confirmation)
+**Scope:** DM only
+**Example:**
+```
+blacklist me
+```
+Permanently blocks the bot from responding to you until you send `/unblock`. Requires Y/N confirmation.
+
+---
+
+### `/unblock`
+**Aliases:** `unblock`, `unblock me`
+**Function:** Restore bot replies after blacklisting
+**Scope:** DM only
+**Example:**
+```
+/unblock
+```
+Re-enables bot responses after blacklisting yourself.
+
+---
+
+### `/deleteme`
+**Aliases:** `delete me`, `deleteme`, `delete my data`, `remove my data`, `delete all my data`, `remove all my data`
+**Function:** Permanently delete ALL your user data
+**Scope:** DM only
+**Example:**
+```
+/deleteme
+delete me
+remove my data
+```
+**⚠️ WARNING:** This permanently deletes:
+- All private logs you created
+- All public reports you authored
+- All mailboxes where you're the ONLY owner (shared mailboxes are preserved)
+- Your conversation history
+- Your AI personality settings
+- Your saved contexts
+- Your user preferences
+
+Requires Y/N confirmation. **THIS CANNOT BE UNDONE.**
+
+---
+
 ## Admin Commands
 
 **Note:** All admin commands are DM-only and restricted to authorized users.
@@ -821,14 +897,15 @@ Controls max message retransmissions across mesh.
 
 ---
 
-### `/stop`
+### `/stop` (Admin)
 **Aliases:** `/exit`
-**Function:** Stop Mesh Master service
+**Function:** Stop the entire Mesh Master service (admin only)
+**Scope:** Admin DM only
 **Example:**
 ```
 /stop
 ```
-Gracefully shuts down the system.
+Gracefully shuts down the entire Mesh Master system. **Note:** Regular users should use `/stop` (without admin privileges) to pause AI replies to themselves only.
 
 ---
 
