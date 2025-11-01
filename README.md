@@ -21,10 +21,15 @@
 rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/Mesh-Master && cd ~/Mesh-Master && bash setup.sh
 ```
 
-**Windows (PowerShell - Recommended):**
+**Windows (Command Prompt - Recommended):**
 > ⚠️ **Requirements:** Git and Python 3.11+ must be installed first
 > Download: [Git](https://git-scm.com/download/win) | [Python](https://www.python.org/downloads/)
 
+```cmd
+cd %USERPROFILE% && rmdir /s /q Mesh-Master 2>nul & git clone https://github.com/Snail3D/Mesh-Master.git Mesh-Master && cd Mesh-Master && python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt && python mesh-master.py
+```
+
+**Windows (PowerShell - Alternative):**
 ```powershell
 if (Test-Path "$env:USERPROFILE\Mesh-Master") { Remove-Item -Recurse -Force "$env:USERPROFILE\Mesh-Master" }; git clone https://github.com/Snail3D/Mesh-Master.git "$env:USERPROFILE\Mesh-Master"; cd "$env:USERPROFILE\Mesh-Master"; python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt; python mesh-master.py
 ```
