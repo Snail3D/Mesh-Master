@@ -168,15 +168,49 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# Check if mesh-ai.service file exists
-if [[ ! -f "$PROJECT_DIR/mesh-ai.service" ]]; then
-    echo -e "${RED}❌ Error: mesh-ai.service file not found${NC}"
-    echo ""
-    echo "Expected to find mesh-ai.service in: $PROJECT_DIR"
-    echo ""
-    echo "This file should contain your systemd service configuration."
-    exit 1
+# Generate mesh-ai.service file dynamically
+echo "Generating systemd service file..."
+SERVICE_FILE="$PROJECT_DIR/mesh-ai.service"
+
+# Detect Python executable
+PYTHON_EXEC="$PYTHON_CMD"
+if [[ -f "$PROJECT_DIR/.venv/bin/python" ]]; then
+    PYTHON_EXEC="$PROJECT_DIR/.venv/bin/python"
+elif [[ -f "$PROJECT_DIR/.venv/bin/python3" ]]; then
+    PYTHON_EXEC="$PROJECT_DIR/.venv/bin/python3"
 fi
+
+# Get the user who should run the service (original user before sudo)
+SERVICE_USER="${SUDO_USER:-$USER}"
+
+# Create the service file
+cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=Mesh Master - Off-Grid AI Operations Suite
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$SERVICE_USER
+WorkingDirectory=$PROJECT_DIR
+ExecStart=$PYTHON_EXEC $PROJECT_DIR/mesh-master.py
+Restart=always
+RestartSec=10
+StandardOutput=append:$PROJECT_DIR/mesh-master.log
+StandardError=append:$PROJECT_DIR/mesh-master.log
+Environment="NO_BROWSER=1"
+
+# Security hardening (optional, uncomment if needed)
+# PrivateTmp=true
+# NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo -e "${GREEN}✓${NC} Service file created at: $SERVICE_FILE"
+echo ""
 
 echo "Installing systemd service..."
 echo ""

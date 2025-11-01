@@ -1,0 +1,22 @@
+[Unit]
+Description=Mesh Master - Off-Grid AI Operations Suite
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=snailpi
+WorkingDirectory=/home/snailpi/Mesh-Master
+ExecStart=/home/snailpi/Mesh-Master/.venv/bin/python /home/snailpi/Mesh-Master/mesh-master.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/snailpi/Mesh-Master/mesh-master.log
+StandardError=append:/home/snailpi/Mesh-Master/mesh-master.log
+Environment="NO_BROWSER=1"
+
+# Security hardening (optional, uncomment if needed)
+# PrivateTmp=true
+# NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
