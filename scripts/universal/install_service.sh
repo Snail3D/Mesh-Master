@@ -17,6 +17,23 @@ echo "  Mesh Master Universal Service Installer"
 echo "=========================================="
 echo ""
 
+# Auto-detect and change to Mesh Master directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Verify we're in the right place
+if [[ ! -f "$PROJECT_DIR/mesh-master.py" ]]; then
+    echo -e "${RED}❌ Error: Could not find Mesh Master installation${NC}"
+    echo -e "Expected to find mesh-master.py in: ${PROJECT_DIR}"
+    echo ""
+    echo "Please run this script from within the Mesh-Master directory."
+    exit 1
+fi
+
+echo -e "Project directory: ${BLUE}$PROJECT_DIR${NC}"
+cd "$PROJECT_DIR" || exit 1
+echo ""
+
 # Detect OS
 if [[ "$OSTYPE" == "darwin"* ]]; then
     PLATFORM="macOS"

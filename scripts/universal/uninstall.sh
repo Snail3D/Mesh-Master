@@ -16,6 +16,19 @@ echo "  Mesh Master Universal Uninstaller"
 echo "=========================================="
 echo ""
 
+# Auto-detect and change to Mesh Master directory (if running from repo)
+if [[ -n "${BASH_SOURCE[0]}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+    # Verify we're in the right place
+    if [[ -f "$PROJECT_DIR/mesh-master.py" ]]; then
+        echo -e "Project directory: ${BLUE}$PROJECT_DIR${NC}"
+        cd "$PROJECT_DIR" || exit 1
+        echo ""
+    fi
+fi
+
 # Detect OS
 if [[ "$OSTYPE" == "darwin"* ]]; then
     PLATFORM="macOS"
