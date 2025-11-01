@@ -22,6 +22,8 @@ rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/M
 ```
 
 **Windows (PowerShell):**
+> ⚠️ **IMPORTANT:** Use **PowerShell** (NOT Command Prompt). Press `Win+X` → **Windows PowerShell**
+
 ```powershell
 if (Test-Path "$env:USERPROFILE\Mesh-Master") { Remove-Item -Recurse -Force "$env:USERPROFILE\Mesh-Master" }; git clone https://github.com/Snail3D/Mesh-Master.git "$env:USERPROFILE\Mesh-Master"; cd "$env:USERPROFILE\Mesh-Master"; .\setup.sh
 ```
@@ -46,6 +48,8 @@ AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 
 **Windows (PowerShell):**
+> ⚠️ **IMPORTANT:** Use **PowerShell** (NOT Command Prompt). Press `Win+X` → **Windows PowerShell**
+
 ```powershell
 $env:AUTO_DELETE="true"; & "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
 ```
@@ -60,6 +64,8 @@ bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 
 **Windows (PowerShell):**
+> ⚠️ **IMPORTANT:** Use **PowerShell** (NOT Command Prompt). Press `Win+X` → **Windows PowerShell**
+
 ```powershell
 & "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
 ```
