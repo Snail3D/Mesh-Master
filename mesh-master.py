@@ -29332,10 +29332,10 @@ def dashboard():
           installCmd.textContent = 'powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Mesh-Master\\scripts\\windows\\install.ps1"';
         }
         if (uninstallCmd) {
-          uninstallCmd.textContent = 'bash %USERPROFILE%\\Mesh-Master\\scripts\\universal\\uninstall.sh';
+          uninstallCmd.textContent = 'powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Mesh-Master\\scripts\\windows\\uninstall.ps1"';
         }
         if (completeUninstallCmd) {
-          completeUninstallCmd.textContent = 'set AUTO_DELETE=true && bash %USERPROFILE%\\Mesh-Master\\scripts\\universal\\uninstall.sh';
+          completeUninstallCmd.textContent = '$env:AUTO_DELETE="true"; powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Mesh-Master\\scripts\\windows\\uninstall.ps1"';
         }
       } else {
         // macOS / Linux bash commands

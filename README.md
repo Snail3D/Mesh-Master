@@ -52,14 +52,9 @@ irm https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/i
 AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 
-**Windows (Git Bash):**
-```bash
-AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh
-```
-
-**Windows (PowerShell):**
+**Windows:**
 ```powershell
-$env:AUTO_DELETE="true"; bash "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
+$env:AUTO_DELETE="true"; powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Mesh-Master\scripts\windows\uninstall.ps1"
 ```
 
 **This will remove:** Service, shortcuts, processes, AND the entire directory (including config.json and data).
@@ -71,14 +66,9 @@ $env:AUTO_DELETE="true"; bash "$env:USERPROFILE\Mesh-Master\scripts\universal\un
 bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 
-**Windows (Git Bash):**
-```bash
-bash ~/Mesh-Master/scripts/universal/uninstall.sh
-```
-
-**Windows (PowerShell):**
+**Windows:**
 ```powershell
-bash "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Mesh-Master\scripts\windows\uninstall.ps1"
 ```
 
 **This will remove:** Service, shortcuts, processes. **Preserves:** Directory, config.json, data folder.
