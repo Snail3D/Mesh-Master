@@ -107,16 +107,6 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
         "aliases": [],
         "keywords": ["untrack", "stop", "cancel", "tracking", "monitoring"]
     },
-    "/meshmap": {
-        "category": "Network",
-        "description": "Show all nodes with GPS data. Lists up to 10 nodes with individual Google Maps links. 🔴 = precise GPS (has altitude or recent), 🟡 = imprecise. Shows shortname, SNR, and battery for each node.",
-        "usage": "/meshmap",
-        "examples": [
-            "/meshmap"
-        ],
-        "aliases": [],
-        "keywords": ["map", "gps", "location", "positions", "nodes", "mesh", "network", "visual", "google"]
-    },
     "/networks": {
         "category": "Network",
         "description": "List all channels/networks this node is connected to.",

@@ -2374,98 +2374,6 @@ def _shorten_url(long_url: str) -> str:
     return long_url
 
 
-def _generate_mesh_map_url() -> Tuple[str, int, int, List[str]]:
-    """
-    Generate individual Google Maps URLs for each node with GPS data.
-    Returns: (urls_list, total_nodes, nodes_with_gps, node_details)
-
-    NOTE: Google Maps doesn't support multiple custom markers via URL.
-    We return a list of individual links that can be sent as separate messages.
-    """
-    if not interface or not hasattr(interface, "nodes") or not interface.nodes:
-        return ([], 0, 0, [])
-
-    node_links = []
-    total_nodes = 0
-
-    for node_id, node_data in interface.nodes.items():
-        total_nodes += 1
-
-        if not isinstance(node_data, dict):
-            continue
-
-        position = node_data.get("position", {})
-        if not isinstance(position, dict):
-            continue
-
-        lat = position.get("latitude") or position.get("latitudeI")
-        lon = position.get("longitude") or position.get("longitudeI")
-        alt = position.get("altitude") or position.get("altitudeI")
-
-        # Convert from integer format if needed (Meshtastic stores as lat*1e7)
-        if lat and abs(lat) > 180:
-            lat = lat / 1e7
-        if lon and abs(lon) > 180:
-            lon = lon / 1e7
-
-        if not lat or not lon:
-            continue
-
-        # Get node info
-        user_dict = node_data.get("user", {})
-        longname = user_dict.get("longName", "Unknown")
-        shortname = user_dict.get("shortName", "????")
-
-        # Get SNR
-        snr = node_data.get("snr")
-        snr_text = f"{snr}dB" if snr is not None else "N/A"
-
-        # Get battery info
-        device_metrics = node_data.get("deviceMetrics", {})
-        if isinstance(device_metrics, dict):
-            battery_level = device_metrics.get("batteryLevel")
-            if battery_level == 101:
-                battery_text = "Plugged In"
-            elif battery_level is not None and battery_level > 0:
-                battery_text = f"{battery_level}%"
-            else:
-                battery_text = "N/A"
-        else:
-            battery_text = "N/A"
-
-        # Determine precision (red = precise, yellow = imprecise)
-        # Precise if: has altitude OR position updated recently
-        is_precise = False
-        precision_icon = "🟡"
-        if alt and alt != 0:
-            is_precise = True
-            precision_icon = "🔴"
-        else:
-            # Check if position is recent (within last hour)
-            last_heard = node_data.get("lastHeard")
-            if last_heard:
-                try:
-                    time_since = time.time() - last_heard
-                    if time_since < 3600:  # Less than 1 hour old
-                        is_precise = True
-                        precision_icon = "🔴"
-                except Exception:
-                    pass
-
-        # Create Google Maps link
-        maps_url = f"https://maps.google.com/?q={lat},{lon}"
-
-        # Create formatted node line with emoji indicator
-        node_line = f"{precision_icon} {shortname} | SNR:{snr_text} | {battery_text}\n{maps_url}"
-
-        node_links.append(node_line)
-
-    if not node_links:
-        return ([], total_nodes, 0, [])
-
-    return (node_links, total_nodes, len(node_links), [])
-
-
 def _queue_offline_relay(sender_id: str, target_node_id: str, target_shortname: str, message: str) -> bool:
     """
     Queue a relay message for later delivery when recipient comes online.
@@ -8860,7 +8768,6 @@ BUILTIN_COMMANDS = {
     "/node",
     "/track",
     "/untrack",
-    "/meshmap",
     "/networks",
     "/optout",
     "/optin",
@@ -14661,32 +14568,6 @@ Every coffee helps keep the mesh alive! 🚀"""
           return _cmd_reply(cmd, f"✅ Stopped tracking {target_shortname}")
         else:
           return _cmd_reply(cmd, f"You're not tracking {target_shortname}.\n\nUse /track <shortname> to start tracking.")
-
-  elif cmd == "/meshmap":
-    # Generate a map showing all nodes with GPS data
-    node_links, total_nodes, nodes_with_gps, _ = _generate_mesh_map_url()
-
-    if not node_links:
-      return _cmd_reply(cmd, f"📍 No GPS data available.\n\n{total_nodes} node(s) seen, but none have reported GPS positions yet.")
-
-    # Build header
-    response = [f"🗺️ MESH MAP - {nodes_with_gps} node(s) with GPS"]
-    response.append(f"\n📍 Showing {nodes_with_gps}/{total_nodes} nodes")
-    response.append(f"\n🔴 = Precise GPS (altitude or recent)")
-    response.append(f"🟡 = Imprecise GPS\n")
-
-    # Add each node link as a separate line
-    # Limit to 10 nodes to avoid message size issues
-    display_count = min(len(node_links), 10)
-    for i in range(display_count):
-      response.append(f"\n{node_links[i]}")
-
-    if len(node_links) > display_count:
-      remaining = len(node_links) - display_count
-      response.append(f"\n\n... and {remaining} more node(s)")
-      response.append(f"Use /node <shortname> to see individual locations")
-
-    return _cmd_reply(cmd, "\n".join(response))
 
   elif cmd == "/networks":
     # Show all channels/networks this node is connected to
