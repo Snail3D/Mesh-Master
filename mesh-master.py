@@ -14549,6 +14549,7 @@ Every coffee helps keep the mesh alive! 🚀"""
 
   elif cmd == "/untrack":
     # Stop tracking a node (or all nodes if no argument)
+    # IMPORTANT: This ONLY affects TRACKING_REQUESTS, never interface.nodes or NODE_FIRST_SEEN
     remainder = full_text[len("/untrack"):].strip()
 
     if not remainder:
@@ -14556,6 +14557,8 @@ Every coffee helps keep the mesh alive! 🚀"""
       with TRACKING_LOCK:
         if sender_id in TRACKING_REQUESTS:
           count = len(TRACKING_REQUESTS[sender_id])
+          # Debug log
+          clean_log(f"Removing all tracking for {sender_id}: {list(TRACKING_REQUESTS[sender_id].keys())}", "🔍", show_always=False)
           _remove_tracking_request(sender_id)
           return _cmd_reply(cmd, f"✅ Stopped tracking all {count} node(s).")
         else:
@@ -14564,8 +14567,10 @@ Every coffee helps keep the mesh alive! 🚀"""
       target_shortname = remainder
       with TRACKING_LOCK:
         if sender_id in TRACKING_REQUESTS and target_shortname.lower() in TRACKING_REQUESTS[sender_id]:
+          # Debug log
+          clean_log(f"{sender_id} stopped tracking {target_shortname}", "🔍", show_always=False)
           _remove_tracking_request(sender_id, target_shortname)
-          return _cmd_reply(cmd, f"✅ Stopped tracking {target_shortname}")
+          return _cmd_reply(cmd, f"{target_shortname} is no longer being tracked")
         else:
           return _cmd_reply(cmd, f"You're not tracking {target_shortname}.\n\nUse /track <shortname> to start tracking.")
 
