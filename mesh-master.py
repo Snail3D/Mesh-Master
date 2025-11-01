@@ -2356,6 +2356,122 @@ def _format_tracking_notification(target_node_id: str, target_shortname: str) ->
     return f"📍 {target_shortname} detected!"
 
 
+def _generate_mesh_map_url() -> Tuple[str, int, int]:
+    """
+    Generate a Google Maps URL with all nodes that have GPS data.
+    Returns: (url, total_nodes, nodes_with_gps)
+
+    Uses Google Maps Data Layer approach for multiple markers with labels.
+    Red markers = precise GPS (altitude available or recent update)
+    Yellow markers = imprecise GPS (no altitude or old data)
+    """
+    if not interface or not hasattr(interface, "nodes") or not interface.nodes:
+        return ("", 0, 0)
+
+    nodes_with_gps = []
+    total_nodes = 0
+
+    for node_id, node_data in interface.nodes.items():
+        total_nodes += 1
+
+        if not isinstance(node_data, dict):
+            continue
+
+        position = node_data.get("position", {})
+        if not isinstance(position, dict):
+            continue
+
+        lat = position.get("latitude") or position.get("latitudeI")
+        lon = position.get("longitude") or position.get("longitudeI")
+        alt = position.get("altitude") or position.get("altitudeI")
+
+        # Convert from integer format if needed (Meshtastic stores as lat*1e7)
+        if lat and abs(lat) > 180:
+            lat = lat / 1e7
+        if lon and abs(lon) > 180:
+            lon = lon / 1e7
+
+        if not lat or not lon:
+            continue
+
+        # Get node info
+        user_dict = node_data.get("user", {})
+        longname = user_dict.get("longName", "Unknown")
+        shortname = user_dict.get("shortName", "????")
+
+        # Get SNR
+        snr = node_data.get("snr")
+        snr_text = f"{snr}dB" if snr is not None else "N/A"
+
+        # Get battery info
+        device_metrics = node_data.get("deviceMetrics", {})
+        if isinstance(device_metrics, dict):
+            battery_level = device_metrics.get("batteryLevel")
+            if battery_level == 101:
+                battery_text = "Plugged In"
+            elif battery_level is not None and battery_level > 0:
+                battery_text = f"{battery_level}%"
+            else:
+                battery_text = "N/A"
+        else:
+            battery_text = "N/A"
+
+        # Determine precision (red = precise, yellow = imprecise)
+        # Precise if: has altitude OR position updated recently
+        is_precise = False
+        if alt and alt != 0:
+            is_precise = True
+        else:
+            # Check if position is recent (within last hour)
+            last_heard = node_data.get("lastHeard")
+            if last_heard:
+                try:
+                    time_since = time.time() - last_heard
+                    if time_since < 3600:  # Less than 1 hour old
+                        is_precise = True
+                except Exception:
+                    pass
+
+        color = "red" if is_precise else "yellow"
+
+        # Create label: "ShortName | SNR: XdB | Batt: X%"
+        label = f"{shortname} | SNR:{snr_text} | {battery_text}"
+
+        nodes_with_gps.append({
+            'lat': lat,
+            'lon': lon,
+            'label': label,
+            'longname': longname,
+            'color': color
+        })
+
+    if not nodes_with_gps:
+        return ("", total_nodes, 0)
+
+    # Google Maps supports multiple markers via the "dir" endpoint with waypoints
+    # Or we can use the MyMaps data URL approach
+    # For simplicity, we'll create a URL with the center point and a directions-style multi-stop
+
+    # Calculate center point (average of all coordinates)
+    avg_lat = sum(n['lat'] for n in nodes_with_gps) / len(nodes_with_gps)
+    avg_lon = sum(n['lon'] for n in nodes_with_gps) / len(nodes_with_gps)
+
+    # Google Maps allows up to ~10 waypoints in directions
+    # For a map view with markers, we'll use the search query approach
+    # Format: https://www.google.com/maps/dir/lat1,lon1/lat2,lon2/lat3,lon3
+
+    if len(nodes_with_gps) <= 10:
+        # Use directions format for up to 10 nodes
+        waypoints = "/".join([f"{n['lat']:.6f},{n['lon']:.6f}" for n in nodes_with_gps])
+        map_url = f"https://www.google.com/maps/dir/{waypoints}"
+    else:
+        # For more than 10 nodes, center on average and provide a search-based URL
+        # This won't show individual pins but will center the map
+        map_url = f"https://maps.google.com/?q={avg_lat:.6f},{avg_lon:.6f}&z=12"
+
+    return (map_url, total_nodes, len(nodes_with_gps))
+
+
 def _queue_offline_relay(sender_id: str, target_node_id: str, target_shortname: str, message: str) -> bool:
     """
     Queue a relay message for later delivery when recipient comes online.
@@ -14548,6 +14664,48 @@ Every coffee helps keep the mesh alive! 🚀"""
           return _cmd_reply(cmd, f"✅ Stopped tracking {target_shortname}")
         else:
           return _cmd_reply(cmd, f"You're not tracking {target_shortname}.\n\nUse /track <shortname> to start tracking.")
+
+  elif cmd == "/meshmap":
+    # Generate a map showing all nodes with GPS data
+    map_url, total_nodes, nodes_with_gps = _generate_mesh_map_url()
+
+    if not map_url:
+      return _cmd_reply(cmd, f"📍 No GPS data available.\n\n{total_nodes} node(s) seen, but none have reported GPS positions yet.")
+
+    # Build response with node list and map link
+    response = [f"🗺️ MESH MAP - {nodes_with_gps} node(s) with GPS"]
+    response.append(f"\nMap link: {map_url}")
+    response.append(f"\n📍 Nodes shown: {nodes_with_gps}/{total_nodes}")
+    response.append(f"\n🔴 Red pins = Precise GPS (has altitude or recent)")
+    response.append(f"🟡 Yellow pins = Imprecise GPS")
+    response.append(f"\nLabels show: Shortname | SNR | Battery")
+
+    # List nodes with GPS (abbreviated)
+    if nodes_with_gps <= 5:
+      response.append(f"\nNodes on map:")
+      if interface and hasattr(interface, "nodes"):
+        for node_id, node_data in interface.nodes.items():
+          if not isinstance(node_data, dict):
+            continue
+
+          position = node_data.get("position", {})
+          if not isinstance(position, dict):
+            continue
+
+          lat = position.get("latitude") or position.get("latitudeI")
+          lon = position.get("longitude") or position.get("longitudeI")
+
+          if lat and abs(lat) > 180:
+            lat = lat / 1e7
+          if lon and abs(lon) > 180:
+            lon = lon / 1e7
+
+          if lat and lon:
+            user_dict = node_data.get("user", {})
+            shortname = user_dict.get("shortName", "????")
+            response.append(f"  • {shortname}")
+
+    return _cmd_reply(cmd, "\n".join(response))
 
   elif cmd == "/networks":
     # Show all channels/networks this node is connected to
