@@ -18214,8 +18214,8 @@ def on_receive(packet=None, interface=None, **kwargs):
   # Check for node tracking requests - notify anyone tracking this node
   if sender_node:
     try:
-      sender_shortname = get_shortname_from_node_id(sender_node)
-      if sender_shortname:
+      sender_shortname = get_node_shortname(sender_node)
+      if sender_shortname and not sender_shortname.startswith("Node_"):
         requesters = _get_tracking_requests_for_node(sender_shortname)
         if requesters:
           # Format the tracking notification
