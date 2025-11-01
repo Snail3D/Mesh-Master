@@ -24405,6 +24405,7 @@ def dashboard():
         </div>
         <div class="passphrase-card">
           <label>🚀 Install System Service<span class="help-icon" data-explainer="Run this command in your terminal to install Mesh Master as a system service with auto-start on boot and auto-restart on crashes." data-explainer-placement="right">?</span></label>
+          <p id="windowsWarning" style="display: none; margin-top: 8px; padding: 8px; background: #ff9800; color: #000; border-radius: 4px; font-size: 12px; font-weight: bold;">⚠️ Windows: Use PowerShell (NOT Command Prompt). Press Win+X → Windows PowerShell</p>
           <div style="margin-top: 8px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 13px; position: relative;">
             <code id="installServiceCmd" style="color: var(--text-primary); user-select: all;"></code>
             <button onclick="navigator.clipboard.writeText(document.getElementById('installServiceCmd').textContent).then(() => alert('✓ Copied!')).catch(() => alert('Failed to copy'))" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 11px; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer;">Copy</button>
@@ -29310,8 +29311,14 @@ def dashboard():
       const installCmd = $('installServiceCmd');
       const uninstallCmd = $('uninstallServiceCmd');
       const completeUninstallCmd = $('completeUninstallCmd');
+      const windowsWarning = $('windowsWarning');
 
       if (isWindows) {
+        // Show Windows warning
+        if (windowsWarning) {
+          windowsWarning.style.display = 'block';
+        }
+
         // Windows PowerShell commands
         if (installCmd) {
           installCmd.textContent = '& "$env:USERPROFILE\\Mesh-Master\\scripts\\universal\\install_service.sh"';
