@@ -21,12 +21,18 @@
 rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/Mesh-Master && cd ~/Mesh-Master && bash setup.sh
 ```
 
-**Windows (PowerShell):**
-> ⚠️ **IMPORTANT:** Use **PowerShell** (NOT Command Prompt). Press `Win+X` → **Windows PowerShell**
+**Windows (Git Bash - Recommended):**
+> ⚠️ **IMPORTANT:** Use **Git Bash** (comes with Git for Windows). Right-click → **Git Bash Here**
 
-```powershell
-if (Test-Path "$env:USERPROFILE\Mesh-Master") { Remove-Item -Recurse -Force "$env:USERPROFILE\Mesh-Master" }; git clone https://github.com/Snail3D/Mesh-Master.git "$env:USERPROFILE\Mesh-Master"; cd "$env:USERPROFILE\Mesh-Master"; .\setup.sh
+```bash
+rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/Mesh-Master && cd ~/Mesh-Master && bash setup.sh
 ```
+
+**Windows (PowerShell - Alternative):**
+```powershell
+if (Test-Path "$env:USERPROFILE\Mesh-Master") { Remove-Item -Recurse -Force "$env:USERPROFILE\Mesh-Master" }; git clone https://github.com/Snail3D/Mesh-Master.git "$env:USERPROFILE\Mesh-Master"; cd "$env:USERPROFILE\Mesh-Master"; bash setup.sh
+```
+> Requires Git for Windows (includes bash). Download: https://git-scm.com/download/win
 
 **What it does:**
 - ✅ Auto-detects your platform (macOS, Linux, Raspberry Pi, Windows)
@@ -47,11 +53,14 @@ if (Test-Path "$env:USERPROFILE\Mesh-Master") { Remove-Item -Recurse -Force "$en
 AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 
-**Windows (PowerShell):**
-> ⚠️ **IMPORTANT:** Use **PowerShell** (NOT Command Prompt). Press `Win+X` → **Windows PowerShell**
+**Windows (Git Bash):**
+```bash
+AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh
+```
 
+**Windows (PowerShell):**
 ```powershell
-$env:AUTO_DELETE="true"; & "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
+$env:AUTO_DELETE="true"; bash "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
 ```
 
 **This will remove:** Service, shortcuts, processes, AND the entire directory (including config.json and data).
@@ -63,11 +72,14 @@ $env:AUTO_DELETE="true"; & "$env:USERPROFILE\Mesh-Master\scripts\universal\unins
 bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 
-**Windows (PowerShell):**
-> ⚠️ **IMPORTANT:** Use **PowerShell** (NOT Command Prompt). Press `Win+X` → **Windows PowerShell**
+**Windows (Git Bash):**
+```bash
+bash ~/Mesh-Master/scripts/universal/uninstall.sh
+```
 
+**Windows (PowerShell):**
 ```powershell
-& "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
+bash "$env:USERPROFILE\Mesh-Master\scripts\universal\uninstall.sh"
 ```
 
 **This will remove:** Service, shortcuts, processes. **Preserves:** Directory, config.json, data folder.
