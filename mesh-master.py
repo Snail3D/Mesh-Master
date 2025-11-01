@@ -2207,6 +2207,11 @@ OFFLINE_RELAY_MAX_ATTEMPTS = 3  # Maximum delivery attempts
 RELAY_OPT_OUT: Dict[str, bool] = {}
 RELAY_OPT_OUT_FILE = Path("data/relay_optout.json")
 
+# Node tracking system - listen for next heartbeat/message from specific nodes
+# Structure: {requester_node_id: {target_shortname: timestamp_requested, ...}, ...}
+TRACKING_REQUESTS: Dict[str, Dict[str, float]] = {}
+TRACKING_LOCK = threading.Lock()
+
 
 def _load_relay_opt_out():
     """Load relay opt-out preferences from disk."""
@@ -2233,6 +2238,122 @@ def _save_relay_opt_out():
 def _is_relay_opted_out(node_id: str) -> bool:
     """Check if a node has opted out of relay."""
     return RELAY_OPT_OUT.get(node_id, False)
+
+
+def _add_tracking_request(requester_node_id: str, target_shortname: str):
+    """Add a tracking request for a node."""
+    with TRACKING_LOCK:
+        if requester_node_id not in TRACKING_REQUESTS:
+            TRACKING_REQUESTS[requester_node_id] = {}
+        TRACKING_REQUESTS[requester_node_id][target_shortname.lower()] = time.time()
+
+
+def _remove_tracking_request(requester_node_id: str, target_shortname: str = None):
+    """Remove tracking request(s). If target_shortname is None, remove all for requester."""
+    with TRACKING_LOCK:
+        if requester_node_id in TRACKING_REQUESTS:
+            if target_shortname is None:
+                del TRACKING_REQUESTS[requester_node_id]
+            else:
+                TRACKING_REQUESTS[requester_node_id].pop(target_shortname.lower(), None)
+                if not TRACKING_REQUESTS[requester_node_id]:
+                    del TRACKING_REQUESTS[requester_node_id]
+
+
+def _get_tracking_requests_for_node(node_shortname: str) -> List[str]:
+    """Get list of requester node IDs tracking this node."""
+    requesters = []
+    node_shortname_lower = node_shortname.lower()
+    with TRACKING_LOCK:
+        for requester_id, targets in TRACKING_REQUESTS.items():
+            if node_shortname_lower in targets:
+                requesters.append(requester_id)
+    return requesters
+
+
+def _format_tracking_notification(target_node_id: str, target_shortname: str) -> str:
+    """Format tracking notification with node details including GPS."""
+    node_info = []
+
+    if interface and hasattr(interface, "nodes") and interface.nodes:
+        node_data = interface.nodes.get(target_node_id)
+        if node_data:
+            # Get user info
+            user_dict = node_data.get("user", {})
+            longname = user_dict.get("longName", "Unknown")
+            shortname = user_dict.get("shortName", target_shortname)
+
+            node_info.append(f"📍 {longname} ({shortname}) detected!")
+
+            # Last heard
+            last_heard = node_data.get("lastHeard")
+            if last_heard:
+                try:
+                    time_ago = int(time.time() - last_heard)
+                    if time_ago < 60:
+                        time_str = f"{time_ago}s ago"
+                    elif time_ago < 3600:
+                        time_str = f"{time_ago // 60}m ago"
+                    else:
+                        time_str = f"{time_ago // 3600}h ago"
+                    node_info.append(f"⏱️ Last heard: {time_str}")
+                except Exception:
+                    pass
+
+            # SNR
+            snr = node_data.get("snr")
+            if snr is not None:
+                node_info.append(f"📶 SNR: {snr} dB")
+
+            # Battery and Power Status
+            device_metrics = node_data.get("deviceMetrics", {})
+            if isinstance(device_metrics, dict):
+                battery_level = device_metrics.get("batteryLevel")
+                voltage = device_metrics.get("voltage")
+
+                if battery_level == 101:
+                    node_info.append(f"🔌 Power: Plugged In")
+                elif battery_level is not None and battery_level > 0:
+                    if battery_level >= 75:
+                        battery_icon = "🔋"
+                    elif battery_level >= 50:
+                        battery_icon = "🔋"
+                    elif battery_level >= 25:
+                        battery_icon = "🪫"
+                    else:
+                        battery_icon = "🪫"
+
+                    if voltage and voltage > 4.2:
+                        node_info.append(f"{battery_icon} Battery: {battery_level}% (Charging)")
+                    else:
+                        node_info.append(f"{battery_icon} Battery: {battery_level}%")
+                elif voltage is not None:
+                    if voltage > 4.2:
+                        node_info.append(f"🔌 Power: {voltage:.2f}V (Plugged In)")
+                    else:
+                        node_info.append(f"🔋 Voltage: {voltage:.2f}V")
+
+            # GPS Position - with Google Maps link
+            position = node_data.get("position", {})
+            if isinstance(position, dict):
+                lat = position.get("latitude") or position.get("latitudeI")
+                lon = position.get("longitude") or position.get("longitudeI")
+
+                # Convert from integer format if needed (Meshtastic stores as lat*1e7)
+                if lat and abs(lat) > 180:
+                    lat = lat / 1e7
+                if lon and abs(lon) > 180:
+                    lon = lon / 1e7
+
+                if lat and lon:
+                    # Create Google Maps link
+                    maps_url = f"https://maps.google.com/?q={lat},{lon}"
+                    node_info.append(f"🗺️ Location: {maps_url}")
+                    node_info.append(f"📍 Coords: {lat:.6f}, {lon:.6f}")
+
+            return "\n".join(node_info)
+
+    return f"📍 {target_shortname} detected!"
 
 
 def _queue_offline_relay(sender_id: str, target_node_id: str, target_shortname: str, message: str) -> bool:
@@ -14324,6 +14445,110 @@ Every coffee helps keep the mesh alive! 🚀"""
 
     return _cmd_reply(cmd, f"❌ No data available for '{target_shortname}'.")
 
+  elif cmd == "/track":
+    # Track a node - get notified when they send next heartbeat/message
+    remainder = full_text[len("/track"):].strip()
+    if not remainder:
+      return _cmd_reply(cmd, "Usage: /track <shortname>\n\nExample: /track snmo\n\nYou'll be notified when that node sends their next message or heartbeat.")
+
+    target_shortname = remainder
+    target_node_id = get_node_id_from_shortname(target_shortname)
+
+    if not target_node_id:
+      return _cmd_reply(cmd, f"❌ Node '{target_shortname}' not found.\n\nUse /nodes to see available nodes.")
+
+    # Add tracking request
+    _add_tracking_request(sender_id, target_shortname)
+
+    # Build confirmation message with current status
+    confirmation = [f"✅ Now tracking {target_shortname}"]
+    confirmation.append(f"\nYou'll be notified when they send their next message or heartbeat.")
+
+    # Show current status if available
+    if interface and hasattr(interface, "nodes") and interface.nodes:
+      node_data = interface.nodes.get(target_node_id)
+      if node_data:
+        user_dict = node_data.get("user", {})
+        longname = user_dict.get("longName", "Unknown")
+        shortname = user_dict.get("shortName", target_shortname)
+
+        confirmation.append(f"\n📍 Current status for {longname} ({shortname}):")
+
+        # Last heard
+        last_heard = node_data.get("lastHeard")
+        if last_heard:
+          try:
+            time_ago = int(time.time() - last_heard)
+            if time_ago < 60:
+              time_str = f"{time_ago}s ago"
+            elif time_ago < 3600:
+              time_str = f"{time_ago // 60}m ago"
+            elif time_ago < 86400:
+              time_str = f"{time_ago // 3600}h ago"
+            else:
+              time_str = f"{time_ago // 86400}d ago"
+            confirmation.append(f"⏱️ Last heard: {time_str}")
+          except Exception:
+            pass
+
+        # GPS Position
+        position = node_data.get("position", {})
+        if isinstance(position, dict):
+          lat = position.get("latitude") or position.get("latitudeI")
+          lon = position.get("longitude") or position.get("longitudeI")
+
+          # Convert from integer format if needed
+          if lat and abs(lat) > 180:
+            lat = lat / 1e7
+          if lon and abs(lon) > 180:
+            lon = lon / 1e7
+
+          if lat and lon:
+            maps_url = f"https://maps.google.com/?q={lat},{lon}"
+            confirmation.append(f"🗺️ Last position: {maps_url}")
+          else:
+            confirmation.append(f"📍 No GPS position available")
+        else:
+          confirmation.append(f"📍 No GPS position available")
+
+        # SNR
+        snr = node_data.get("snr")
+        if snr is not None:
+          confirmation.append(f"📶 Last SNR: {snr} dB")
+
+        # Battery
+        device_metrics = node_data.get("deviceMetrics", {})
+        if isinstance(device_metrics, dict):
+          battery_level = device_metrics.get("batteryLevel")
+          if battery_level == 101:
+            confirmation.append(f"🔌 Power: Plugged In")
+          elif battery_level is not None and battery_level > 0:
+            confirmation.append(f"🔋 Battery: {battery_level}%")
+
+    return _cmd_reply(cmd, "\n".join(confirmation))
+
+  elif cmd == "/untrack":
+    # Stop tracking a node (or all nodes if no argument)
+    remainder = full_text[len("/untrack"):].strip()
+
+    if not remainder:
+      # Remove all tracking for this user
+      with TRACKING_LOCK:
+        if sender_id in TRACKING_REQUESTS:
+          count = len(TRACKING_REQUESTS[sender_id])
+          _remove_tracking_request(sender_id)
+          return _cmd_reply(cmd, f"✅ Stopped tracking all {count} node(s).")
+        else:
+          return _cmd_reply(cmd, "You're not currently tracking any nodes.\n\nUse /track <shortname> to start tracking.")
+    else:
+      target_shortname = remainder
+      with TRACKING_LOCK:
+        if sender_id in TRACKING_REQUESTS and target_shortname.lower() in TRACKING_REQUESTS[sender_id]:
+          _remove_tracking_request(sender_id, target_shortname)
+          return _cmd_reply(cmd, f"✅ Stopped tracking {target_shortname}")
+        else:
+          return _cmd_reply(cmd, f"You're not tracking {target_shortname}.\n\nUse /track <shortname> to start tracking.")
+
   elif cmd == "/networks":
     # Show all channels/networks this node is connected to
     channel_names = []
@@ -17960,6 +18185,31 @@ def on_receive(packet=None, interface=None, **kwargs):
     MAIL_MANAGER.handle_heartbeat(sender_key, sender_node)
   except Exception as exc:
     clean_log(f"Mailbox heartbeat error: {exc}", "⚠️")
+
+  # Check for node tracking requests - notify anyone tracking this node
+  if sender_node:
+    try:
+      sender_shortname = get_shortname_from_node_id(sender_node)
+      if sender_shortname:
+        requesters = _get_tracking_requests_for_node(sender_shortname)
+        if requesters:
+          # Format the tracking notification
+          notification = _format_tracking_notification(sender_node, sender_shortname)
+
+          # Send notification to all requesters
+          for requester_id in requesters:
+            try:
+              # Send DM to requester
+              if interface:
+                send_direct(interface, notification, requester_id)
+                clean_log(f"Sent tracking notification to {requester_id} for {sender_shortname}", "🔍", show_always=False)
+
+              # Remove the tracking request (one-time notification)
+              _remove_tracking_request(requester_id, sender_shortname)
+            except Exception as e:
+              dprint(f"Error sending tracking notification: {e}")
+    except Exception as exc:
+      dprint(f"Tracking notification error: {exc}")
 
   # Update shortname cache whenever we see a node
   try:

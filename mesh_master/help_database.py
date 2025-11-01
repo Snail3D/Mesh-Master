@@ -85,6 +85,28 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
         "aliases": [],
         "keywords": ["node", "info", "signal", "snr", "status", "details", "rssi"]
     },
+    "/track": {
+        "category": "Network",
+        "description": "Track a node - get notified when they send their next message or heartbeat. Shows current status (GPS, SNR, battery) immediately, then sends update when detected.",
+        "usage": "/track <shortname>",
+        "examples": [
+            "/track snmo",
+            "/track lucy"
+        ],
+        "aliases": [],
+        "keywords": ["track", "monitor", "watch", "notify", "gps", "location", "position", "detect"]
+    },
+    "/untrack": {
+        "category": "Network",
+        "description": "Stop tracking a node. If no shortname given, stops tracking all nodes.",
+        "usage": "/untrack [shortname]",
+        "examples": [
+            "/untrack snmo",
+            "/untrack"
+        ],
+        "aliases": [],
+        "keywords": ["untrack", "stop", "cancel", "tracking", "monitoring"]
+    },
     "/networks": {
         "category": "Network",
         "description": "List all channels/networks this node is connected to.",
