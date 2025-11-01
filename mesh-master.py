@@ -27165,7 +27165,11 @@ def dashboard():
       }
 
       const isLocked = CONFIG_LOCKED_KEYS.has(item.key);
-      const editorControl = !isLocked ? buildConfigEditor(item || {}) : null;
+      // Hide locked keys from the dashboard entirely
+      if (isLocked) {
+        return null;
+      }
+      const editorControl = buildConfigEditor(item || {});
       const isEditable = !!editorControl;
 
       let editBtn = null;
@@ -27368,7 +27372,9 @@ def dashboard():
       }
       current.settings.forEach(item => {
         const row = createConfigRow(item);
-        list.appendChild(row);
+        if (row) {
+          list.appendChild(row);
+        }
       });
     }
 
