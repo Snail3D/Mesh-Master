@@ -18,7 +18,7 @@
 
 **Installation Command (Universal):**
 ```bash
-rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd Mesh-Master && ./setup.sh
+rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/Mesh-Master && cd ~/Mesh-Master && bash setup.sh
 ```
 
 **What it does:**

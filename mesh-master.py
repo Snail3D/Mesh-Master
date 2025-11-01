@@ -28266,13 +28266,13 @@ def dashboard():
             <h3>macOS Setup</h3>
             <p><strong>Desktop Launcher:</strong> Creates a clickable icon that launches Mesh Master.</p>
             <div class="code-block-container">
-              <code class="code-block" id="macosDesktop">python3 scripts/desktop/create_shortcuts.py</code>
+              <code class="code-block" id="macosDesktop">python3 ~/Mesh-Master/scripts/desktop/create_shortcuts.py</code>
               <button class="copy-btn" onclick="copyToClipboard('macosDesktop')">📋 Copy</button>
             </div>
 
             <p style="margin-top: 20px;"><strong>Install as Service:</strong> Auto-start on login and auto-restart after crashes/updates.</p>
             <div class="code-block-container">
-              <code class="code-block" id="macosService">./scripts/macos/install_service.sh</code>
+              <code class="code-block" id="macosService">bash ~/Mesh-Master/scripts/macos/install_service.sh</code>
               <button class="copy-btn" onclick="copyToClipboard('macosService')">📋 Copy</button>
             </div>
 
@@ -28293,7 +28293,7 @@ def dashboard():
               <button class="copy-btn" onclick="copyToClipboard('macosRestart')">📋 Copy</button>
             </div>
             <div class="code-block-container" style="margin-top: 8px;">
-              <code class="code-block" id="macosUninstall">./scripts/macos/uninstall_service.sh</code>
+              <code class="code-block" id="macosUninstall">bash ~/Mesh-Master/scripts/macos/uninstall_service.sh</code>
               <button class="copy-btn" onclick="copyToClipboard('macosUninstall')">📋 Copy</button>
             </div>
           `;
@@ -28302,13 +28302,13 @@ def dashboard():
             <h3>Linux/Raspberry Pi Setup</h3>
             <p><strong>Desktop Launcher:</strong> Creates a clickable icon that launches Mesh Master.</p>
             <div class="code-block-container">
-              <code class="code-block" id="linuxDesktop">python3 scripts/desktop/create_shortcuts.py</code>
+              <code class="code-block" id="linuxDesktop">python3 ~/Mesh-Master/scripts/desktop/create_shortcuts.py</code>
               <button class="copy-btn" onclick="copyToClipboard('linuxDesktop')">📋 Copy</button>
             </div>
 
             <p style="margin-top: 20px;"><strong>Install as Systemd Service:</strong> Auto-start on boot and auto-restart after crashes/updates.</p>
             <div class="code-block-container">
-              <code class="code-block" id="linuxService">sudo bash scripts/linux/install_service.sh</code>
+              <code class="code-block" id="linuxService">sudo bash ~/Mesh-Master/scripts/linux/install_service.sh</code>
               <button class="copy-btn" onclick="copyToClipboard('linuxService')">📋 Copy</button>
             </div>
 
@@ -28338,13 +28338,13 @@ def dashboard():
             <h3>Windows Setup</h3>
             <p><strong>Desktop Launcher:</strong> Creates a clickable shortcut that launches Mesh Master.</p>
             <div class="code-block-container">
-              <code class="code-block" id="winDesktop">python scripts\\desktop\\create_shortcuts.py</code>
+              <code class="code-block" id="winDesktop">python %USERPROFILE%\\Mesh-Master\\scripts\\desktop\\create_shortcuts.py</code>
               <button class="copy-btn" onclick="copyToClipboard('winDesktop')">📋 Copy</button>
             </div>
 
             <p style="margin-top: 20px;"><strong>Install as Windows Service:</strong> Auto-start on boot and auto-restart after crashes/updates.</p>
             <div class="code-block-container">
-              <code class="code-block" id="winService">scripts\\windows\\install_service.bat</code>
+              <code class="code-block" id="winService">%USERPROFILE%\\Mesh-Master\\scripts\\windows\\install_service.bat</code>
               <button class="copy-btn" onclick="copyToClipboard('winService')">📋 Copy</button>
             </div>
             <p style="font-size: 12px; color: #888; margin-top: 4px;">⚠️ Run as Administrator (right-click → Run as administrator)</p>
@@ -28373,7 +28373,7 @@ def dashboard():
               <button class="copy-btn" onclick="copyToClipboard('winRestart')">📋 Copy</button>
             </div>
             <div class="code-block-container" style="margin-top: 8px;">
-              <code class="code-block" id="winUninstall">scripts\\windows\\uninstall_service.bat</code>
+              <code class="code-block" id="winUninstall">%USERPROFILE%\\Mesh-Master\\scripts\\windows\\uninstall_service.bat</code>
               <button class="copy-btn" onclick="copyToClipboard('winUninstall')">📋 Copy</button>
             </div>
           `;
