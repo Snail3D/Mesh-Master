@@ -109,7 +109,7 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
     },
     "/meshmap": {
         "category": "Network",
-        "description": "Generate a Google Maps link showing all nodes with GPS data. Red pins = precise GPS (has altitude or recent), Yellow pins = imprecise. Labels show shortname, SNR, and battery.",
+        "description": "Show all nodes with GPS data. Lists up to 10 nodes with individual Google Maps links. 🔴 = precise GPS (has altitude or recent), 🟡 = imprecise. Shows shortname, SNR, and battery for each node.",
         "usage": "/meshmap",
         "examples": [
             "/meshmap"
