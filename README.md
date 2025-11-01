@@ -35,13 +35,13 @@ rm -rf Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git && cd
 
 #### Complete Removal (Deletes Everything)
 ```bash
-cd ~/Mesh-Master && AUTO_DELETE=true bash scripts/universal/uninstall.sh
+AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 **This will remove:** Service, shortcuts, processes, AND the entire directory (including config.json and data).
 
 #### Keep Config & Data (Remove Service Only)
 ```bash
-cd ~/Mesh-Master && bash scripts/universal/uninstall.sh
+bash ~/Mesh-Master/scripts/universal/uninstall.sh
 ```
 **This will remove:** Service, shortcuts, processes. **Preserves:** Directory, config.json, data folder.
 
