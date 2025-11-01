@@ -21,28 +21,22 @@
 rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/Mesh-Master && cd ~/Mesh-Master && bash setup.sh
 ```
 
-**Windows (Command Prompt - Recommended):**
-> ⚠️ **Requirements:** Git and Python 3.11+ must be installed first
-> Download: [Git](https://git-scm.com/download/win) | [Python](https://www.python.org/downloads/)
+**Windows (Automatic - Recommended):**
+> 🎯 **One-Click Install** - Automatically downloads Git, Python, and Mesh Master
 
-```cmd
-cd %USERPROFILE% && rmdir /s /q Mesh-Master 2>nul & git clone https://github.com/Snail3D/Mesh-Master.git Mesh-Master && cd Mesh-Master && python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt && python mesh-master.py
-```
+1. Right-click PowerShell → **Run as Administrator**
+2. Copy and paste this command:
 
-**Windows (PowerShell - Alternative):**
 ```powershell
-if (Test-Path "$env:USERPROFILE\Mesh-Master") { Remove-Item -Recurse -Force "$env:USERPROFILE\Mesh-Master" }; git clone https://github.com/Snail3D/Mesh-Master.git "$env:USERPROFILE\Mesh-Master"; cd "$env:USERPROFILE\Mesh-Master"; python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt; python mesh-master.py
-```
-
-**Windows (Git Bash - Alternative):**
-```bash
-rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/Mesh-Master && cd ~/Mesh-Master && bash setup.sh
+irm https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/install.ps1 | iex
 ```
 
 **What it does:**
-- ✅ Auto-detects your platform (macOS, Linux, Raspberry Pi, Windows)
-- ✅ Installs Python 3, Ollama, and all dependencies
-- ✅ Creates desktop shortcut
+- ✅ Auto-installs Git for Windows if needed
+- ✅ Auto-installs Python 3.11+ if needed
+- ✅ Downloads Mesh Master and all dependencies
+- ✅ Creates Windows service (auto-start on boot)
+- ✅ Creates desktop shortcuts
 
 ### After Installation
 1. Double-click the **Mesh Master** desktop icon (or service starts automatically if installed)

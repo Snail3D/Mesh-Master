@@ -24403,9 +24403,17 @@ def dashboard():
           </div>
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Updates from GitHub. Service will restart automatically.</p>
         </div>
+        <div class="passphrase-card" id="windowsAutoInstaller" style="display: none;">
+          <label>🎯 Windows One-Click Installer<span class="help-icon" data-explainer="Automatic installer that downloads Git, Python, and Mesh Master. No prerequisites needed!" data-explainer-placement="right">?</span></label>
+          <p style="margin-top: 8px; padding: 8px; background: #4CAF50; color: white; border-radius: 4px; font-size: 12px; font-weight: bold;">✨ First time on Windows? Use this automatic installer!</p>
+          <div style="margin-top: 8px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 13px; position: relative;">
+            <code id="windowsAutoInstallCmd" style="color: var(--text-primary); user-select: all;">irm https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/install.ps1 | iex</code>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('windowsAutoInstallCmd').textContent).then(() => alert('✓ Copied!')).catch(() => alert('Failed to copy'))" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 11px; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer;">Copy</button>
+          </div>
+          <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Run in PowerShell as Administrator. Automatically installs Git, Python 3.11+, Mesh Master, and creates Windows service.</p>
+        </div>
         <div class="passphrase-card">
           <label>🚀 Install System Service<span class="help-icon" data-explainer="Run this command in your terminal to install Mesh Master as a system service with auto-start on boot and auto-restart on crashes." data-explainer-placement="right">?</span></label>
-          <p id="windowsWarning" style="display: none; margin-top: 8px; padding: 8px; background: #ff9800; color: #000; border-radius: 4px; font-size: 12px; font-weight: bold;">⚠️ Windows: Requires Git for Windows (includes bash command). Works in Command Prompt, PowerShell, or Git Bash.</p>
           <div style="margin-top: 8px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 13px; position: relative;">
             <code id="installServiceCmd" style="color: var(--text-primary); user-select: all;"></code>
             <button onclick="navigator.clipboard.writeText(document.getElementById('installServiceCmd').textContent).then(() => alert('✓ Copied!')).catch(() => alert('Failed to copy'))" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 11px; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer;">Copy</button>
@@ -29311,17 +29319,17 @@ def dashboard():
       const installCmd = $('installServiceCmd');
       const uninstallCmd = $('uninstallServiceCmd');
       const completeUninstallCmd = $('completeUninstallCmd');
-      const windowsWarning = $('windowsWarning');
+      const windowsAutoInstaller = $('windowsAutoInstaller');
 
       if (isWindows) {
-        // Show Windows warning
-        if (windowsWarning) {
-          windowsWarning.style.display = 'block';
+        // Show Windows auto-installer card
+        if (windowsAutoInstaller) {
+          windowsAutoInstaller.style.display = 'block';
         }
 
-        // Windows Command Prompt commands (Git for Windows includes bash in PATH)
+        // Windows PowerShell commands
         if (installCmd) {
-          installCmd.textContent = 'bash %USERPROFILE%\\Mesh-Master\\scripts\\universal\\install_service.sh';
+          installCmd.textContent = 'powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Mesh-Master\\scripts\\windows\\install.ps1"';
         }
         if (uninstallCmd) {
           uninstallCmd.textContent = 'bash %USERPROFILE%\\Mesh-Master\\scripts\\universal\\uninstall.sh';
