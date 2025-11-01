@@ -24406,7 +24406,7 @@ def dashboard():
         <div class="passphrase-card">
           <label>🚀 Install System Service<span class="help-icon" data-explainer="Run this command in your terminal to install Mesh Master as a system service with auto-start on boot and auto-restart on crashes." data-explainer-placement="right">?</span></label>
           <div style="margin-top: 8px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 13px; position: relative;">
-            <code id="installServiceCmd" style="color: var(--text-primary); user-select: all;">bash ~/Mesh-Master/scripts/universal/install_service.sh</code>
+            <code id="installServiceCmd" style="color: var(--text-primary); user-select: all;"></code>
             <button onclick="navigator.clipboard.writeText(document.getElementById('installServiceCmd').textContent).then(() => alert('✓ Copied!')).catch(() => alert('Failed to copy'))" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 11px; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer;">Copy</button>
           </div>
           <p class="passphrase-hint" style="margin-top: 8px; color: #4CAF50;">Installs service, enables auto-start on boot, auto-restart on crashes, and creates desktop shortcuts.</p>
@@ -24414,7 +24414,7 @@ def dashboard():
         <div class="passphrase-card">
           <label>🗑️ Uninstall Service<span class="help-icon" data-explainer="Run this command to remove the Mesh Master service. Your data and config will be preserved." data-explainer-placement="right">?</span></label>
           <div style="margin-top: 8px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 13px; position: relative;">
-            <code id="uninstallServiceCmd" style="color: var(--text-primary); user-select: all;">bash ~/Mesh-Master/scripts/universal/uninstall.sh</code>
+            <code id="uninstallServiceCmd" style="color: var(--text-primary); user-select: all;"></code>
             <button onclick="navigator.clipboard.writeText(document.getElementById('uninstallServiceCmd').textContent).then(() => alert('✓ Copied!')).catch(() => alert('Failed to copy'))" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 11px; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer;">Copy</button>
           </div>
           <p class="passphrase-hint" style="margin-top: 8px; color: #888;">Stops service, disables auto-start, removes service files and shortcuts. Data and config preserved.</p>
@@ -24422,7 +24422,7 @@ def dashboard():
         <div class="passphrase-card" style="border: 2px solid #ff4444;">
           <label>⚠️ Complete Uninstall<span class="help-icon" data-explainer="DANGER: This command completely removes Mesh Master - kills all processes, removes services, deletes shortcuts, and deletes the entire directory." data-explainer-placement="right">?</span></label>
           <div style="margin-top: 8px; padding: 12px; background: var(--bg-primary); border: 1px solid #ff4444; border-radius: 4px; font-family: monospace; font-size: 13px; position: relative;">
-            <code id="completeUninstallCmd" style="color: #ff4444; user-select: all;">AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh</code>
+            <code id="completeUninstallCmd" style="color: #ff4444; user-select: all;"></code>
             <button onclick="navigator.clipboard.writeText(document.getElementById('completeUninstallCmd').textContent).then(() => alert('✓ Copied!')).catch(() => alert('Failed to copy'))" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 11px; background: #ff4444; color: white; border: none; border-radius: 3px; cursor: pointer;">Copy</button>
           </div>
           <p class="passphrase-hint" style="margin-top: 8px; color: #ff4444; font-weight: bold;">⚠️ WARNING: DELETES EVERYTHING including services, shortcuts, processes, data, and config!</p>
@@ -29302,6 +29302,40 @@ def dashboard():
       }
     });
 
+    function setPlatformCommands() {
+      // Detect platform from user agent
+      const isWindows = navigator.platform.indexOf('Win') > -1 || navigator.userAgent.indexOf('Windows') > -1;
+
+      // Set commands based on platform
+      const installCmd = $('installServiceCmd');
+      const uninstallCmd = $('uninstallServiceCmd');
+      const completeUninstallCmd = $('completeUninstallCmd');
+
+      if (isWindows) {
+        // Windows PowerShell commands
+        if (installCmd) {
+          installCmd.textContent = '& "$env:USERPROFILE\\Mesh-Master\\scripts\\universal\\install_service.sh"';
+        }
+        if (uninstallCmd) {
+          uninstallCmd.textContent = '& "$env:USERPROFILE\\Mesh-Master\\scripts\\universal\\uninstall.sh"';
+        }
+        if (completeUninstallCmd) {
+          completeUninstallCmd.textContent = '$env:AUTO_DELETE="true"; & "$env:USERPROFILE\\Mesh-Master\\scripts\\universal\\uninstall.sh"';
+        }
+      } else {
+        // macOS / Linux bash commands
+        if (installCmd) {
+          installCmd.textContent = 'bash ~/Mesh-Master/scripts/universal/install_service.sh';
+        }
+        if (uninstallCmd) {
+          uninstallCmd.textContent = 'bash ~/Mesh-Master/scripts/universal/uninstall.sh';
+        }
+        if (completeUninstallCmd) {
+          completeUninstallCmd.textContent = 'AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh';
+        }
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
       bindGlobalErrorHandlers();
       decorateExistingLogLines();
@@ -29311,6 +29345,7 @@ def dashboard():
       initPanelDrag();
       initPanelCollapse();
       buildPanelMenu();
+      setPlatformCommands();
       if (initialMetrics && Object.keys(initialMetrics).length) {
         updateMetrics(initialMetrics);
         const statusEl = $("metricsStatus");
