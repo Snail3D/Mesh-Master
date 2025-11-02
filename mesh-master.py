@@ -24846,7 +24846,6 @@ def dashboard():
               <option value="crawl">Web Crawl</option>
               <option value="ddg">Search Results</option>
               <option value="report">Reports</option>
-              <option value="log">Logs</option>
             </select>
             <label for="offlineLangSelect">Lang</label>
             <select id="offlineLangSelect" class="config-select">
@@ -25594,7 +25593,6 @@ def dashboard():
       crawl: 'Web Crawl',
       ddg: 'Search Results',
       report: 'Reports',
-      log: 'Logs',
     };
 
     let offlineState = { type: 'wiki', lang: 'en', dir: '', entries: [], stats: {} };
@@ -25618,7 +25616,7 @@ def dashboard():
       offlineState.lang = lang;
       const langSel = $("offlineLangSelect");
       if (langSel) {
-        langSel.disabled = (type === 'report' || type === 'log');
+        langSel.disabled = (type === 'report');
       }
       if (status) {
         status.textContent = 'Loading…';
@@ -25831,7 +25829,7 @@ def dashboard():
         const content = $("offlineModalContent");
         if (header) header.textContent = entry.title || item.title || key;
         let metaText = '';
-        if (entry.type === 'report' || entry.type === 'log') {
+        if (entry.type === 'report') {
           if (entry.summary) metaText += entry.summary;
           if (entry.created_at) metaText += metaText ? ` • ${entry.created_at}` : entry.created_at;
           if (entry.author) metaText += metaText ? ` • by ${entry.author}` : `by ${entry.author}`;
