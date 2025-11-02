@@ -18659,7 +18659,11 @@ def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not is_authenticated():
-            return jsonify({'error': 'Authentication required', 'authenticated': False}), 401
+            return jsonify({
+                'error': 'Authentication required. Please log in at /login (default password: "password")',
+                'authenticated': False,
+                'redirect': '/login'
+            }), 401
         return f(*args, **kwargs)
     return decorated_function
 
@@ -24200,6 +24204,13 @@ def dashboard():
         text-align: left;
       }
     }
+    /* Collapsible Security Settings */
+    .config-section-collapsible[open] summary span {
+      transform: rotate(90deg);
+    }
+    .config-section-collapsible summary:hover {
+      background: var(--bg-alt);
+    }
   </style>
 </head>
 <body>
@@ -24749,15 +24760,20 @@ def dashboard():
           </div>
         </div>
 
-        <!-- Dashboard Password Section -->
-        <div class="passphrase-card" style="margin-top: 20px; border: 2px solid var(--accent);">
-          <label>🔐 Dashboard Password<span class="help-icon" data-explainer="Password required to access the dashboard. Change this from the default 'password' for security." data-explainer-placement="right">?</span></label>
-          <input type="password" id="configAdminPassword" class="config-input" placeholder="Enter new password" style="margin-top: 8px;">
-          <label style="margin-top: 12px;">Password Hint<span class="help-icon" data-explainer="Helpful hint shown on the login page to remind you of the password." data-explainer-placement="right">?</span></label>
-          <input type="text" id="configAdminPasswordHint" class="config-input" placeholder="Enter password hint" style="margin-top: 8px;">
-          <button type="button" id="configPasswordSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px;">Save Password</button>
-          <p class="passphrase-hint" style="margin-top: 8px;">⚠️ Changing the password will log you out. You'll need to log back in with the new password.</p>
-        </div>
+        <!-- Dashboard Password Section (Collapsible) -->
+        <details class="config-section-collapsible" style="margin-top: 20px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+          <summary style="padding: 16px; background: var(--bg-panel); cursor: pointer; user-select: none; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px;">
+            <span style="transition: transform 0.2s;">▶</span> 🔐 Security Settings
+          </summary>
+          <div class="passphrase-card" style="padding: 16px; border-top: 1px solid var(--border);">
+            <label>Dashboard Password<span class="help-icon" data-explainer="Password required to access the dashboard. Change this from the default 'password' for security." data-explainer-placement="right">?</span></label>
+            <input type="password" id="configAdminPassword" class="config-input" placeholder="Enter new password" style="margin-top: 8px;">
+            <label style="margin-top: 12px;">Password Hint<span class="help-icon" data-explainer="Helpful hint shown on the login page to remind you of the password." data-explainer-placement="right">?</span></label>
+            <input type="text" id="configAdminPasswordHint" class="config-input" placeholder="Enter password hint" style="margin-top: 8px;">
+            <button type="button" id="configPasswordSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px;">Save Password</button>
+            <p class="passphrase-hint" style="margin-top: 8px;">⚠️ Changing the password will log you out. You'll need to log back in with the new password.</p>
+          </div>
+        </details>
 
         <div class="config-select-row">
           <label for="configCategorySelect">Category</label>
