@@ -2202,6 +2202,7 @@ OFFLINE_RELAY_LOCK = threading.Lock()
 OFFLINE_RELAY_MAX_PER_USER = 10  # Maximum queued messages per recipient
 OFFLINE_RELAY_MAX_AGE = 86400  # 24 hours in seconds
 OFFLINE_RELAY_MAX_ATTEMPTS = 3  # Maximum delivery attempts
+OFFLINE_RELAY_FILE = Path("data/offline_relay_queue.json")
 
 # Relay opt-out tracking: {node_id: True} for users who have opted out
 RELAY_OPT_OUT: Dict[str, bool] = {}
@@ -2211,6 +2212,7 @@ RELAY_OPT_OUT_FILE = Path("data/relay_optout.json")
 # Structure: {requester_node_id: {target_shortname: timestamp_requested, ...}, ...}
 TRACKING_REQUESTS: Dict[str, Dict[str, float]] = {}
 TRACKING_LOCK = threading.Lock()
+TRACKING_FILE = Path("data/tracking_requests.json")
 
 
 def _load_relay_opt_out():
@@ -2240,12 +2242,62 @@ def _is_relay_opted_out(node_id: str) -> bool:
     return RELAY_OPT_OUT.get(node_id, False)
 
 
+def _load_tracking_requests():
+    """Load tracking requests from disk."""
+    global TRACKING_REQUESTS
+    try:
+        if TRACKING_FILE.exists():
+            with open(TRACKING_FILE, 'r') as f:
+                TRACKING_REQUESTS = json.load(f)
+            clean_log(f"Loaded {len(TRACKING_REQUESTS)} tracking request(s)", "🔍", show_always=False)
+    except Exception as e:
+        dprint(f"Error loading tracking requests: {e}")
+        TRACKING_REQUESTS = {}
+
+
+def _save_tracking_requests():
+    """Save tracking requests to disk."""
+    try:
+        TRACKING_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with TRACKING_LOCK:
+            with open(TRACKING_FILE, 'w') as f:
+                json.dump(TRACKING_REQUESTS, f, indent=2)
+    except Exception as e:
+        dprint(f"Error saving tracking requests: {e}")
+
+
+def _load_offline_relay_queue():
+    """Load offline relay queue from disk."""
+    global OFFLINE_RELAY_QUEUE
+    try:
+        if OFFLINE_RELAY_FILE.exists():
+            with open(OFFLINE_RELAY_FILE, 'r') as f:
+                OFFLINE_RELAY_QUEUE = json.load(f)
+            total_msgs = sum(len(msgs) for msgs in OFFLINE_RELAY_QUEUE.values())
+            clean_log(f"Loaded {total_msgs} queued relay message(s) for {len(OFFLINE_RELAY_QUEUE)} user(s)", "📮", show_always=False)
+    except Exception as e:
+        dprint(f"Error loading offline relay queue: {e}")
+        OFFLINE_RELAY_QUEUE = {}
+
+
+def _save_offline_relay_queue():
+    """Save offline relay queue to disk."""
+    try:
+        OFFLINE_RELAY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with OFFLINE_RELAY_LOCK:
+            with open(OFFLINE_RELAY_FILE, 'w') as f:
+                json.dump(OFFLINE_RELAY_QUEUE, f, indent=2)
+    except Exception as e:
+        dprint(f"Error saving offline relay queue: {e}")
+
+
 def _add_tracking_request(requester_node_id: str, target_shortname: str):
     """Add a tracking request for a node."""
     with TRACKING_LOCK:
         if requester_node_id not in TRACKING_REQUESTS:
             TRACKING_REQUESTS[requester_node_id] = {}
         TRACKING_REQUESTS[requester_node_id][target_shortname.lower()] = time.time()
+    _save_tracking_requests()
 
 
 def _remove_tracking_request(requester_node_id: str, target_shortname: str = None):
@@ -2258,6 +2310,7 @@ def _remove_tracking_request(requester_node_id: str, target_shortname: str = Non
                 TRACKING_REQUESTS[requester_node_id].pop(target_shortname.lower(), None)
                 if not TRACKING_REQUESTS[requester_node_id]:
                     del TRACKING_REQUESTS[requester_node_id]
+    _save_tracking_requests()
 
 
 def _get_tracking_requests_for_node(node_shortname: str) -> List[str]:
@@ -2401,6 +2454,7 @@ def _queue_offline_relay(sender_id: str, target_node_id: str, target_shortname: 
             'attempts': 0
         })
 
+        _save_offline_relay_queue()
         return True
 
 
@@ -2428,6 +2482,7 @@ def _try_deliver_offline_relays(target_node_id: str):
             return
 
         pending_messages = OFFLINE_RELAY_QUEUE.pop(target_node_id, [])
+        _save_offline_relay_queue()
 
     if not pending_messages:
         return
@@ -2470,6 +2525,7 @@ def _try_deliver_offline_relays(target_node_id: str):
                     OFFLINE_RELAY_QUEUE[target_node_id] = []
                 if len(OFFLINE_RELAY_QUEUE[target_node_id]) < OFFLINE_RELAY_MAX_PER_USER:
                     OFFLINE_RELAY_QUEUE[target_node_id].append(msg_data)
+                _save_offline_relay_queue()
 
 
 def _invoke_power_command(cmd):
@@ -33658,6 +33714,12 @@ def main():
 
     # Load relay opt-out preferences
     _load_relay_opt_out()
+
+    # Load tracking requests
+    _load_tracking_requests()
+
+    # Load offline relay queue
+    _load_offline_relay_queue()
 
     # Load anti-spam ban list
     _antispam_load_bans()
