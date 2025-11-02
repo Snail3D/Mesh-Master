@@ -219,6 +219,32 @@ Allows others to relay messages to the user again.
 
 ---
 
+### `/track`
+**Aliases:** None
+**Function:** Track a node and get notified when they send their next message or heartbeat
+**Scope:** DM or broadcast
+**Example:**
+```
+/track gues
+/track snmo
+```
+Shows current status immediately (GPS, SNR, battery, last heard), then sends a notification when the tracked node sends their next message or heartbeat. Tracking request persists across service restarts. One-time notification (auto-removes after triggering).
+
+---
+
+### `/untrack`
+**Aliases:** None
+**Function:** Stop tracking a node
+**Scope:** DM or broadcast
+**Example:**
+```
+/untrack gues           # Stop tracking specific node
+/untrack                # Stop tracking all nodes
+```
+Removes the tracking request. Message format: `<shortname> is no longer being tracked`
+
+---
+
 ## Mesh Mail
 
 ### `/m`
@@ -1192,5 +1218,5 @@ Some commands buffer ~3 seconds before responding to reduce radio congestion:
 
 ---
 
-**Mesh Master v2.0**
-Complete command reference • Last updated: 2025-10-10
+**Mesh Master v2.5**
+Complete command reference • Last updated: 2025-11-01
