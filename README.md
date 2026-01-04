@@ -2,7 +2,9 @@
 
 <img src="static/mesh-master-banner.png" alt="Mesh Master" width="600">
 
-[![Watch the video](https://img.youtube.com/vi/X034-Q5VDd8/0.jpg)](https://www.youtube.com/watch?v=X034-Q5VDd8)
+<a href="https://www.youtube.com/watch?v=X034-Q5VDd8" target="_blank">
+  <img src="https://ytcards.demolab.com/?id=X034-Q5VDd8&title=&lang=en&timestamp=&background_color=%230d1117&title_color=%23ffffff&stats_color=%23dedede&max_title_lines=1&width=480&border_radius=5&duration=" alt="Watch the video">
+</a>
 
 ### v2.5 — Off-Grid AI Operations Suite
 
