@@ -260,7 +260,7 @@ MIT License — See [LICENSE](LICENSE)
 Meshtastic is a trademark of Meshtastic LLC
 ---
 
-- Original Mesh Master by [MR_TBOT](https://github.com/mr-tbot/mesh-master)
+- Original Mesh-AI by [MR_TBOT](https://github.com/mr-tbot/mesh-ai)
 - Meshtastic community for hardware, testing, and feedback
 
 ---
