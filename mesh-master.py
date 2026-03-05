@@ -90,6 +90,7 @@ from scripts.utilities.meshtastic_facts import MESHTASTIC_ALERT_FACTS
 from unidecode import unidecode   # Added unidecode import for Ollama text normalization
 from google.protobuf.message import DecodeError
 import queue  # For async message processing
+import asyncio
 import itertools
 import atexit
 try:
