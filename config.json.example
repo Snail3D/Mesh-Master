@@ -133,5 +133,17 @@
   "wifi_host": "MESHTASTIC NODE IP HERE",
   "wifi_port": 4403,
   "auto_update_enabled": false,
-  "auto_update_check_interval_hours": 24.0
+  "auto_update_check_interval_hours": 24.0,
+  "groq_api_key": "",
+  "groq_model": "llama-3.1-8b-instant",
+  "groq_timeout": 30,
+  "use_meshcore": false,
+  "meshcore_connection_type": "serial",
+  "meshcore_serial_port": "",
+  "meshcore_serial_baud": 115200,
+  "meshcore_tcp_host": "",
+  "meshcore_tcp_port": 4403,
+  "meshcore_ble_address": "",
+  "meshcore_auto_reconnect": true,
+  "radio_protocol": "auto"
 }

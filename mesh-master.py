@@ -113,6 +113,7 @@ from mesh_master import (
 )
 from mesh_master.alarm_timer_manager import AlarmTimerManager
 from mesh_master.command_utils import promote_bare_command
+from mesh_master.meshcore_manager import MeshCoreManager, MESHCORE_AVAILABLE
 # Make sure DEBUG_ENABLED exists before any logger/filter classes use it
 # -----------------------------
 # Global Debug & Noise Patterns
@@ -1639,7 +1640,8 @@ def ai_log(message, provider="AI"):
     if CLEAN_LOGS:
         provider_emojis = {
             "ollama": "🦙",
-            "openai": "🤖", 
+            "openai": "🤖",
+            "groq": "⚡",
             "lmstudio": "💻",
             "home_assistant": "🏠"
         }
@@ -2783,6 +2785,9 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
                 "chunk_buffer_seconds",
                 "ai_chill_mode",
                 "ai_chill_queue_limit",
+                "groq_api_key",
+                "groq_model",
+                "groq_timeout",
                 "user_ai_settings_file",
             ],
         },
@@ -2911,6 +2916,7 @@ CONFIG_OVERVIEW_LAYOUT: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
 ])
 
 CONFIG_HIDDEN_KEYS = {
+    "groq_api_key",
     "openai_api_key",
     "openai_model",
     "openai_timeout",
@@ -2968,6 +2974,15 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
     "mail_search_timeout": "Mail search timeout",
     "async_response_queue_max": "Response queue max",
     "use_mesh_interface": "Use mesh interface",
+    "radio_protocol": "Radio protocol",
+    "use_meshcore": "Use MeshCore",
+    "meshcore_connection_type": "MeshCore connection type",
+    "meshcore_serial_port": "MeshCore serial port",
+    "meshcore_serial_baud": "MeshCore baud rate",
+    "meshcore_tcp_host": "MeshCore TCP host",
+    "meshcore_tcp_port": "MeshCore TCP port",
+    "meshcore_ble_address": "MeshCore BLE address",
+    "meshcore_auto_reconnect": "MeshCore auto-reconnect",
     "serial_port": "Serial port",
     "serial_baud": "Serial baud rate",
     "use_wifi": "Use Wi-Fi link",
@@ -2984,6 +2999,9 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
     "ai_chill_queue_limit": "Chill queue limit",
     "ollama_url": "Ollama URL",
     "ollama_model": "Ollama model",
+    "groq_api_key": "Groq API key",
+    "groq_model": "Groq model",
+    "groq_timeout": "Groq timeout",
     "ollama_timeout": "Ollama timeout",
     "ollama_context_chars": "Ollama context chars",
     "ollama_num_ctx": "Ollama context window",
@@ -3082,6 +3100,15 @@ CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "mail_search_timeout": "How many seconds the system searches mesh mail before aborting a lookup.",
     "async_response_queue_max": "Upper limit on queued outbound responses to avoid flooding the mesh.",
     "use_mesh_interface": "Enable the serial Meshtastic interface for direct radio control.",
+    "radio_protocol": "How to determine the radio protocol: 'auto' (probe at startup and switch automatically), 'meshtastic' (always use Meshtastic), or 'meshcore' (always use MeshCore).",
+    "use_meshcore": "Enable MeshCore device integration alongside Meshtastic. Requires the 'meshcore' Python package (pip install meshcore).",
+    "meshcore_connection_type": "How to connect to the MeshCore device: 'serial', 'tcp', or 'ble'.",
+    "meshcore_serial_port": "Serial port path for the MeshCore device (e.g. /dev/ttyUSB1).",
+    "meshcore_serial_baud": "Baud rate for the MeshCore serial connection (usually 115200).",
+    "meshcore_tcp_host": "Hostname or IP for TCP MeshCore connection.",
+    "meshcore_tcp_port": "TCP port for MeshCore connection (default 4403).",
+    "meshcore_ble_address": "Bluetooth address for BLE MeshCore connection.",
+    "meshcore_auto_reconnect": "Automatically reconnect to the MeshCore device if the connection drops.",
     "serial_port": "Path to the serial device connected to the Meshtastic radio.",
     "serial_baud": "Serial baud rate used when communicating with the radio.",
     "use_wifi": "Enable the Wi-Fi socket interface instead of direct serial access.",
@@ -3095,6 +3122,9 @@ CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "max_ai_chunks": "Maximum number of streaming chunks allowed per AI reply.",
     "chunk_buffer_seconds": "Delay between streaming chunks to prevent radio congestion.",
     "ollama_url": "URL Mesh-Master uses to reach the Ollama API.",
+    "groq_api_key": "API key for the Groq cloud LLM service. Set ai_provider to 'groq' to activate. Get a free key at console.groq.com.",
+    "groq_model": "Groq model ID to use for completions (e.g. llama-3.1-8b-instant, llama-3.3-70b-versatile, mixtral-8x7b-32768).",
+    "groq_timeout": "Seconds to wait for a Groq API response before timing out.",
     "ollama_model": "Ollama model identifier used for completions.",
     "ollama_timeout": "Seconds to wait before giving up on an Ollama request.",
     "ollama_context_chars": "Approximate character budget kept when building the Ollama prompt.",
@@ -6303,15 +6333,15 @@ def _sender_key(sender_id: Any) -> str:
 DEBUG_ENABLED = bool(config.get("debug", False))
 CLEAN_LOGS = bool(config.get("clean_logs", True))  # Enable emoji-enhanced clean logging by default
 AI_PROVIDER = config.get("ai_provider", "ollama").lower()
-if AI_PROVIDER != "ollama":
+_VALID_PROVIDERS = {"ollama", "groq", "home_assistant"}
+if AI_PROVIDER not in _VALID_PROVIDERS:
     clean_log(
-        f"AI provider '{AI_PROVIDER}' overridden to Ollama (dashboard only supports Ollama).",
+        f"AI provider '{AI_PROVIDER}' not recognized; defaulting to Ollama.",
         "🦙",
         show_always=False,
         rate_limit=False,
     )
-AI_PROVIDER = "ollama"
-if config.get("ai_provider") != "ollama":
+    AI_PROVIDER = "ollama"
     config["ai_provider"] = "ollama"
 SYSTEM_PROMPT = config.get("system_prompt", "")
 OLLAMA_URL = config.get("ollama_url", "http://localhost:11434/api/generate")
@@ -6333,6 +6363,15 @@ try:
     OLLAMA_MAX_MESSAGES = int(config.get("ollama_max_messages", 20))
 except (ValueError, TypeError):
     OLLAMA_MAX_MESSAGES = 20
+
+# Groq cloud AI provider
+GROQ_API_KEY = config.get("groq_api_key", "")
+GROQ_MODEL = config.get("groq_model", "llama-3.1-8b-instant")
+try:
+    GROQ_TIMEOUT = int(config.get("groq_timeout", 30))
+except (ValueError, TypeError):
+    GROQ_TIMEOUT = 30
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # AI chill mode (overload guard for Ollama intake)
 CHILL_MODE_ENABLED = bool(config.get("ai_chill_mode", False))
@@ -7268,6 +7307,29 @@ except (ValueError, TypeError):
 USE_BLUETOOTH = bool(config.get("use_bluetooth", False))
 BLUETOOTH_DEVICE = config.get("bluetooth_device") or None
 USE_MESH_INTERFACE = bool(config.get("use_mesh_interface", False))
+
+# Radio protocol detection
+RADIO_PROTOCOL = config.get("radio_protocol", "auto").lower()
+if RADIO_PROTOCOL not in ("auto", "meshtastic", "meshcore"):
+    RADIO_PROTOCOL = "auto"
+PRIMARY_PROTOCOL: str = "meshtastic"  # resolved at startup; "meshtastic" or "meshcore"
+
+# MeshCore integration settings
+USE_MESHCORE = bool(config.get("use_meshcore", False))
+MESHCORE_CONNECTION_TYPE = config.get("meshcore_connection_type", "serial").lower()
+MESHCORE_SERIAL_PORT = config.get("meshcore_serial_port", "")
+try:
+    MESHCORE_SERIAL_BAUD = int(config.get("meshcore_serial_baud", 115200))
+except (ValueError, TypeError):
+    MESHCORE_SERIAL_BAUD = 115200
+MESHCORE_TCP_HOST = config.get("meshcore_tcp_host", "")
+try:
+    MESHCORE_TCP_PORT = int(config.get("meshcore_tcp_port", 4403))
+except (ValueError, TypeError):
+    MESHCORE_TCP_PORT = 4403
+MESHCORE_BLE_ADDRESS = config.get("meshcore_ble_address", "")
+MESHCORE_AUTO_RECONNECT = bool(config.get("meshcore_auto_reconnect", True))
+MESHCORE_MANAGER: Optional["MeshCoreManager"] = None
 
 AUTO_REFRESH_ENABLED = bool(config.get("auto_refresh_enabled", False))
 try:
@@ -12675,10 +12737,19 @@ def split_message(text):
 
 def send_broadcast_chunks(interface, text, channelIndex, chunk_delay: Optional[float] = None):
     dprint(f"send_broadcast_chunks: text={_redact_message_content(text)}, channelIndex={channelIndex}")
-    if interface is None:
-        print("❌ Cannot send broadcast: interface is None.")
-        return
     if not text:
+        return
+    # MeshCore primary path
+    if interface is None:
+        _mgr = globals().get('MESHCORE_MANAGER')
+        if _mgr and _mgr.is_connected:
+            ok = _mgr.send_channel(channelIndex, text)
+            if ok:
+                clean_log("MeshCore channel message sent 📡", emoji="")
+            else:
+                clean_log("MeshCore channel send failed", "⚠️", show_always=False)
+            return {"chunks": [text], "sent": ok}
+        print("❌ Cannot send broadcast: interface is None and MeshCore not connected.")
         return
     
     # Check rate limiting to prevent network overload
@@ -12741,13 +12812,26 @@ def send_broadcast_chunks(interface, text, channelIndex, chunk_delay: Optional[f
 
 def send_direct_chunks(interface, text, destinationId, chunk_delay: Optional[float] = None):
     dprint(f"send_direct_chunks: text={_redact_message_content(text)}, destId={destinationId}")
-    dest_display = get_node_shortname(destinationId)
-    if not dest_display:
-        dest_display = str(destinationId)
-    if interface is None:
-        print("❌ Cannot send direct message: interface is None.")
-        return
+    dest_display = get_node_shortname(destinationId) or str(destinationId)
     if not text:
+        return
+    # MeshCore primary path: destinationId is "mc_<pubkey_prefix>" or interface is None
+    _dest_str = str(destinationId) if destinationId is not None else ""
+    _mgr = globals().get('MESHCORE_MANAGER')
+    if _dest_str.startswith("mc_") or (interface is None and _mgr and _mgr.is_connected):
+        if _mgr and _mgr.is_connected:
+            pubkey_prefix = _dest_str[3:] if _dest_str.startswith("mc_") else ""
+            if pubkey_prefix:
+                ok = _mgr.send_direct(pubkey_prefix, text)
+            else:
+                ok = False
+                clean_log("MeshCore DM skipped: no pubkey prefix in destinationId", "⚠️", show_always=False)
+            return {"chunks": [text], "acks": [ok]}
+        else:
+            print("❌ Cannot send direct message: MeshCore not connected.")
+            return {"chunks": [text], "acks": [False]}
+    if interface is None:
+        print("❌ Cannot send direct message: interface is None and MeshCore not connected.")
         return
 
     # Check rate limiting to prevent network overload
@@ -14073,6 +14157,126 @@ def send_to_home_assistant(user_message):
         print(f"⚠️ HA request failed: {e}")
         return _format_ai_error("Home Assistant", str(e))
 
+def send_to_groq(
+    user_message,
+    sender_id=None,
+    is_direct=False,
+    channel_idx=None,
+    thread_root_ts=None,
+    system_prompt: Optional[str] = None,
+    *,
+    use_history: bool = True,
+    extra_context: Optional[str] = None,
+):
+    """Send a message to the Groq cloud API and return the response text."""
+    dprint(f"send_to_groq: user_message={_redact_message_content(user_message)} sender_id={sender_id}")
+    if not is_ai_enabled():
+        ai_log("Blocked: AI responses disabled", "groq")
+        return AI_DISABLED_MESSAGE
+    if not GROQ_API_KEY:
+        return _format_ai_error("Groq", "API key not configured (set groq_api_key in config.json)")
+
+    start_time = time.perf_counter()
+    try:
+        STATS.record_ai_request()
+    except Exception:
+        pass
+
+    user_message = unidecode(user_message)
+    effective_system_prompt = _sanitize_prompt_text(system_prompt) or _sanitize_prompt_text(SYSTEM_PROMPT) or ""
+    extra_block = extra_context.strip() if extra_context else ""
+    history_limit = OLLAMA_CONTEXT_CHARS
+    if extra_block:
+        reserve_chars = max(500, OLLAMA_CONTEXT_CHARS // 3)
+        history_limit = max(reserve_chars, OLLAMA_CONTEXT_CHARS - len(extra_block))
+
+    history = ""
+    if use_history and sender_id is not None:
+        try:
+            history, _ = build_ollama_history(
+                sender_id=sender_id,
+                is_direct=is_direct,
+                channel_idx=channel_idx,
+                thread_root_ts=thread_root_ts,
+                max_chars=history_limit,
+            )
+        except Exception as e:
+            dprint(f"Warning: failed building history for Groq: {e}")
+
+    # Build messages list for chat completions format
+    combined_context = ""
+    if extra_block:
+        combined_context = extra_block
+    if history.strip():
+        combined_context = f"{combined_context}\n\n{history.strip()}".strip() if combined_context else history.strip()
+
+    sys_content = effective_system_prompt
+    if combined_context:
+        sys_content = f"{sys_content}\n\nContext:\n{combined_context}".strip() if sys_content else f"Context:\n{combined_context}"
+
+    messages = []
+    if sys_content:
+        messages.append({"role": "system", "content": sys_content})
+    messages.append({"role": "user", "content": user_message})
+
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": messages,
+        "max_tokens": 300,
+        "temperature": 0.7,
+        "top_p": 0.9,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    ai_log(f"Sending to Groq ({GROQ_MODEL})", "groq")
+    try:
+        globals()['last_ai_request_time'] = _now()
+    except Exception:
+        pass
+
+    try:
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=GROQ_TIMEOUT)
+        if r.status_code == 200:
+            jr = r.json()
+            choices = jr.get("choices", [])
+            resp = choices[0].get("message", {}).get("content", "") if choices else ""
+            if not resp:
+                resp = "Mongo no know... Mongo only pawn in game of life"
+            elapsed = max(0.01, time.perf_counter() - start_time)
+            clean_log(f"Groq replied in {elapsed:.1f}s ⚡", emoji="", show_always=False, rate_limit=False)
+            try:
+                STATS.record_ai_response(elapsed)
+            except Exception:
+                pass
+            return f"{resp} ({int(round(elapsed))}s)"[:MAX_RESPONSE_LENGTH]
+        else:
+            try:
+                err_detail = r.json().get("error", {}).get("message", r.text[:120])
+            except Exception:
+                err_detail = r.text[:120]
+            err = f"status {r.status_code}: {err_detail}"
+            clean_log(f"Groq error: {err}", "⚠️", show_always=False)
+            try:
+                globals()['ai_last_error'] = f"Groq {err}"
+                globals()['ai_last_error_time'] = _now()
+            except Exception:
+                pass
+            return _format_ai_error("Groq", err)
+    except Exception as e:
+        msg = f"Groq request failed: {e}"
+        clean_log(f"⚠️ {msg}", "⚠️", show_always=False)
+        try:
+            globals()['ai_last_error'] = msg
+            globals()['ai_last_error_time'] = _now()
+        except Exception:
+            pass
+        return _format_ai_error("Groq", str(e))
+
+
 def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, thread_root_ts=None):
   """Return an AI response using the configured provider (Ollama by default)."""
   if not is_ai_enabled():
@@ -14093,29 +14297,35 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
     elif session.get('prompt_addendum'):
       system_prompt = f"{system_prompt}\n\n{session['prompt_addendum']}"
 
-  # System context injection disabled - too heavy for RPi Ollama (causes timeouts)
-  # Could be re-enabled when using cloud LLM or more powerful hardware
   provider = AI_PROVIDER
   if provider == "home_assistant":
     return send_to_home_assistant(prompt)
 
-  if provider not in {"ollama", "home_assistant"}:
-    print(f"⚠️ Unknown AI provider '{provider}', defaulting to Ollama.")
-
-  _log_high_cost(sender_id, "ollama", prompt[:80])
-  # Automatic offline/web context injection disabled; rely on explicit context windows instead.
-
-  response = send_to_ollama(
-      prompt,
-      sender_id=sender_id,
-      is_direct=is_direct,
-      channel_idx=channel_idx,
-      thread_root_ts=thread_root_ts,
-      system_prompt=system_prompt,
-      use_history=use_history,
-      extra_context=extra_context,
-      allow_streaming=(session_notice is None),
-  )
+  if provider == "groq":
+    _log_high_cost(sender_id, "groq", prompt[:80])
+    response = send_to_groq(
+        prompt,
+        sender_id=sender_id,
+        is_direct=is_direct,
+        channel_idx=channel_idx,
+        thread_root_ts=thread_root_ts,
+        system_prompt=system_prompt,
+        use_history=use_history,
+        extra_context=extra_context,
+    )
+  else:
+    _log_high_cost(sender_id, "ollama", prompt[:80])
+    response = send_to_ollama(
+        prompt,
+        sender_id=sender_id,
+        is_direct=is_direct,
+        channel_idx=channel_idx,
+        thread_root_ts=thread_root_ts,
+        system_prompt=system_prompt,
+        use_history=use_history,
+        extra_context=extra_context,
+        allow_streaming=(session_notice is None),
+    )
   if session_notice:
     if isinstance(response, PendingReply):
       response.text = f"{session_notice}\n\n{response.text}" if response.text else session_notice
@@ -18220,6 +18430,72 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
 
   # Otherwise, no automatic response
   return None if not check_only else False
+
+def on_meshcore_message(msg: dict) -> None:
+    """
+    Callback invoked by MeshCoreManager when a message arrives from a MeshCore device.
+    Normalizes the message and feeds it through the same command/AI pipeline as Meshtastic.
+    """
+    try:
+        text = (msg.get("text") or "").strip()
+        if not text:
+            return
+
+        sender_id = msg.get("sender_id", "mc_unknown")
+        sender_name = msg.get("sender_name", "Unknown")
+        is_direct = msg.get("is_direct", False)
+        channel_idx = msg.get("channel_idx") if not is_direct else None
+
+        clean_log(
+            f"MeshCore {'DM' if is_direct else f'CH{channel_idx}'} from {sender_name}: [{len(text)} chars]",
+            "📡",
+            show_always=False,
+        )
+
+        # Feed through the command/AI pipeline
+        try:
+            reply = parse_incoming_text(
+                text,
+                sender_id=sender_id,
+                is_direct=is_direct,
+                channel_idx=channel_idx,
+                sender_node=sender_name,
+            )
+        except Exception as exc:
+            clean_log(f"MeshCore parse_incoming_text error: {exc}", "⚠️", show_always=False)
+            return
+
+        if reply is None:
+            return
+
+        # Extract reply text
+        if isinstance(reply, PendingReply):
+            reply_text = reply.text or ""
+        else:
+            reply_text = str(reply) if reply else ""
+
+        if not reply_text:
+            return
+
+        # Send reply back via MeshCore
+        try:
+            mgr = globals().get("MESHCORE_MANAGER")
+            if mgr and mgr.is_connected:
+                if is_direct:
+                    sender_key = msg.get("sender_key", "")
+                    if sender_key:
+                        mgr.send_direct(sender_key, reply_text)
+                    else:
+                        clean_log("MeshCore DM reply skipped: no sender_key", "⚠️", show_always=False)
+                else:
+                    if channel_idx is not None:
+                        mgr.send_channel(channel_idx, reply_text)
+        except Exception as exc:
+            clean_log(f"MeshCore send reply error: {exc}", "⚠️", show_always=False)
+
+    except Exception as exc:
+        clean_log(f"on_meshcore_message error: {exc}", "⚠️", show_always=False)
+
 
 def on_receive(packet=None, interface=None, **kwargs):
   # Entry marker to confirm callback firing
@@ -22364,7 +22640,89 @@ def login_page():
                 console.error('Failed to load version:', error);
             }
         }
-        loadVersion();
+        // === MeshCore Status Panel ===
+      (function initMeshCorePanel() {
+        const statusDot = $("meshcoreStatusDot");
+        const statusText = $("meshcoreStatusText");
+        const infoDiv = $("meshcoreInfo");
+        const nodeName = $("meshcoreNodeName");
+        const nodeKey = $("meshcoreNodeKey");
+        const connType = $("meshcoreConnType");
+        const contactsWrap = $("meshcoreContactsWrap");
+        const contactsList = $("meshcoreContactsList");
+        const refreshBtn = $("meshcoreRefreshBtn");
+        const advertBtn = $("meshcoreAdvertBtn");
+
+        function setDotColor(color) {
+          if (statusDot) statusDot.style.background = color;
+        }
+
+        async function loadMeshCoreStatus() {
+          try {
+            const data = await fetchJsonOrThrow('/dashboard/meshcore/status');
+            if (!data.available) {
+              if (statusText) statusText.textContent = '⚠️ meshcore package not installed';
+              setDotColor('#ff4444');
+              return;
+            }
+            if (!data.enabled) {
+              if (statusText) statusText.textContent = 'Disabled (set use_meshcore: true to enable)';
+              setDotColor('#666');
+              if (infoDiv) infoDiv.style.display = 'none';
+              return;
+            }
+            // Show protocol badge
+            const proto = data.primary_protocol || data.radio_protocol || '';
+            const badge = proto === 'meshcore' ? ' · 📡 MeshCore primary' : proto === 'meshtastic' ? ' · 📻 Meshtastic primary' : '';
+            if (data.connected) {
+              setDotColor('var(--accent)');
+              if (statusText) statusText.textContent = `✓ Connected${badge} · ${data.status}`;
+              if (infoDiv) infoDiv.style.display = 'block';
+              if (nodeName) nodeName.textContent = data.node_name || '—';
+              if (nodeKey) nodeKey.textContent = data.node_key || '—';
+              if (connType) connType.textContent = data.connection_type || '—';
+              if (data.contacts && data.contacts.length > 0) {
+                if (contactsWrap) contactsWrap.style.display = 'block';
+                if (contactsList) {
+                  contactsList.innerHTML = data.contacts
+                    .map(c => `<div>${c.name} <span style="color:var(--text-muted)">${c.key}</span></div>`)
+                    .join('');
+                }
+              } else {
+                if (contactsWrap) contactsWrap.style.display = 'none';
+              }
+            } else {
+              setDotColor('#ff8c00');
+              if (statusText) statusText.textContent = data.status || 'Disconnected';
+              if (infoDiv) infoDiv.style.display = 'none';
+            }
+          } catch(e) {
+            setDotColor('#ff4444');
+            if (statusText) statusText.textContent = e.message || 'Error loading status';
+          }
+        }
+
+        if (refreshBtn) {
+          refreshBtn.addEventListener('click', loadMeshCoreStatus);
+        }
+        if (advertBtn) {
+          advertBtn.addEventListener('click', async () => {
+            advertBtn.disabled = true;
+            try {
+              const data = await fetchJsonOrThrow('/dashboard/meshcore/advert', {method: 'POST'});
+              if (statusText) statusText.textContent = data.ok ? '✓ Advertisement sent' : (data.error || 'Failed');
+            } catch(e) {
+              if (statusText) statusText.textContent = e.message || 'Failed';
+            } finally {
+              advertBtn.disabled = false;
+            }
+          });
+        }
+
+        loadMeshCoreStatus();
+      })();
+
+      loadVersion();
 
         // Check for saved credentials on page load
         const savedPassword = localStorage.getItem('mesh_master_remember');
@@ -24355,6 +24713,48 @@ def dashboard():
         </div>
         </article>
 
+        <!-- MeshCore Status Panel -->
+        <article class="panel" data-panel-id="meshcore-status" data-draggable="true" data-collapsible="true" id="meshcorePanel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h2>MeshCore 📡</h2>
+            <span class="panel-subtitle">Alternative mesh protocol bridge</span>
+          </div>
+          <button type="button" class="panel-collapse" aria-label="Hide panel"></button>
+        </div>
+        <div class="panel-body">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <span id="meshcoreStatusDot" style="width: 12px; height: 12px; border-radius: 50%; background: #666; flex-shrink: 0;"></span>
+            <span id="meshcoreStatusText" style="font-size: 14px; color: var(--text-secondary);">Loading…</span>
+          </div>
+          <div id="meshcoreInfo" style="display: none;">
+            <div style="background: var(--bg-primary); border-radius: 6px; padding: 12px; font-size: 13px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span style="color: var(--text-muted);">Node name</span>
+                <span id="meshcoreNodeName" style="font-weight: 600;"></span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span style="color: var(--text-muted);">Key prefix</span>
+                <span id="meshcoreNodeKey" style="font-family: monospace; font-size: 12px;"></span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Connection</span>
+                <span id="meshcoreConnType" style="font-size: 12px;"></span>
+              </div>
+            </div>
+            <div id="meshcoreContactsWrap" style="margin-top: 12px; display: none;">
+              <label style="font-size: 12px; color: var(--text-muted);">Known contacts</label>
+              <div id="meshcoreContactsList" style="margin-top: 6px; max-height: 120px; overflow-y: auto; font-size: 12px; font-family: monospace; background: var(--bg-primary); border-radius: 4px; padding: 8px;"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+            <button type="button" id="meshcoreRefreshBtn" class="config-save-btn" style="flex: 1;">Refresh Status</button>
+            <button type="button" id="meshcoreAdvertBtn" class="config-cancel-btn" style="flex: 1;">Send Advert</button>
+          </div>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top: 10px;">Configure via config.json: set <code>use_meshcore: true</code> and <code>meshcore_connection_type</code>.</p>
+        </div>
+        </article>
+
         <article class="panel radio-panel" data-panel-id="radio-settings" data-draggable="true" data-collapsible="true">
         <div class="panel-header">
           <div class="panel-title">
@@ -24815,6 +25215,51 @@ def dashboard():
             </div>
           </div>
         </div>
+
+        <!-- Groq AI Provider Section -->
+        <details class="config-section-collapsible" id="groqProviderSection" style="margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+          <summary style="padding: 16px; background: var(--bg-panel); cursor: pointer; user-select: none; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px;">
+            <span style="transition: transform 0.2s;">▶</span> ⚡ AI Provider
+          </summary>
+          <div style="padding: 16px; border-top: 1px solid var(--border);">
+            <label>Active AI Provider<span class="help-icon" data-explainer="Select which AI backend processes mesh queries. Ollama runs locally (no internet required). Groq uses a cloud API — fast and free-tier available at console.groq.com." data-explainer-placement="right">?</span></label>
+            <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+              <select id="aiProviderSelect" class="config-select" style="flex: 1; min-width: 160px;">
+                <option value="ollama">🦙 Ollama (local)</option>
+                <option value="groq">⚡ Groq (cloud)</option>
+                <option value="home_assistant">🏠 Home Assistant</option>
+              </select>
+              <button type="button" id="aiProviderSaveBtn" class="config-save-btn">Save</button>
+            </div>
+            <span id="aiProviderStatus" style="font-size: 12px; margin-top: 6px; display: block;"></span>
+
+            <!-- Groq-specific settings -->
+            <div id="groqSettings" style="margin-top: 16px; display: none;">
+              <label>Groq API Key<span class="help-icon" data-explainer="Your Groq API key from console.groq.com. Free tier available. Key is masked and stored only in config.json." data-explainer-placement="right">?</span></label>
+              <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <input type="password" id="groqApiKeyInput" class="config-input" placeholder="gsk_..." style="flex: 1; font-family: monospace;">
+                <button type="button" id="groqApiKeyToggle" class="config-cancel-btn" style="white-space: nowrap;">Show</button>
+              </div>
+              <label style="margin-top: 12px;">Groq Model<span class="help-icon" data-explainer="The Groq model to use. llama-3.1-8b-instant is fast and free. llama-3.3-70b-versatile is smarter but uses more quota." data-explainer-placement="right">?</span></label>
+              <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                <select id="groqModelSelect" class="config-select" style="flex: 1; min-width: 200px;">
+                  <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (fast, free)</option>
+                  <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (smart)</option>
+                  <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile</option>
+                  <option value="mixtral-8x7b-32768">mixtral-8x7b-32768 (large ctx)</option>
+                  <option value="gemma2-9b-it">gemma2-9b-it</option>
+                  <option value="llama-3.2-3b-preview">llama-3.2-3b-preview (tiny)</option>
+                </select>
+                <button type="button" id="groqFetchModelsBtn" class="config-save-btn">Refresh</button>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+                <button type="button" id="groqSaveBtn" class="config-save-btn" style="flex: 1;">Save Groq Settings</button>
+                <button type="button" id="groqTestBtn" class="config-cancel-btn" style="flex: 1;">Test Connection</button>
+              </div>
+              <span id="groqStatus" style="font-size: 12px; margin-top: 8px; display: block;"></span>
+            </div>
+          </div>
+        </details>
 
         <!-- Dashboard Password Section (Collapsible) -->
         <details class="config-section-collapsible" style="margin-top: 20px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
@@ -29809,6 +30254,150 @@ def dashboard():
       if (configPasswordSaveBtn) {
         configPasswordSaveBtn.addEventListener('click', onConfigPasswordSave);
       }
+
+      // === Groq / AI Provider Panel ===
+      (function initAiProviderPanel() {
+        const providerSelect = $("aiProviderSelect");
+        const providerSaveBtn = $("aiProviderSaveBtn");
+        const providerStatus = $("aiProviderStatus");
+        const groqSettings = $("groqSettings");
+        const groqApiKeyInput = $("groqApiKeyInput");
+        const groqApiKeyToggle = $("groqApiKeyToggle");
+        const groqModelSelect = $("groqModelSelect");
+        const groqSaveBtn = $("groqSaveBtn");
+        const groqTestBtn = $("groqTestBtn");
+        const groqStatus = $("groqStatus");
+        const groqFetchModels = $("groqFetchModelsBtn");
+
+        function setGroqStatus(msg, tone) {
+          if (!groqStatus) return;
+          groqStatus.textContent = msg;
+          groqStatus.style.color = tone === 'success' ? 'var(--accent)' : tone === 'error' ? '#ff4444' : 'var(--text-muted)';
+        }
+        function setProviderStatus(msg, tone) {
+          if (!providerStatus) return;
+          providerStatus.textContent = msg;
+          providerStatus.style.color = tone === 'success' ? 'var(--accent)' : tone === 'error' ? '#ff4444' : 'var(--text-muted)';
+        }
+        function toggleGroqSettings(show) {
+          if (groqSettings) groqSettings.style.display = show ? 'block' : 'none';
+        }
+
+        // Initialize from current config
+        if (providerSelect && configOverviewState.metadata) {
+          const cur = (configOverviewState.metadata.ai_provider || 'ollama').toLowerCase();
+          providerSelect.value = cur;
+          toggleGroqSettings(cur === 'groq');
+          if (cur === 'groq' && groqModelSelect) {
+            const curModel = configOverviewState.metadata.groq_model || 'llama-3.1-8b-instant';
+            groqModelSelect.value = curModel;
+          }
+        }
+
+        if (providerSelect) {
+          providerSelect.addEventListener('change', () => {
+            toggleGroqSettings(providerSelect.value === 'groq');
+          });
+        }
+
+        if (providerSaveBtn) {
+          providerSaveBtn.addEventListener('click', async () => {
+            const val = providerSelect ? providerSelect.value : 'ollama';
+            try {
+              await fetchJsonOrThrow(CONFIG_UPDATE_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({key: 'ai_provider', value: val}),
+              });
+              configOverviewState.metadata = configOverviewState.metadata || {};
+              configOverviewState.metadata.ai_provider = val;
+              setProviderStatus(`✓ Provider set to ${val}`, 'success');
+            } catch(e) {
+              setProviderStatus(e.message || 'Failed to save', 'error');
+            }
+          });
+        }
+
+        if (groqApiKeyToggle && groqApiKeyInput) {
+          groqApiKeyToggle.addEventListener('click', () => {
+            if (groqApiKeyInput.type === 'password') {
+              groqApiKeyInput.type = 'text';
+              groqApiKeyToggle.textContent = 'Hide';
+            } else {
+              groqApiKeyInput.type = 'password';
+              groqApiKeyToggle.textContent = 'Show';
+            }
+          });
+        }
+
+        if (groqFetchModels) {
+          groqFetchModels.addEventListener('click', async () => {
+            setGroqStatus('Fetching models…', 'info');
+            try {
+              const data = await fetchJsonOrThrow('/dashboard/groq/models');
+              if (data.models && data.models.length && groqModelSelect) {
+                const cur = groqModelSelect.value;
+                groqModelSelect.innerHTML = '';
+                data.models.forEach(m => {
+                  const opt = document.createElement('option');
+                  opt.value = m.id;
+                  opt.textContent = m.id;
+                  groqModelSelect.appendChild(opt);
+                });
+                if (cur) groqModelSelect.value = cur;
+                setGroqStatus(`✓ ${data.models.length} models loaded`, 'success');
+              } else {
+                setGroqStatus(data.error || 'No models returned', 'error');
+              }
+            } catch(e) {
+              setGroqStatus(e.message || 'Failed to fetch models', 'error');
+            }
+          });
+        }
+
+        if (groqSaveBtn) {
+          groqSaveBtn.addEventListener('click', async () => {
+            const key = groqApiKeyInput ? groqApiKeyInput.value.trim() : '';
+            const model = groqModelSelect ? groqModelSelect.value : '';
+            if (!key) { setGroqStatus('Enter your API key first', 'error'); return; }
+            try {
+              await fetchJsonOrThrow(CONFIG_UPDATE_URL, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({key: 'groq_api_key', value: key}),
+              });
+              if (model) {
+                await fetchJsonOrThrow(CONFIG_UPDATE_URL, {
+                  method: 'POST', headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({key: 'groq_model', value: model}),
+                });
+              }
+              setGroqStatus('✓ Groq settings saved', 'success');
+            } catch(e) {
+              setGroqStatus(e.message || 'Save failed', 'error');
+            }
+          });
+        }
+
+        if (groqTestBtn) {
+          groqTestBtn.addEventListener('click', async () => {
+            setGroqStatus('Testing connection…', 'info');
+            groqTestBtn.disabled = true;
+            try {
+              const data = await fetchJsonOrThrow('/dashboard/groq/test', {method: 'POST'});
+              if (data.ok) {
+                setGroqStatus(`✓ Connected · ${data.model} · ${data.elapsed_ms}ms`, 'success');
+              } else {
+                setGroqStatus(`✗ ${data.error || 'Test failed'}`, 'error');
+              }
+            } catch(e) {
+              setGroqStatus(e.message || 'Test failed', 'error');
+            } finally {
+              groqTestBtn.disabled = false;
+            }
+          });
+        }
+      })();
+
       loadVersion();
       loadMetrics();
       setInterval(loadMetrics, METRICS_POLL_MS);
@@ -31882,6 +32471,118 @@ def delete_ollama_model():
 ## Reset defaults endpoint removed
 
 
+@app.route('/dashboard/meshcore/status', methods=['GET'])
+@require_auth
+def dashboard_meshcore_status():
+    """Return MeshCore connection status and node info."""
+    mgr = globals().get('MESHCORE_MANAGER')
+    if not MESHCORE_AVAILABLE:
+        return jsonify({'available': False, 'error': 'meshcore package not installed'})
+    if mgr is None:
+        return jsonify({
+            'available': True,
+            'enabled': USE_MESHCORE,
+            'connected': False,
+            'status': 'Not started' if not USE_MESHCORE and RADIO_PROTOCOL == 'meshtastic' else 'Starting…',
+            'connection_type': MESHCORE_CONNECTION_TYPE,
+            'radio_protocol': RADIO_PROTOCOL,
+            'primary_protocol': globals().get('PRIMARY_PROTOCOL', 'meshtastic'),
+        })
+    contacts = mgr.get_contacts()
+    contact_list = [
+        {'name': c.get('adv_name') or c.get('name') or k[:8], 'key': k[:12]}
+        for k, c in list(contacts.items())[:20]
+    ]
+    return jsonify({
+        'available': True,
+        'enabled': USE_MESHCORE,
+        'connected': mgr.is_connected,
+        'status': mgr.status,
+        'connection_type': MESHCORE_CONNECTION_TYPE,
+        'radio_protocol': RADIO_PROTOCOL,
+        'primary_protocol': globals().get('PRIMARY_PROTOCOL', 'meshtastic'),
+        'node_name': mgr.node_name,
+        'node_key': mgr.node_key,
+        'contact_count': len(contacts),
+        'contacts': contact_list,
+    })
+
+
+@app.route('/dashboard/meshcore/advert', methods=['POST'])
+@require_auth
+def dashboard_meshcore_advert():
+    """Send a MeshCore advertisement broadcast."""
+    mgr = globals().get('MESHCORE_MANAGER')
+    if not mgr or not mgr.is_connected:
+        return jsonify({'ok': False, 'error': 'MeshCore not connected'})
+    ok = mgr.send_advert()
+    return jsonify({'ok': ok})
+
+
+@app.route('/dashboard/groq/models', methods=['GET'])
+@require_auth
+def dashboard_groq_models():
+    """List available Groq models from the API (or return hardcoded fallback)."""
+    api_key = config.get('groq_api_key', '') or GROQ_API_KEY
+    if not api_key:
+        # Return hardcoded list when no key is configured
+        fallback = [
+            {"id": "llama-3.1-8b-instant"},
+            {"id": "llama-3.3-70b-versatile"},
+            {"id": "llama-3.1-70b-versatile"},
+            {"id": "mixtral-8x7b-32768"},
+            {"id": "gemma2-9b-it"},
+            {"id": "llama-3.2-3b-preview"},
+        ]
+        return jsonify({'models': fallback, 'source': 'fallback'})
+    try:
+        r = requests.get(
+            'https://api.groq.com/openai/v1/models',
+            headers={'Authorization': f'Bearer {api_key}'},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            models = [{'id': m['id']} for m in data.get('data', []) if m.get('id')]
+            models.sort(key=lambda m: m['id'])
+            return jsonify({'models': models, 'source': 'api'})
+        return jsonify({'error': f'Groq API error {r.status_code}', 'models': []}), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc), 'models': []}), 200
+
+
+@app.route('/dashboard/groq/test', methods=['POST'])
+@require_auth
+def dashboard_groq_test():
+    """Test the Groq API connection with the configured key and model."""
+    api_key = config.get('groq_api_key', '') or GROQ_API_KEY
+    model = config.get('groq_model', GROQ_MODEL) or 'llama-3.1-8b-instant'
+    if not api_key:
+        return jsonify({'ok': False, 'error': 'No API key configured. Save your Groq key first.'})
+    payload = {
+        'model': model,
+        'messages': [{'role': 'user', 'content': 'Reply with exactly: OK'}],
+        'max_tokens': 10,
+    }
+    headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
+    try:
+        import time as _time
+        t0 = _time.perf_counter()
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=15)
+        elapsed_ms = int((_time.perf_counter() - t0) * 1000)
+        if r.status_code == 200:
+            jr = r.json()
+            reply = jr.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            return jsonify({'ok': True, 'model': model, 'reply': reply, 'elapsed_ms': elapsed_ms})
+        try:
+            err = r.json().get('error', {}).get('message', r.text[:200])
+        except Exception:
+            err = r.text[:200]
+        return jsonify({'ok': False, 'error': err})
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)})
+
+
 @app.route('/dashboard/js-error', methods=['POST'])
 def log_dashboard_js_error():
     data = request.get_json(silent=True) or {}
@@ -33158,6 +33859,64 @@ def send_message():
         print(f"⚠️ Failed to send: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+def _probe_meshcore_sync(
+    serial_port: str = "",
+    serial_baud: int = 115200,
+    tcp_host: str = "",
+    tcp_port: int = 4403,
+    timeout: float = 4.0,
+) -> bool:
+    """
+    Probe a radio port to detect whether it speaks the MeshCore protocol.
+    Returns True if MeshCore responds, False otherwise.
+    Runs a short asyncio event loop in the current thread (blocking).
+    """
+    if not MESHCORE_AVAILABLE:
+        return False
+
+    async def _probe() -> bool:
+        mc = None
+        try:
+            if tcp_host:
+                mc = await asyncio.wait_for(
+                    MeshCore.create_tcp(tcp_host, tcp_port, only_error=True, default_timeout=timeout),
+                    timeout=timeout + 1,
+                )
+            elif serial_port:
+                mc = await asyncio.wait_for(
+                    MeshCore.create_serial(serial_port, serial_baud, only_error=True, default_timeout=timeout),
+                    timeout=timeout + 1,
+                )
+            else:
+                return False
+            if mc is not None:
+                try:
+                    await mc.disconnect()
+                except Exception:
+                    pass
+                return True
+            return False
+        except Exception as exc:
+            dprint(f"MeshCore probe failed: {exc}")
+            if mc is not None:
+                try:
+                    await mc.disconnect()
+                except Exception:
+                    pass
+            return False
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(_probe())
+    except Exception:
+        return False
+    finally:
+        try:
+            loop.close()
+        except Exception:
+            pass
+
+
 def connect_interface():
     """Return a Meshtastic interface with the baud rate from config.
 
@@ -33795,9 +34554,107 @@ def main():
         except Exception:
             pass
 
+    def _start_meshcore_manager(conn_type, sport, sbaud, thost, tport, baddr, auto_reconnect):
+        """Helper: create, start and register the MeshCoreManager. Returns the manager or None."""
+        def _meshcore_status_cb(status: str) -> None:
+            clean_log(f"MeshCore: {status}", "📡", show_always=False)
+        try:
+            mgr = MeshCoreManager(
+                on_message=on_meshcore_message,
+                on_status_change=_meshcore_status_cb,
+                connection_type=conn_type,
+                serial_port=sport,
+                serial_baud=sbaud,
+                tcp_host=thost,
+                tcp_port=tport,
+                ble_address=baddr,
+                auto_reconnect=auto_reconnect,
+            )
+            mgr.start()
+            globals()['MESHCORE_MANAGER'] = mgr
+            return mgr
+        except Exception as mc_exc:
+            clean_log(f"MeshCore failed to start: {mc_exc}", "⚠️", show_always=False)
+            return None
+
     while True:
         try:
             print("---------------------------------------------------")
+
+            # ── Auto-detect radio protocol ─────────────────────────
+            # Determine which protocol to use for the primary radio:
+            #   "auto"        → probe port; use MeshCore if it answers, else Meshtastic
+            #   "meshcore"    → always MeshCore
+            #   "meshtastic"  → always Meshtastic (legacy default)
+            resolved_protocol = RADIO_PROTOCOL
+            if resolved_protocol == "auto" and MESHCORE_AVAILABLE:
+                probe_port  = SERIAL_PORT if not USE_WIFI else ""
+                probe_host  = WIFI_HOST   if USE_WIFI     else ""
+                probe_baud  = MESHCORE_SERIAL_BAUD if MESHCORE_SERIAL_PORT else SERIAL_BAUD
+                clean_log("Probing radio protocol (auto-detect)…", "🔍", show_always=False)
+                if _probe_meshcore_sync(
+                    serial_port=probe_port,
+                    serial_baud=probe_baud,
+                    tcp_host=probe_host,
+                    tcp_port=WIFI_PORT if USE_WIFI else MESHCORE_TCP_PORT,
+                ):
+                    resolved_protocol = "meshcore"
+                    clean_log("Auto-detected: MeshCore 📡", "📡", show_always=False)
+                else:
+                    resolved_protocol = "meshtastic"
+                    clean_log("Auto-detected: Meshtastic 📻", "📻", show_always=False)
+            globals()['PRIMARY_PROTOCOL'] = resolved_protocol
+
+            # ── MeshCore-primary path ──────────────────────────────
+            if resolved_protocol == "meshcore":
+                if not MESHCORE_AVAILABLE:
+                    clean_log("MeshCore selected but package not installed. Run: pip install meshcore", "⚠️", show_always=False)
+                    time.sleep(15)
+                    continue
+
+                # Stop any existing MeshCore manager before re-creating
+                existing_mgr = globals().get('MESHCORE_MANAGER')
+                if existing_mgr:
+                    try:
+                        existing_mgr.stop()
+                    except Exception:
+                        pass
+
+                # Use the primary port for MeshCore (same port as Meshtastic would use)
+                conn_type = "tcp" if USE_WIFI else "serial"
+                sport = SERIAL_PORT
+                sbaud = SERIAL_BAUD
+                thost = WIFI_HOST or ""
+                tport = WIFI_PORT
+                baddr = ""
+                # Allow explicit overrides from meshcore_* keys if set
+                if MESHCORE_SERIAL_PORT:
+                    sport = MESHCORE_SERIAL_PORT
+                    sbaud = MESHCORE_SERIAL_BAUD
+                if MESHCORE_TCP_HOST:
+                    thost = MESHCORE_TCP_HOST
+                    tport = MESHCORE_TCP_PORT
+                    conn_type = "tcp"
+                if MESHCORE_BLE_ADDRESS:
+                    baddr = MESHCORE_BLE_ADDRESS
+                    conn_type = "ble"
+
+                mgr = _start_meshcore_manager(conn_type, sport, sbaud, thost, tport, baddr, MESHCORE_AUTO_RECONNECT)
+                if mgr is None:
+                    clean_log("MeshCore startup failed, retrying in 15s…", "⚠️", show_always=False)
+                    time.sleep(15)
+                    continue
+
+                clean_log(f"AI provider: {AI_PROVIDER}", "🧠", show_always=False)
+                if HOME_ASSISTANT_ENABLED:
+                    print(f"Home Assistant multi-mode is ENABLED.")
+                clean_log("MeshCore primary mode active. Running until error or Ctrl+C.", "🟢", show_always=False, rate_limit=True)
+                add_script_log("MeshCore connection active.")
+                while not reset_event.is_set():
+                    time.sleep(1)
+                raise OSError("Reset event triggered")
+
+            # ── Meshtastic-primary path (original) ─────────────────
             add_script_log("Connecting to Meshtastic device...")
             try:
                 pub.unsubscribe(on_receive, "meshtastic.receive")
@@ -33823,7 +34680,6 @@ def main():
                 if interface and hasattr(interface, 'myInfo'):
                     my_node_id = interface.myInfo.my_node_num
                     if my_node_id and len(AUTHORIZED_ADMINS) == 0:
-                        # Auto-add this radio as admin if no admins configured
                         node_id_str = str(my_node_id)
                         AUTHORIZED_ADMINS.add(node_id_str)
                         AUTHORIZED_ADMIN_NAMES[node_id_str] = node_id_str
@@ -33833,7 +34689,6 @@ def main():
                 add_script_log(f"⚠️ Could not auto-add radio to admin whitelist: {e}")
 
             print("Subscribing to on_receive callback...")
-            # Only subscribe to the main topic to avoid duplicate callbacks
             pub.subscribe(on_receive, "meshtastic.receive")
             try:
                 if ALARM_TIMER_MANAGER is not None:
@@ -33841,6 +34696,18 @@ def main():
             except Exception:
                 pass
             clean_log(f"AI provider: {AI_PROVIDER}", "🧠", show_always=False)
+
+            # Start secondary MeshCore if explicitly configured alongside Meshtastic
+            if USE_MESHCORE and MESHCORE_AVAILABLE:
+                _start_meshcore_manager(
+                    MESHCORE_CONNECTION_TYPE,
+                    MESHCORE_SERIAL_PORT, MESHCORE_SERIAL_BAUD,
+                    MESHCORE_TCP_HOST, MESHCORE_TCP_PORT,
+                    MESHCORE_BLE_ADDRESS, MESHCORE_AUTO_RECONNECT,
+                )
+            elif USE_MESHCORE and not MESHCORE_AVAILABLE:
+                clean_log("MeshCore requested but meshcore package not installed. Run: pip install meshcore", "⚠️", show_always=False)
+
             if HOME_ASSISTANT_ENABLED:
                 print(f"Home Assistant multi-mode is ENABLED. Channel index: {HOME_ASSISTANT_CHANNEL_INDEX}")
                 if HOME_ASSISTANT_ENABLE_PIN:
