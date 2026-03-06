@@ -7249,7 +7249,7 @@ try:
 except (ValueError, TypeError):
     HOME_ASSISTANT_CHANNEL_INDEX = -1
 MAX_CHUNK_SIZE = config.get("chunk_size", 200)
-MAX_CHUNKS = config.get("max_ai_chunks", 2)  # Use config value for AI response chunk limit
+MAX_CHUNKS = config.get("max_ai_chunks", 4)  # Use config value for AI response chunk limit
 CHUNK_DELAY = config.get("chunk_buffer_seconds", config.get("chunk_delay", 4))
 MAX_RESPONSE_LENGTH = MAX_CHUNK_SIZE * MAX_CHUNKS
 
@@ -13959,7 +13959,7 @@ def send_to_ollama(
             # Ask Ollama to allocate a larger context window if the model supports it
             "num_ctx": OLLAMA_NUM_CTX,
             # Performance optimizations for faster responses
-            "num_predict": 80,     # Limit response length for mesh network
+            "num_predict": 160,    # Limit response length for mesh network
             "temperature": 0.7,    # Slightly less random for more focused responses
             "top_p": 0.9,         # Nucleus sampling for quality vs speed balance
             "top_k": 40,          # Limit vocabulary consideration for speed
