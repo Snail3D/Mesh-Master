@@ -13951,6 +13951,7 @@ def send_to_ollama(
         "prompt": combined_prompt,
         "model": OLLAMA_MODEL,
         "stream": stream_flag,
+        "think": False,            # Disable thinking mode (Qwen 3.5, etc.) to get direct responses
         "options": {
             # Ask Ollama to allocate a larger context window if the model supports it
             "num_ctx": OLLAMA_NUM_CTX,
@@ -14133,6 +14134,11 @@ def send_to_ollama(
                 # choices may contain dicts with 'text' or 'content'
                 first = jr.get("choices")[0]
                 resp = first.get('text') or first.get('content') or resp
+            # Thinking models (Qwen 3.5, etc.) may put content in 'thinking' if think wasn't disabled
+            if not resp and jr.get("thinking"):
+                thinking_text = jr["thinking"].strip()
+                # Extract just the final answer if possible, otherwise use truncated thinking
+                resp = _clip_text(thinking_text, MAX_RESPONSE_LENGTH - 50) if thinking_text else resp
 
             # ALWAYS log response length for debugging
             resp_preview = (resp[:80] + "...") if resp and len(resp) > 80 else (resp or "[EMPTY]")
