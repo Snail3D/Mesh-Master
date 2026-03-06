@@ -9005,6 +9005,9 @@ BUILTIN_COMMANDS = {
     "/stopwatch",
     "/reboot",
     "/update",
+    "/research",
+    "/groq",
+    "/ollama",
 }
 
 FUZZY_COMMAND_MATCH_THRESHOLD = 0.75
