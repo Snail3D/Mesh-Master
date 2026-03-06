@@ -14314,6 +14314,21 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
         use_history=use_history,
         extra_context=extra_context,
     )
+    # Fallback to Ollama if Groq fails
+    if isinstance(response, str) and ("⚠️" in response or "error" in response.lower()):
+        clean_log("⚡ Groq failed, falling back to Ollama...", "🔄", show_always=False)
+        _log_high_cost(sender_id, "ollama", prompt[:80])
+        response = send_to_ollama(
+            prompt,
+            sender_id=sender_id,
+            is_direct=is_direct,
+            channel_idx=channel_idx,
+            thread_root_ts=thread_root_ts,
+            system_prompt=system_prompt,
+            use_history=use_history,
+            extra_context=extra_context,
+            allow_streaming=(session_notice is None),
+        )
   else:
     _log_high_cost(sender_id, "ollama", prompt[:80])
     response = send_to_ollama(
