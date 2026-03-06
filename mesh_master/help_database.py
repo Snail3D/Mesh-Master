@@ -423,6 +423,38 @@ HELP_DATABASE: Dict[str, Dict[str, any]] = {
         "aliases": [],
         "keywords": ["search", "query", "lookup", "history"]
     },
+
+    # === RESEARCH ===
+    "/research": {
+        "category": "Information",
+        "description": "Deep research using Groq compound-beta with built-in web search. Results are saved to offline storage and searchable via /find.",
+        "usage": "/research <question or topic>",
+        "examples": [
+            "/research solar panel efficiency for off-grid setups",
+            "/research LoRa range in urban environments",
+            "/research best practices for mesh networking"
+        ],
+        "aliases": [],
+        "keywords": ["groq", "compound", "web", "search", "deep", "research", "internet", "query"]
+    },
+
+    # === PROVIDER SWITCHING (Admin) ===
+    "/groq": {
+        "category": "Admin",
+        "description": "Switch AI provider to Groq cloud API. Persists across restarts. Admin only.",
+        "usage": "/groq",
+        "examples": ["/groq"],
+        "aliases": [],
+        "keywords": ["provider", "ai", "switch", "cloud", "groq", "model"]
+    },
+    "/ollama": {
+        "category": "Admin",
+        "description": "Switch AI provider to local Ollama. Persists across restarts. Admin only.",
+        "usage": "/ollama",
+        "examples": ["/ollama"],
+        "aliases": [],
+        "keywords": ["provider", "ai", "switch", "local", "ollama", "model"]
+    },
 }
 
 

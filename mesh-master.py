@@ -4887,6 +4887,46 @@ def _persist_offline_crawl(
         clean_log(f"Failed to persist offline crawl for {start_url}: {exc}", "⚠️", show_always=False)
 
 
+def _persist_research_crawl(query: str, result_text: str) -> None:
+    """Persist a Groq compound research result into the offline crawl store."""
+    if not OFFLINE_CRAWL_ENABLED:
+        return
+    store = OFFLINE_CRAWL_STORE
+    if store is None:
+        return
+    try:
+        timestamp = datetime.now(tz=timezone.utc)
+        display_stamp = timestamp.strftime("%Y-%m-%d %H:%MZ")
+        title = f"Research: {query} ({display_stamp})"
+        source = f"groq-research://{query}"
+        summary = _clip_text(result_text.replace("\n", " "), OFFLINE_CRAWL_SUMMARY_LIMIT)
+        context = _clip_text(result_text, OFFLINE_CRAWL_CONTEXT_LIMIT)
+        alias_candidates = set()
+        for word in query.lower().split():
+            cleaned = word.strip(".,!?\"'()[]")
+            if len(cleaned) >= 2:
+                alias_candidates.add(cleaned)
+        alias_candidates.add(query.lower())
+        result = store.store_crawl(
+            title=title,
+            summary=summary,
+            context=context,
+            source=source,
+            fetched_at=timestamp,
+            pages=[],
+            contacts=[],
+            contact_page=None,
+            aliases=[a for a in alias_candidates if a],
+            language=None,
+        )
+        store.prune_by_max(OFFLINE_CRAWL_MAX_ENTRIES)
+        slug = result.get("slug") if isinstance(result, dict) else None
+        label = slug or title
+        clean_log(f"Research cached: {label}", "🔬", show_always=False)
+    except Exception as exc:
+        clean_log(f"Failed to persist research for '{query}': {exc}", "⚠️", show_always=False)
+
+
 def _persist_offline_ddg(
     query: str,
     results: List[Dict[str, str]],
@@ -14278,6 +14318,44 @@ def send_to_groq(
         return _format_ai_error("Groq", str(e))
 
 
+def _send_to_groq_compound(query: str) -> str:
+    """Send a query to Groq compound-beta model (built-in web search).
+
+    Returns the response text, or a string starting with '⚠️' on error.
+    """
+    if not GROQ_API_KEY:
+        return "⚠️ Groq API key not configured (set groq_api_key in config.json)"
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "compound-beta",
+        "messages": [{"role": "user", "content": query}],
+        "temperature": 0.3,
+        "max_tokens": 800,
+    }
+
+    try:
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=GROQ_TIMEOUT)
+        if r.status_code == 200:
+            jr = r.json()
+            choices = jr.get("choices", [])
+            resp = choices[0].get("message", {}).get("content", "") if choices else ""
+            if not resp:
+                return "⚠️ Groq compound returned an empty response."
+            return resp
+        else:
+            try:
+                err_detail = r.json().get("error", {}).get("message", r.text[:200])
+            except Exception:
+                err_detail = r.text[:200]
+            return f"⚠️ Groq compound error {r.status_code}: {err_detail}"
+    except Exception as e:
+        return f"⚠️ Groq compound request failed: {e}"
+
+
 def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, thread_root_ts=None):
   """Return an AI response using the configured provider (Ollama by default)."""
   if not is_ai_enabled():
@@ -14388,7 +14466,7 @@ def route_message_text(user_message, channel_idx):
 # -----------------------------
 def handle_command(cmd, full_text, sender_id, is_direct=False, channel_idx=None, thread_root_ts=None, language_hint=None):
   # Globals modified by DM-only commands
-  global motd_content, SYSTEM_PROMPT, config, MESHTASTIC_KB_WARM_CACHE
+  global motd_content, SYSTEM_PROMPT, config, MESHTASTIC_KB_WARM_CACHE, AI_PROVIDER
   cmd = cmd.lower()
   dprint(f"handle_command => cmd='{cmd}', full_text={_redact_message_content(full_text)}, sender_id={sender_id}, is_direct={is_direct}, language={language_hint}")
 
@@ -16134,6 +16212,59 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
     except Exception:
       pass
       return _cmd_reply(cmd, formatted)
+
+  elif cmd == "/research":
+    if not is_direct:
+      return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key:
+      return _cmd_reply(cmd, "⚠️ I couldn't identify your DM session. Try again in a moment.")
+    query = full_text[len(cmd):].strip()
+    if not query:
+      return _cmd_reply(cmd, "Use this by typing: /research <question or topic>")
+    if not GROQ_API_KEY:
+      return _cmd_reply(cmd, "⚠️ Groq API key not configured (set groq_api_key in config.json).")
+    result = _send_to_groq_compound(query)
+    if result.startswith("⚠️"):
+      return _cmd_reply(cmd, result)
+    _persist_research_crawl(query, result)
+    _store_web_context(sender_key, result, context=result)
+    clean_log(f"Research '{query}' completed", "🔬", show_always=False)
+    return _cmd_reply(cmd, f"🔬 Research: {query}\n\n{result}"[:MAX_RESPONSE_LENGTH])
+
+  elif cmd == "/groq":
+    if not is_direct:
+      return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only.")
+    if not GROQ_API_KEY:
+      return _cmd_reply(cmd, "⚠️ Groq API key not configured (set groq_api_key in config.json).")
+    AI_PROVIDER = "groq"
+    with CONFIG_LOCK:
+      config["ai_provider"] = "groq"
+      try:
+        write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+      except Exception as exc:
+        return _cmd_reply(cmd, f"⚠️ Switched in memory but failed to persist: {exc}")
+    clean_log("AI provider switched to Groq", "⚡", show_always=False)
+    return _cmd_reply(cmd, "⚡ Switched to Groq.")
+
+  elif cmd == "/ollama":
+    if not is_direct:
+      return _cmd_reply(cmd, translate(lang, 'dm_only', "❌ This command can only be used in a direct message."))
+    sender_key = _safe_sender_key(sender_id)
+    if not sender_key or sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "🔐 Admin only.")
+    AI_PROVIDER = "ollama"
+    with CONFIG_LOCK:
+      config["ai_provider"] = "ollama"
+      try:
+        write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+      except Exception as exc:
+        return _cmd_reply(cmd, f"⚠️ Switched in memory but failed to persist: {exc}")
+    clean_log("AI provider switched to Ollama", "🦙", show_always=False)
+    return _cmd_reply(cmd, "🦙 Switched to Ollama.")
 
   elif cmd == "/find":
     if not is_direct:

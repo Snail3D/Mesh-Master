@@ -466,6 +466,19 @@ Blocks adult/warez sites automatically.
 
 ---
 
+### `/research`
+**Aliases:** None
+**Function:** Deep research using Groq compound-beta model with built-in web search
+**Scope:** DM only
+**Example:**
+```
+/research solar panel efficiency for off-grid setups
+/research LoRa range in urban environments
+```
+Results are automatically saved to offline storage and searchable via `/find`. Also stored in web context for immediate follow-up questions. Requires `groq_api_key` in config.json.
+
+---
+
 ### `/drudge`
 **Aliases:** None
 **Function:** Fetch Drudge Report headlines
@@ -892,6 +905,28 @@ Requires Y/N confirmation. **THIS CANNOT BE UNDONE.**
 ```
 /showprompt
 ```
+
+---
+
+### `/groq`
+**Function:** Switch AI provider to Groq cloud API
+**Scope:** Admin DM only
+**Example:**
+```
+/groq
+```
+Switches AI provider to Groq and persists the change to config.json. Requires `groq_api_key` to be set.
+
+---
+
+### `/ollama`
+**Function:** Switch AI provider to local Ollama
+**Scope:** Admin DM only
+**Example:**
+```
+/ollama
+```
+Switches AI provider back to local Ollama and persists the change to config.json.
 
 ---
 
