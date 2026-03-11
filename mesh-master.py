@@ -12803,7 +12803,7 @@ def send_broadcast_chunks(interface, text, channelIndex, chunk_delay: Optional[f
         if not check_send_rate_limit():
             print("❌ Still rate limited, dropping message to prevent spam")
             return
-    delay = CHUNK_DELAY if chunk_delay is None else max(chunk_delay, 0)
+    delay = CHUNK_DELAY if chunk_delay is None else max(chunk_delay, 3)
     chunks = split_message(text)
     sent_any = False
     for i, chunk in enumerate(chunks):
@@ -12886,7 +12886,7 @@ def send_direct_chunks(interface, text, destinationId, chunk_delay: Optional[flo
             print("❌ Still rate limited, dropping message to prevent spam")
             return
 
-    delay = CHUNK_DELAY if chunk_delay is None else max(chunk_delay, 0)
+    delay = CHUNK_DELAY if chunk_delay is None else max(chunk_delay, 3)
     chunks = split_message(text)
     if not chunks:
         return

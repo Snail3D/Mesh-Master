@@ -128,9 +128,9 @@ def _relay_worker(interface, split_message_func, send_direct_chunks_func,
                     elif send_result['error']:
                         send_errors.append(f"Chunk {chunk_idx + 1}: {send_result['error']}")
 
-                    # Small delay between chunks
+                    # Delay between chunks to avoid swamping the network
                     if chunk_idx < len(chunks) - 1:
-                        time.sleep(0.5)
+                        time.sleep(3)
 
                 if not packet_ids:
                     # All chunks failed
