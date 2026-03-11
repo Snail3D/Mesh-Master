@@ -14223,7 +14223,10 @@ def send_to_groq(
     if not is_ai_enabled():
         ai_log("Blocked: AI responses disabled", "groq")
         return AI_DISABLED_MESSAGE
-    if not GROQ_API_KEY:
+    # Read key/model from live config so changes take effect without restart
+    groq_key = config.get("groq_api_key", "") or GROQ_API_KEY
+    groq_model = config.get("groq_model", "") or GROQ_MODEL
+    if not groq_key:
         return _format_ai_error("Groq", "API key not configured (set groq_api_key in config.json)")
 
     start_time = time.perf_counter()
@@ -14270,7 +14273,7 @@ def send_to_groq(
     messages.append({"role": "user", "content": user_message})
 
     payload = {
-        "model": GROQ_MODEL,
+        "model": groq_model,
         "messages": messages,
         "max_tokens": 512,
         "temperature": 0.7,
@@ -14278,11 +14281,11 @@ def send_to_groq(
     }
 
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {groq_key}",
         "Content-Type": "application/json",
     }
 
-    ai_log(f"Sending to Groq ({GROQ_MODEL})", "groq")
+    ai_log(f"Sending to Groq ({groq_model})", "groq")
     try:
         globals()['last_ai_request_time'] = _now()
     except Exception:
@@ -14385,7 +14388,8 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
     elif session.get('prompt_addendum'):
       system_prompt = f"{system_prompt}\n\n{session['prompt_addendum']}"
 
-  provider = AI_PROVIDER
+  # Read provider from live config so changes take effect without restart
+  provider = config.get("ai_provider", AI_PROVIDER).lower()
   if provider == "home_assistant":
     return send_to_home_assistant(prompt)
 
@@ -14466,7 +14470,7 @@ def route_message_text(user_message, channel_idx):
     ha_response = send_to_home_assistant(user_message)
     return ha_response if ha_response else "🤖 [No response from Home Assistant]"
   else:
-    info_print(f"[Info] Using default AI provider: {AI_PROVIDER}")
+    info_print(f"[Info] Using default AI provider: {config.get('ai_provider', AI_PROVIDER)}")
     resp = get_ai_response(user_message, sender_id=None, is_direct=False, channel_idx=channel_idx)
     return resp if resp else "🤖 [No AI response]"
 
