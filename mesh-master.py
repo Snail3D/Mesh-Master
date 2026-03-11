@@ -13959,7 +13959,7 @@ def send_to_ollama(
             # Ask Ollama to allocate a larger context window if the model supports it
             "num_ctx": OLLAMA_NUM_CTX,
             # Performance optimizations for faster responses
-            "num_predict": 160,    # Limit response length for mesh network
+            "num_predict": 512,    # Limit response length for mesh network
             "temperature": 0.7,    # Slightly less random for more focused responses
             "top_p": 0.9,         # Nucleus sampling for quality vs speed balance
             "top_k": 40,          # Limit vocabulary consideration for speed
@@ -14272,7 +14272,7 @@ def send_to_groq(
     payload = {
         "model": GROQ_MODEL,
         "messages": messages,
-        "max_tokens": 300,
+        "max_tokens": 512,
         "temperature": 0.7,
         "top_p": 0.9,
     }
