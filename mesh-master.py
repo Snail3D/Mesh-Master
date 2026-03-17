@@ -3413,6 +3413,12 @@ def _build_config_overview() -> Dict[str, Any]:
         label = f"{emoji} {name}".strip()
         personality_options.append({"value": persona_id, "label": label})
 
+    # Mask the Groq API key for display (show last 4 chars only)
+    groq_key_raw = config.get("groq_api_key", "")
+    groq_key_masked = ""
+    if groq_key_raw:
+        groq_key_masked = ("*" * max(0, len(groq_key_raw) - 4)) + groq_key_raw[-4:] if len(groq_key_raw) > 4 else "****"
+
     metadata = {
         "language_options": language_options,
         "personality_options": personality_options,
@@ -3421,6 +3427,10 @@ def _build_config_overview() -> Dict[str, Any]:
             for hour in range(24)
         ],
         "ollama_model": config.get("ollama_model", ""),
+        "ai_provider": config.get("ai_provider", "ollama"),
+        "groq_model": config.get("groq_model", ""),
+        "groq_api_key_masked": groq_key_masked,
+        "groq_api_key_set": bool(groq_key_raw),
     }
 
     return {"sections": sections, "metadata": metadata}
@@ -30370,6 +30380,11 @@ def dashboard():
             const curModel = configOverviewState.metadata.groq_model || 'llama-3.1-8b-instant';
             groqModelSelect.value = curModel;
           }
+          // Show masked key if one is already saved
+          if (groqApiKeyInput && configOverviewState.metadata.groq_api_key_set) {
+            groqApiKeyInput.value = configOverviewState.metadata.groq_api_key_masked || '';
+            groqApiKeyInput.placeholder = 'Key saved (enter new key to replace)';
+          }
         }
 
         if (providerSelect) {
@@ -30437,12 +30452,19 @@ def dashboard():
           groqSaveBtn.addEventListener('click', async () => {
             const key = groqApiKeyInput ? groqApiKeyInput.value.trim() : '';
             const model = groqModelSelect ? groqModelSelect.value : '';
-            if (!key) { setGroqStatus('Enter your API key first', 'error'); return; }
+            const maskedKey = (configOverviewState.metadata && configOverviewState.metadata.groq_api_key_masked) || '';
+            const keyIsUnchanged = key === maskedKey;
+            const keyIsNew = key && !keyIsUnchanged;
+            if (!key && !configOverviewState.metadata.groq_api_key_set) {
+              setGroqStatus('Enter your API key first', 'error'); return;
+            }
             try {
-              await fetchJsonOrThrow(CONFIG_UPDATE_URL, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({key: 'groq_api_key', value: key}),
-              });
+              if (keyIsNew) {
+                await fetchJsonOrThrow(CONFIG_UPDATE_URL, {
+                  method: 'POST', headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({key: 'groq_api_key', value: key}),
+                });
+              }
               if (model) {
                 await fetchJsonOrThrow(CONFIG_UPDATE_URL, {
                   method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -32061,6 +32083,19 @@ def update_dashboard_config():
     if key == 'cooldown_enabled':
         try:
             globals()['COOLDOWN_ENABLED'] = bool(new_value)
+        except Exception:
+            pass
+    # Apply groq settings immediately to runtime globals
+    if key == 'groq_api_key':
+        try:
+            globals()['GROQ_API_KEY'] = str(new_value or "")
+            clean_log("Groq API key updated", "🔑", show_always=False, rate_limit=False)
+        except Exception:
+            pass
+    if key == 'groq_model':
+        try:
+            globals()['GROQ_MODEL'] = str(new_value or "")
+            clean_log(f"Groq model set to {new_value}", "🧠", show_always=False, rate_limit=False)
         except Exception:
             pass
     # Apply ollama_model immediately so dashboard selector is global

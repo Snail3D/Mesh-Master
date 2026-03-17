@@ -55,20 +55,25 @@ for /f "tokens=2" %%i in ('tasklist ^| findstr /i "python.*mesh-master"') do tas
 echo Starting Mesh Master...
 cd /d "{project_dir}"
 
-REM Activate virtual environment if it exists
-if exist .venv\\Scripts\\activate.bat (
-    call .venv\\Scripts\\activate.bat
+REM Activate virtual environment and start
+if exist .venv\\Scripts\\python.exe (
+    set PYTHON_EXEC=.venv\\Scripts\\python.exe
+) else (
+    set PYTHON_EXEC=python
 )
 
+REM Set PYTHONPATH
+set PYTHONPATH={project_dir};{project_dir}\\scripts\\utilities;%PYTHONPATH%
+
 REM Start Mesh Master in background
-start /B pythonw mesh-master.py
+start /B %PYTHON_EXEC% mesh-master.py
 
 REM Wait a few seconds for server to start
 timeout /t 5 /nobreak >nul
 
-REM Open browser
+REM Open browser to login page
 echo Opening dashboard...
-start http://localhost:5001/dashboard
+start http://localhost:5001/login
 
 echo.
 echo ========================================
@@ -90,8 +95,8 @@ echo ""
 
 # Kill any existing instances
 echo "Checking for old instances..."
-pkill -f "python.*mesh-master.py" 2>/dev/null || true
-pkill -f "mesh-master.py" 2>/dev/null || true
+pkill -f "python.*mesh-master\\.py" 2>/dev/null || true
+pkill -f "mesh-master\\.py" 2>/dev/null || true
 
 # Kill zombies
 ps aux | grep "[m]esh-master.py" | awk '{{print $2}}' | xargs kill -9 2>/dev/null || true
@@ -102,39 +107,56 @@ SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
 # Change to project directory
 cd "$SCRIPT_DIR"
 
-# Set PYTHONPATH for utilities
-export PYTHONPATH="$SCRIPT_DIR/scripts/utilities:$PYTHONPATH"
+# Set PYTHONPATH for project root and utilities
+export PYTHONPATH="$SCRIPT_DIR:$SCRIPT_DIR/scripts/utilities:${{PYTHONPATH:-}}"
 
-# Determine which Python to use (prefer venv)
-PYTHON_EXEC="python3"
-if [ -f .venv/bin/python3 ]; then
-    PYTHON_EXEC=".venv/bin/python3"
+# Activate virtualenv if present
+if [ -f "$SCRIPT_DIR/.venv/bin/activate" ]; then
+    source "$SCRIPT_DIR/.venv/bin/activate"
+elif [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
+    source "$SCRIPT_DIR/venv/bin/activate"
+fi
+
+# Read port from config.json (default 5001)
+PORT=5001
+if [ -f "$SCRIPT_DIR/config.json" ]; then
+    cfg_port=$(python3 -c "import json; d=json.load(open('config.json')); print(d.get('web_port') or d.get('flask_port') or d.get('port') or 5001)" 2>/dev/null || echo "5001")
+    if [ -n "$cfg_port" ] && [ "$cfg_port" != "None" ]; then
+        PORT="$cfg_port"
+    fi
 fi
 
 # Start Mesh Master in background
 echo "Starting Mesh Master..."
-nohup $PYTHON_EXEC mesh-master.py > mesh-master.log 2>&1 &
+nohup python "$SCRIPT_DIR/mesh-master.py" >> "$SCRIPT_DIR/mesh-master.log" 2>&1 &
 
-# Wait for server to start
-sleep 5
+# Wait for the web server to come up (max 30 seconds)
+echo "Waiting for server..."
+for i in $(seq 1 30); do
+    if curl -s -o /dev/null -w "%{{http_code}}" "http://localhost:$PORT/login" 2>/dev/null | grep -q "200"; then
+        break
+    fi
+    sleep 1
+done
 
 # Open browser (platform-specific)
 echo "Opening dashboard..."
+DASHBOARD_URL="http://localhost:$PORT/login"
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
-    open http://localhost:5001/dashboard
+    open "$DASHBOARD_URL"
 else
     # Linux
-    xdg-open http://localhost:5001/dashboard 2>/dev/null || \
-    sensible-browser http://localhost:5001/dashboard 2>/dev/null || \
-    x-www-browser http://localhost:5001/dashboard 2>/dev/null || \
-    echo "Please open http://localhost:5001/dashboard in your browser"
+    xdg-open "$DASHBOARD_URL" 2>/dev/null || \
+    sensible-browser "$DASHBOARD_URL" 2>/dev/null || \
+    x-www-browser "$DASHBOARD_URL" 2>/dev/null || \
+    echo "Please open $DASHBOARD_URL in your browser"
 fi
 
 echo ""
 echo "========================================"
 echo "  Mesh Master Started!"
-echo "  Dashboard: http://localhost:5001"
+echo "  Dashboard: http://localhost:$PORT"
 echo "========================================"
 """
 
@@ -233,6 +255,7 @@ $Shortcut.Save()
 def create_macos_app(script_path, name, icon_path):
     """Create macOS .app bundle"""
     desktop = get_desktop_dir()
+    project_dir = get_project_dir()
     app_path = desktop / f"{name}.app"
 
     # Create .app bundle structure
@@ -257,10 +280,16 @@ def create_macos_app(script_path, name, icon_path):
     <string>launch</string>
     <key>CFBundleName</key>
     <string>{name}</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.meshmaster.app</string>
+    <key>CFBundleVersion</key>
+    <string>2.5</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
 </dict>
 </plist>
 """
@@ -268,12 +297,68 @@ def create_macos_app(script_path, name, icon_path):
     with open(contents / "Info.plist", 'w') as f:
         f.write(plist_content)
 
-    # Create launch script
+    # Read port from config if available
+    config_path = project_dir / "config.json"
+    port = 5001
+    if config_path.exists():
+        try:
+            import json
+            with open(config_path) as cf:
+                cfg = json.load(cf)
+            port = cfg.get("web_port") or cfg.get("flask_port") or cfg.get("port") or 5001
+        except Exception:
+            pass
+
+    # Create self-contained launch script for the .app bundle
     launch_script = macos / "launch"
     with open(launch_script, 'w') as f:
         f.write(f"""#!/bin/bash
-cd "{script_path.parent}"
-{script_path}
+# Mesh Master .app Launcher
+PROJECT_DIR="{project_dir}"
+
+cd "$PROJECT_DIR"
+
+# Read port from config.json (default {port})
+PORT={port}
+if [ -f "$PROJECT_DIR/config.json" ]; then
+    cfg_port=$(python3 -c "import json; d=json.load(open('config.json')); print(d.get('web_port') or d.get('flask_port') or d.get('port') or {port})" 2>/dev/null || echo "{port}")
+    if [ -n "$cfg_port" ] && [ "$cfg_port" != "None" ]; then
+        PORT="$cfg_port"
+    fi
+fi
+DASHBOARD_URL="http://localhost:$PORT/login"
+
+# Kill any existing Mesh Master process
+pkill -f "python.*mesh-master\\.py" 2>/dev/null
+sleep 1
+
+# Activate virtualenv
+if [ -f "$PROJECT_DIR/.venv/bin/activate" ]; then
+    source "$PROJECT_DIR/.venv/bin/activate"
+elif [ -f "$PROJECT_DIR/venv/bin/activate" ]; then
+    source "$PROJECT_DIR/venv/bin/activate"
+fi
+
+# Set PYTHONPATH so mesh_master package imports work
+export PYTHONPATH="$PROJECT_DIR:$PROJECT_DIR/scripts/utilities:${{PYTHONPATH:-}}"
+
+# Start Mesh Master in background
+python "$PROJECT_DIR/mesh-master.py" >> "$PROJECT_DIR/mesh-master.log" 2>&1 &
+MESH_PID=$!
+
+# Wait for the web server to come up (max 30 seconds)
+for i in $(seq 1 30); do
+    if curl -s -o /dev/null -w "%{{http_code}}" "http://localhost:$PORT/login" 2>/dev/null | grep -q "200"; then
+        break
+    fi
+    sleep 1
+done
+
+# Open the dashboard in the default browser
+open "$DASHBOARD_URL"
+
+# Keep the script running so the app stays alive
+wait $MESH_PID
 """)
 
     os.chmod(launch_script, 0o755)
