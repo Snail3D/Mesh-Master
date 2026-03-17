@@ -14039,14 +14039,36 @@ def send_to_ollama(
             if not use_streaming:
                 return
             while buffer and streamed_chunks < MAX_CHUNKS:
-                if not force and len(buffer) < MAX_CHUNK_SIZE:
+                buf_bytes = len(buffer.encode("utf-8"))
+                if not force and buf_bytes < MAX_CHUNK_SIZE:
                     break
-                chunk_len = min(len(buffer), MAX_CHUNK_SIZE)
-                if not force and chunk_len < MAX_CHUNK_SIZE:
+                # Find the longest prefix that fits within MAX_CHUNK_SIZE bytes
+                if buf_bytes <= MAX_CHUNK_SIZE:
+                    chunk = buffer
+                else:
+                    # Binary search for byte-safe split point
+                    lo, hi = 0, len(buffer)
+                    while lo < hi:
+                        mid = (lo + hi + 1) // 2
+                        if len(buffer[:mid].encode("utf-8")) <= MAX_CHUNK_SIZE:
+                            lo = mid
+                        else:
+                            hi = mid - 1
+                    chunk = buffer[:lo]
+                    # Try to break at a word boundary (search last 30 chars)
+                    if not force and len(chunk) > 30:
+                        last_break = -1
+                        search_start = max(0, len(chunk) - 30)
+                        for i in range(len(chunk) - 1, search_start - 1, -1):
+                            if chunk[i] in (' ', '\n', '\t', '-'):
+                                last_break = i
+                                break
+                        if last_break > 0:
+                            chunk = chunk[:last_break + 1]
+                if not force and not chunk:
                     break
-                chunk = buffer[:chunk_len]
                 if _send_stream_chunk(chunk):
-                    buffer = buffer[chunk_len:]
+                    buffer = buffer[len(chunk):]
                     streamed_chunks += 1
                 else:
                     # Leave buffer intact so the normal chunk sender can handle it later
@@ -14107,9 +14129,12 @@ def send_to_ollama(
         buffer += timing_text
         total_parts.append(timing_text)
         flush(force=True)
-        # Full text with timing
+        # Full text with timing — truncate by UTF-8 bytes to match split_message
         full_text_with_time = full_text + timing_text
-        return StreamingResult(full_text_with_time[:MAX_RESPONSE_LENGTH], sent_chunks=streamed_chunks, truncated=truncated)
+        if len(full_text_with_time.encode("utf-8")) > MAX_RESPONSE_LENGTH:
+            encoded = full_text_with_time.encode("utf-8")[:MAX_RESPONSE_LENGTH]
+            full_text_with_time = encoded.decode("utf-8", errors="ignore")
+        return StreamingResult(full_text_with_time, sent_chunks=streamed_chunks, truncated=truncated)
 
     try:
         try:
@@ -14165,7 +14190,11 @@ def send_to_ollama(
             clean_log(f"Ollama sent in {elapsed:.1f}s 🦙", emoji="", show_always=False, rate_limit=False)
             # Append processing time to response
             resp_with_time = f"{resp} ({int(round(elapsed))}s)"
-            return (resp_with_time or "")[:MAX_RESPONSE_LENGTH]
+            # Truncate by UTF-8 byte length (matches split_message byte-based chunking)
+            if len(resp_with_time.encode("utf-8")) > MAX_RESPONSE_LENGTH:
+                encoded = resp_with_time.encode("utf-8")[:MAX_RESPONSE_LENGTH]
+                resp_with_time = encoded.decode("utf-8", errors="ignore")
+            return resp_with_time
         else:
             status = getattr(r, 'status_code', 'no response')
             body_preview = r.text[:120] if r is not None and hasattr(r, 'text') else ''
@@ -14285,7 +14314,7 @@ def send_to_groq(
     payload = {
         "model": groq_model,
         "messages": messages,
-        "max_tokens": 512,
+        "max_tokens": 1024,
         "temperature": 0.7,
         "top_p": 0.9,
     }
@@ -14315,7 +14344,12 @@ def send_to_groq(
                 STATS.record_ai_response(elapsed)
             except Exception:
                 pass
-            return f"{resp} ({int(round(elapsed))}s)"[:MAX_RESPONSE_LENGTH]
+            resp_with_time = f"{resp} ({int(round(elapsed))}s)"
+            # Truncate by UTF-8 byte length (matches split_message byte-based chunking)
+            if len(resp_with_time.encode("utf-8")) > MAX_RESPONSE_LENGTH:
+                encoded = resp_with_time.encode("utf-8")[:MAX_RESPONSE_LENGTH]
+                resp_with_time = encoded.decode("utf-8", errors="ignore")
+            return resp_with_time
         else:
             try:
                 err_detail = r.json().get("error", {}).get("message", r.text[:120])
@@ -19219,7 +19253,7 @@ def api_password_hint():
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
 # Version caching - force fetch on startup by setting last_fetch to 0
-_version_cache = {'version': 'v2.5', 'last_fetch': 0}
+_version_cache = {'version': 'v2.6', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
 def _get_current_version():
@@ -22794,7 +22828,7 @@ def login_page():
             <button type="button" class="hint-btn" id="showHintBtn">💡 Show Password Hint</button>
         </div>
 
-        <div class="footer">Mesh Master <span id="version">v2.5</span> • Secure Dashboard Access</div>
+        <div class="footer">Mesh Master <span id="version">v2.6</span> • Secure Dashboard Access</div>
     </div>
 
     <script>
@@ -24722,7 +24756,7 @@ def dashboard():
         <img src="/static/mesh-master-banner.png" alt="Mesh Master" style="max-height: 60px; width: auto; display: block; margin: 0 auto; mix-blend-mode: screen;">
       </div>
       <div class="header-actions">
-        <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.5</span>
+        <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.6</span>
         <div style="display: flex; gap: 12px;">
           <a class="header-meta-link" href="/logs/verbose" target="_blank" rel="noreferrer">verbose logs</a>
         </div>

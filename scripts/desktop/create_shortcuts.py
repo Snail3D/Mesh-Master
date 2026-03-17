@@ -283,7 +283,7 @@ def create_macos_app(script_path, name, icon_path):
     <key>CFBundleIdentifier</key>
     <string>com.meshmaster.app</string>
     <key>CFBundleVersion</key>
-    <string>2.5</string>
+    <string>2.6</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
