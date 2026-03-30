@@ -10125,7 +10125,7 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
     
     # Agent endpoint - configurable via config.json or env var
     # Supports any agent that accepts POST with {sender_id, sender_key, query, source, ...}
-    default_url = config.get("agent_webhook_url", "http://localhost:9093/meshmaster/agent")
+    default_url = config.get("agent_webhook_url", "http://localhost:9095/meshmaster/agent")
     AGENT_URL = os.environ.get("AGENT_WEBHOOK_URL", default_url)
     
     # Clean up old conversations
