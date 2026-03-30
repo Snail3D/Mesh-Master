@@ -10118,13 +10118,15 @@ HERMES_CONVERSATION_TTL = 3600  # 1 hour
 
 def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str, channel_idx=None, is_direct=False) -> Optional[str]:
     """
-    Call Hermes agent with conversation context.
+    Call external AI agent (Hermes, OpenClaw, etc.) with conversation context.
     Returns the response or None if async processing.
     """
     global _hermes_conversations, _hermes_last_interaction
     
-    # Hermes endpoint - local HTTP server
-    HERMES_URL = os.environ.get("HERMES_AGENT_URL", "http://localhost:8080/meshmaster/agent")
+    # Agent endpoint - configurable via config.json or env var
+    # Supports any agent that accepts POST with {sender_id, sender_key, query, source, ...}
+    default_url = config.get("agent_webhook_url", "http://localhost:8080/meshmaster/agent")
+    AGENT_URL = os.environ.get("AGENT_WEBHOOK_URL", default_url)
     
     # Clean up old conversations
     now = time.time()
@@ -10152,9 +10154,9 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
     }
     
     try:
-        # Send to Hermes
+        # Send to agent
         response = requests.post(
-            HERMES_URL,
+            AGENT_URL,
             json=payload,
             timeout=30,
             headers={"Content-Type": "application/json"}
@@ -10174,21 +10176,21 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
             
             return data.get("response")
         elif response.status_code == 202:
-            # Async processing - Hermes will respond later
+            # Async processing - agent will respond later
             info_print(f"[Agent] Async request accepted for {sender_key}")
             return None
         else:
-            dprint(f"Hermes returned status {response.status_code}: {response.text[:200]}")
+            add_script_log(f"Agent returned status {response.status_code}: {response.text[:200]}")
             return f"⚠️ Agent error (HTTP {response.status_code})"
     
     except requests.exceptions.Timeout:
-        dprint(f"Hermes timeout for {sender_key}")
+        add_script_log(f"Agent timeout for {sender_key}")
         return "⏱️ Agent timeout - request may still be processing"
     except requests.exceptions.ConnectionError:
-        dprint(f"Hermes connection error - is agent running?")
-        return "🔌 Agent offline - check Hermes status"
+        add_script_log(f"Agent connection error - is agent running at {AGENT_URL}?")
+        return "🔌 Agent offline - check agent status"
     except Exception as e:
-        dprint(f"Hermes call error: {e}")
+        add_script_log(f"Agent call error: {e}")
         return f"❌ Agent error: {str(e)[:100]}"
 
 
