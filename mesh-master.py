@@ -35289,7 +35289,6 @@ def _poll_agent_responses():
                     chat_id = sender_key.replace('telegram_', '')
                     
                     # Get token from config
-                    import json
                     tg_config = {}
                     try:
                         with open('data/telegram_config.json', 'r') as f:
