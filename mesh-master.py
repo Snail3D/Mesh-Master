@@ -8799,6 +8799,7 @@ COMMAND_ALIASES: Dict[str, Dict[str, Any]] = {
 COMMAND_SUMMARIES: Dict[str, str] = {
     # Note: /about and /donate are hardcoded and always enabled (cannot be disabled)
     "/about": "Shows current version, credits, and project links.",
+    "/agent": "Invoke the Hermes AI agent for complex multi-step tasks (admin only). Usage: /agent <your request>. Each admin gets their own conversation thread.",
     "/donate": "Support Mesh Master development with a donation.",
     "/help": "Lists top commands with short usage notes.",
     "/menu": "Displays a compact menu of frequently used commands.",
@@ -8927,6 +8928,7 @@ def _command_alias_map() -> Dict[str, List[str]]:
 
 BUILTIN_COMMANDS = {
     "/about",
+    "/agent",
     "/donate",
     "/ai",
     "/bot",
@@ -10107,6 +10109,87 @@ def _safe_sender_key(sender_id: Any) -> str:
         return _sender_key(sender_id)
     except Exception:
         return ""
+
+
+# Hermes agent integration - conversation tracking per sender
+_hermes_conversations: Dict[str, List[Dict[str, Any]]] = {}
+_hermes_last_interaction: Dict[str, float] = {}
+HERMES_CONVERSATION_TTL = 3600  # 1 hour
+
+def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str, channel_idx=None, is_direct=False) -> Optional[str]:
+    """
+    Call Hermes agent with conversation context.
+    Returns the response or None if async processing.
+    """
+    global _hermes_conversations, _hermes_last_interaction
+    
+    # Hermes endpoint - local HTTP server
+    HERMES_URL = os.environ.get("HERMES_AGENT_URL", "http://localhost:8080/meshmaster/agent")
+    
+    # Clean up old conversations
+    now = time.time()
+    expired = [k for k, v in _hermes_last_interaction.items() if now - v > HERMES_CONVERSATION_TTL]
+    for k in expired:
+        _hermes_conversations.pop(k, None)
+        _hermes_last_interaction.pop(k, None)
+    
+    # Get or create conversation history for this sender
+    if sender_key not in _hermes_conversations:
+        _hermes_conversations[sender_key] = []
+    
+    conversation = _hermes_conversations[sender_key]
+    
+    # Build payload
+    payload = {
+        "sender_id": str(sender_id),
+        "sender_key": sender_key,
+        "query": query,
+        "source": source,
+        "channel_idx": channel_idx,
+        "is_direct": is_direct,
+        "conversation_history": conversation[-10:] if conversation else [],  # Last 10 messages for context
+        "timestamp": now
+    }
+    
+    try:
+        # Send to Hermes
+        response = requests.post(
+            HERMES_URL,
+            json=payload,
+            timeout=30,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Update conversation history
+            conversation.append({"role": "user", "content": query, "timestamp": now})
+            conversation.append({"role": "assistant", "content": data.get("response", ""), "timestamp": time.time()})
+            _hermes_last_interaction[sender_key] = now
+            
+            # Keep conversation manageable
+            if len(conversation) > 20:
+                _hermes_conversations[sender_key] = conversation[-20:]
+            
+            return data.get("response")
+        elif response.status_code == 202:
+            # Async processing - Hermes will respond later
+            info_print(f"[Agent] Async request accepted for {sender_key}")
+            return None
+        else:
+            dprint(f"Hermes returned status {response.status_code}: {response.text[:200]}")
+            return f"⚠️ Agent error (HTTP {response.status_code})"
+    
+    except requests.exceptions.Timeout:
+        dprint(f"Hermes timeout for {sender_key}")
+        return "⏱️ Agent timeout - request may still be processing"
+    except requests.exceptions.ConnectionError:
+        dprint(f"Hermes connection error - is agent running?")
+        return "🔌 Agent offline - check Hermes status"
+    except Exception as e:
+        dprint(f"Hermes call error: {e}")
+        return f"❌ Agent error: {str(e)[:100]}"
 
 
 BIBLE_MAX_VERSE_RANGE = 5
@@ -14565,6 +14648,33 @@ Original by MR-TBOT
 ☕ Support: buymeacoffee.com/Snail3D"""
 
     return _cmd_reply(cmd, about_text)
+
+  elif cmd == "/agent":
+    # Hermes agent integration - admin only
+    if sender_key not in AUTHORIZED_ADMINS:
+      return _cmd_reply(cmd, "⛔ This command is admin-only.")
+    
+    user_prompt = full_text[len(cmd):].strip()
+    if not user_prompt:
+      return _cmd_reply(cmd, "Usage: /agent <your request>\n\nExample: /agent research weather in El Paso\n\nThis sends your request to the Hermes agent for complex multi-step tasks.")
+    
+    # Call Hermes agent
+    try:
+      hermes_response = _call_hermes_agent(
+        sender_id=sender_id,
+        sender_key=sender_key,
+        query=user_prompt,
+        source="dm" if is_direct else ("telegram" if thread_root_ts else "channel"),
+        channel_idx=channel_idx,
+        is_direct=is_direct
+      )
+      if hermes_response:
+        return _cmd_reply(cmd, hermes_response)
+      else:
+        return _cmd_reply(cmd, "🐌 Agent is processing... Check back soon or check Telegram for updates.")
+    except Exception as e:
+      dprint(f"Agent command error: {e}")
+      return _cmd_reply(cmd, f"❌ Agent error: {str(e)[:100]}")
 
   elif cmd == "/donate":
     # Hardcoded donation command - always enabled, never shown in dashboard
@@ -35084,6 +35194,13 @@ def heartbeat_worker(period_sec=30):
       # Short, periodic heartbeat log; always show to keep logs alive
       clean_log(f"HB conn={status['conn']} q={status['queue']} rx={status['rx_age_s']}s tx={status['tx_age_s']}s ai={status['ai_age_s']}s", "💓", show_always=False, rate_limit=False)
       periodic_status_update()
+      
+      # Poll for agent responses
+      try:
+        _agent_heartbeat_hook()
+      except Exception as agent_e:
+        dprint(f"[Agent] Heartbeat hook error: {agent_e}")
+      
       time.sleep(max(5, int(period_sec)))
     except Exception as e:
       print(f"⚠️ Heartbeat error: {e}")
@@ -35132,6 +35249,95 @@ def live():
 def ready():
   ready = (connection_status == "Connected")
   return jsonify({'ok': ready, 'status': connection_status}), (200 if ready else 503)
+
+# -----------------------------
+# Hermes Agent Response Polling
+# -----------------------------
+HERMES_RESPONSES_FILE = "data/hermes_responses.json"
+_last_agent_poll = 0
+
+def _poll_agent_responses():
+    """Poll for agent responses and send them to users"""
+    global _last_agent_poll
+    
+    try:
+        if not os.path.exists(HERMES_RESPONSES_FILE):
+            return
+        
+        with open(HERMES_RESPONSES_FILE, 'r') as f:
+            responses = json.load(f)
+        
+        pending = [r for r in responses if r.get('status') == 'pending_delivery']
+        
+        for resp in pending:
+            sender_key = resp.get('sender_key')
+            message = resp.get('message')
+            source = resp.get('source', 'unknown')
+            channel_idx = resp.get('channel_idx')
+            is_direct = resp.get('is_direct', True)
+            
+            if not sender_key or not message:
+                continue
+            
+            # Send the response
+            try:
+                if source == 'telegram':
+                    # Send via Telegram using sync HTTP (like Meshmaster does)
+                    if TELEGRAM_AVAILABLE and telegram_app:
+                        import threading
+                        chat_id = sender_key.replace('telegram_', '')
+                        bot_token = telegram_app.bot.token if telegram_app.bot else ""
+                        
+                        def send_tg_response():
+                            try:
+                                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                                r = requests.post(
+                                    url,
+                                    json={"chat_id": chat_id, "text": message[:4000]},
+                                    timeout=10
+                                )
+                                r.raise_for_status()
+                                add_script_log(f"[Agent] Telegram response sent to {chat_id}")
+                            except Exception as e:
+                                add_script_log(f"[Agent] Telegram send failed: {e}")
+                        
+                        # Run in background thread
+                        thread = threading.Thread(target=send_tg_response, daemon=True)
+                        thread.start()
+                        
+                elif is_direct:
+                    # Send DM via mesh
+                    send_dm_to_user(sender_key, message)
+                else:
+                    # Send to channel
+                    send_broadcast_chunks(interface, message, channel_idx or 0)
+                
+                # Mark as delivered
+                resp['status'] = 'delivered'
+                resp['delivered_at'] = time.time()
+                add_script_log(f"[Agent] Marked response as delivered to {sender_key}")
+                
+            except Exception as e:
+                add_script_log(f"[Agent] Failed to deliver to {sender_key}: {e}")
+        
+        # Save updated responses
+        with open(HERMES_RESPONSES_FILE, 'w') as f:
+            json.dump(responses, f, indent=2)
+            
+    except Exception as e:
+        add_script_log(f"[Agent] Poll error: {e}")
+
+# Hook into existing heartbeat
+_original_heartbeat = None
+
+def _agent_heartbeat_hook():
+    """Called periodically to check for agent responses"""
+    global _last_agent_poll
+    
+    now = time.time()
+    if now - _last_agent_poll >= 10:  # Poll every 10 seconds
+        _last_agent_poll = now
+        _poll_agent_responses()
 
 if __name__ == "__main__":
     # App-level single-instance guard (complements service/script lock)
