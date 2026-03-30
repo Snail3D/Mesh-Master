@@ -10125,7 +10125,7 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
     
     # Agent endpoint - configurable via config.json or env var
     # Supports any agent that accepts POST with {sender_id, sender_key, query, source, ...}
-    default_url = config.get("agent_webhook_url", "http://localhost:9096/meshmaster/agent")
+    default_url = config.get("agent_webhook_url", "http://localhost:9097/meshmaster/agent")
     AGENT_URL = os.environ.get("AGENT_WEBHOOK_URL", default_url)
     
     # Clean up old conversations
@@ -10155,12 +10155,14 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
     
     try:
         # Send to agent
+        add_script_log(f"[Agent] Calling agent at {AGENT_URL} for query: {query[:40]}...")
         response = requests.post(
             AGENT_URL,
             json=payload,
             timeout=30,
             headers={"Content-Type": "application/json"}
         )
+        add_script_log(f"[Agent] Response status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
@@ -14661,6 +14663,7 @@ Original by MR-TBOT
       return _cmd_reply(cmd, "Usage: /agent <your request>\n\nExample: /agent research weather in El Paso\n\nThis sends your request to the Hermes agent for complex multi-step tasks.")
     
     # Call Hermes agent
+    add_script_log(f"[Agent] /agent command from {sender_key}: {user_prompt[:40]}...")
     try:
       hermes_response = _call_hermes_agent(
         sender_id=sender_id,
@@ -14670,6 +14673,7 @@ Original by MR-TBOT
         channel_idx=channel_idx,
         is_direct=is_direct
       )
+      add_script_log(f"[Agent] Response from agent: {hermes_response[:50] if hermes_response else 'None'}")
       if hermes_response:
         return _cmd_reply(cmd, hermes_response)
       else:
