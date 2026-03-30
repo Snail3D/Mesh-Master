@@ -35309,7 +35309,7 @@ def _poll_agent_responses():
                         
                 elif is_direct:
                     # Send DM via mesh
-                    send_dm_to_user(sender_key, message)
+                    send_direct_chunks(interface, message, sender_key)
                 else:
                     # Send to channel
                     send_broadcast_chunks(interface, message, channel_idx or 0)
