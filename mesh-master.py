@@ -14671,7 +14671,7 @@ Original by MR-TBOT
       if hermes_response:
         return _cmd_reply(cmd, hermes_response)
       else:
-        return _cmd_reply(cmd, "🐌 Agent is processing... Check back soon or check Telegram for updates.")
+        return _cmd_reply(cmd, "🐌 Message received by agent.")
     except Exception as e:
       dprint(f"Agent command error: {e}")
       return _cmd_reply(cmd, f"❌ Agent error: {str(e)[:100]}")

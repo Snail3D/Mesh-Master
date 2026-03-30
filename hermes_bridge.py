@@ -14,6 +14,7 @@ from datetime import datetime
 
 REQUESTS_FILE = "/home/snailpi/Mesh-Master/data/hermes_requests.json"
 RESPONSES_FILE = "/home/snailpi/Mesh-Master/data/hermes_responses.json"
+AGENT_WEBHOOK_URL = "http://localhost:8000/hermes/webhook"  # Hermes notification endpoint
 
 class HermesHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
