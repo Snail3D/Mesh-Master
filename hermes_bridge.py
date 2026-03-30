@@ -67,7 +67,7 @@ class HermesHandler(http.server.BaseHTTPRequestHandler):
             
             # Return immediate acknowledgment
             response = {
-                'response': f"🐌 Agent request received! Query: '{query[:50]}{'...' if len(query) > 50 else ''}'\n\nProcessing... Check Telegram for full response.",
+                'response': "🐌 Message received by agent.",
                 'request_id': request_entry['id'],
                 'status': 'accepted'
             }
