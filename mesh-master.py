@@ -35282,43 +35282,56 @@ def _poll_agent_responses():
                 continue
             
             # Send the response
+            delivery_success = False
             try:
                 if source == 'telegram':
-                    # Send via Telegram using sync HTTP (like Meshmaster does)
-                    if TELEGRAM_AVAILABLE and telegram_app:
-                        import threading
-                        chat_id = sender_key.replace('telegram_', '')
-                        bot_token = telegram_app.bot.token if telegram_app.bot else ""
-                        
-                        def send_tg_response():
-                            try:
-                                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                                r = requests.post(
-                                    url,
-                                    json={"chat_id": chat_id, "text": message[:4000]},
-                                    timeout=10
-                                )
-                                r.raise_for_status()
-                                add_script_log(f"[Agent] Telegram response sent to {chat_id}")
-                            except Exception as e:
-                                add_script_log(f"[Agent] Telegram send failed: {e}")
-                        
-                        # Run in background thread
-                        thread = threading.Thread(target=send_tg_response, daemon=True)
-                        thread.start()
+                    # Send via Telegram using direct HTTP
+                    chat_id = sender_key.replace('telegram_', '')
+                    
+                    # Get token from config
+                    import json
+                    tg_config = {}
+                    try:
+                        with open('data/telegram_config.json', 'r') as f:
+                            tg_config = json.load(f)
+                    except:
+                        pass
+                    
+                    bot_token = tg_config.get('token', '')
+                    
+                    if bot_token:
+                        try:
+                            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                            r = requests.post(
+                                url,
+                                json={"chat_id": chat_id, "text": message[:4000]},
+                                timeout=10
+                            )
+                            r.raise_for_status()
+                            add_script_log(f"[Agent] Telegram response SENT to {chat_id}")
+                            delivery_success = True
+                        except Exception as e:
+                            add_script_log(f"[Agent] Telegram send FAILED: {e}")
+                    else:
+                        add_script_log(f"[Agent] No bot token found!")
                         
                 elif is_direct:
                     # Send DM via mesh
                     send_direct_chunks(interface, message, sender_key)
+                    delivery_success = True
                 else:
                     # Send to channel
                     send_broadcast_chunks(interface, message, channel_idx or 0)
+                    delivery_success = True
                 
-                # Mark as delivered
-                resp['status'] = 'delivered'
-                resp['delivered_at'] = time.time()
-                add_script_log(f"[Agent] Marked response as delivered to {sender_key}")
-                
+                # Only mark as delivered if actually sent
+                if delivery_success:
+                    resp['status'] = 'delivered'
+                    resp['delivered_at'] = time.time()
+                    add_script_log(f"[Agent] Response DELIVERED to {sender_key}")
+                else:
+                    add_script_log(f"[Agent] Response NOT delivered (will retry)")
+                    
             except Exception as e:
                 add_script_log(f"[Agent] Failed to deliver to {sender_key}: {e}")
         
