@@ -8,3 +8,4 @@ unidecode==1.4.0
 reportlab==4.4.4
 python-chess==1.999
 pytest==8.3.3
+python-telegram-bot==21.11.1
