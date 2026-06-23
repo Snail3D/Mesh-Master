@@ -19586,7 +19586,7 @@ def api_password_hint():
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
 # Version caching - force fetch on startup by setting last_fetch to 0
-_version_cache = {'version': 'v2.6', 'last_fetch': 0}
+_version_cache = {'version': 'v2.6.1', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
 def _get_current_version():
@@ -23161,7 +23161,7 @@ def login_page():
             <button type="button" class="hint-btn" id="showHintBtn">💡 Show Password Hint</button>
         </div>
 
-        <div class="footer">Mesh Master <span id="version">v2.6</span> • Secure Dashboard Access</div>
+        <div class="footer">Mesh Master <span id="version">v2.6.1</span> • Secure Dashboard Access</div>
     </div>
 
     <script>
@@ -25089,7 +25089,7 @@ def dashboard():
         <img src="/static/mesh-master-banner.png" alt="Mesh Master" style="max-height: 60px; width: auto; display: block; margin: 0 auto; mix-blend-mode: screen;">
       </div>
       <div class="header-actions">
-        <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.6</span>
+        <span id="versionDisplay" class="panel-subtitle" style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.05em;">v2.6.1</span>
         <div style="display: flex; gap: 12px;">
           <a class="header-meta-link" href="/logs/verbose" target="_blank" rel="noreferrer">verbose logs</a>
         </div>
