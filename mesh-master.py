@@ -14696,19 +14696,33 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
         extra_context=extra_context,
     )
     # Fallback to Ollama if OpenAI-compatible endpoint fails
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
     if isinstance(response, str) and ("⚠️" in response or "error" in response.lower()):
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         clean_log("🤖 OpenAI endpoint failed, falling back to Ollama...", "🔄", show_always=False)
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         _log_high_cost(sender_id, "ollama", prompt[:80])
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         response = send_to_ollama(
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             prompt,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             sender_id=sender_id,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             is_direct=is_direct,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             channel_idx=channel_idx,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             thread_root_ts=thread_root_ts,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             system_prompt=system_prompt,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             use_history=use_history,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             extra_context=extra_context,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             allow_streaming=(session_notice is None),
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         )
   elif provider == "groq":
     _log_high_cost(sender_id, "groq", prompt[:80])
@@ -14723,19 +14737,33 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
         extra_context=extra_context,
     )
     # Fallback to Ollama if Groq fails
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
     if isinstance(response, str) and ("⚠️" in response or "error" in response.lower()):
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         clean_log("⚡ Groq failed, falling back to Ollama...", "🔄", show_always=False)
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         _log_high_cost(sender_id, "ollama", prompt[:80])
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         response = send_to_ollama(
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             prompt,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             sender_id=sender_id,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             is_direct=is_direct,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             channel_idx=channel_idx,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             thread_root_ts=thread_root_ts,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             system_prompt=system_prompt,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             use_history=use_history,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             extra_context=extra_context,
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
             allow_streaming=(session_notice is None),
+    # DISABLED: Ollama not running - Qwen3.6 via MLX only
         )
   else:
     _log_high_cost(sender_id, "ollama", prompt[:80])
