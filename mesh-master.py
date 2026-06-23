@@ -11879,6 +11879,37 @@ def _relay_worker():
 
             # Send message and track packet ID for ACK monitoring
             try:
+                # MeshCore path: use send_direct_chunks when no Meshtastic interface
+                _mgr = globals().get('MESHCORE_MANAGER')
+                if not interface and _mgr and _mgr.is_connected:
+                    # Resolve MeshCore pubkey from target_node_id
+                    # target_node_id may be "mc_<pubkey_prefix>" or a raw pubkey
+                    target_key = str(target_node_id)
+                    if target_key.startswith("mc_"):
+                        target_key = target_key[3:]
+                    # Try shortname cache to get pubkey
+                    if not target_key or target_key == str(target_node_id):
+                        # Try looking up in MeshCore contacts by shortname
+                        contact = _mgr.get_contact_by_prefix(target_key) if target_key else None
+                        if not contact:
+                            clean_log(f"Relay: cannot resolve MeshCore target {target_shortname}", "⚠️")
+                            send_direct_chunks(None, f"❌ Cannot find {target_shortname} on mesh", sender_id)
+                            continue
+
+                    ok = _mgr.send_direct_chunks(target_key, relay_text)
+                    if ok:
+                        clean_log(f"Relay to {target_shortname} sent via MeshCore ({len(relay_text)} chars)", "📨", show_always=False)
+                        try:
+                            STATS.record_relay(target_node_id)
+                        except Exception:
+                            pass
+                        # Send confirmation back to sender
+                        send_direct_chunks(None, f"✅ Delivered to {target_shortname}", sender_id)
+                    else:
+                        clean_log(f"Relay to {target_shortname} failed via MeshCore", "⚠️")
+                        send_direct_chunks(None, f"❌ Failed to deliver to {target_shortname}", sender_id)
+                    continue
+
                 if not interface:
                     send_direct_chunks(interface, "❌ Radio interface not available", sender_id)
                     continue
@@ -18995,8 +19026,17 @@ def on_meshcore_message(msg: dict) -> None:
 
         sender_id = msg.get("sender_id", "mc_unknown")
         sender_name = msg.get("sender_name", "Unknown")
+        sender_key = msg.get("sender_key", "")
         is_direct = msg.get("is_direct", False)
         channel_idx = msg.get("channel_idx") if not is_direct else None
+
+        # Populate shortname cache so relay routing works with MeshCore
+        if sender_key and sender_name and sender_name != "Unknown":
+            update_shortname_cache(sender_id, sender_name)
+            # Also map the MeshCore pubkey prefix to sender_id for relay lookups
+            if sender_key:
+                with SHORTNAME_CACHE_LOCK:
+                    SHORTNAME_TO_NODE_CACHE[sender_name.lower()] = str(sender_id)
 
         clean_log(
             f"MeshCore {'DM' if is_direct else f'CH{channel_idx}'} from {sender_name}: [{len(text)} chars]",
