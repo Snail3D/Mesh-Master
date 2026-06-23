@@ -29,6 +29,7 @@
    - Async response queue management
 
 2. **Mesh Master Package** ([mesh_master/](mesh_master/))
+   - `meshcore_manager.py` - MeshCore BLE/serial/TCP device integration (dual-protocol)
    - `mail_manager.py` - PIN-protected mailbox system with notifications
    - `relay_manager.py` - Network bridge relay with ACK tracking and offline queue
    - `onboarding_manager.py` - Interactive 9-step user onboarding
@@ -40,6 +41,11 @@
    - `offline_ddg.py` - DuckDuckGo search caching
    - `help_database.py` - Command documentation database
    - `games/game_manager.py` - 20+ multiplayer games (~126k lines)
+
+3. **Hermes Bridge** ([hermes_bridge.py](hermes_bridge.py))
+   - Direct synchronous bridge: Mesh Master → Hermes Agent
+   - Listens on port 9097, calls `hermes --profile meshmaster chat -q`
+   - Admins use `/hermes <request>` or `@hermes` to escalate to full agent
 
 3. **Data Storage** ([data/](data/))
    - `logs/` - Private user logs (DM-only access)
@@ -211,6 +217,31 @@ If Mesh Master sees multiple networks (e.g., YourNet + LongFast), it bridges the
 
 ---
 
+### 9. Two-Tier Agentic AI System (v2.6+)
+
+**Files:** `mesh-master.py` (send_to_openai, get_ai_response), `hermes_bridge.py`
+
+**Purpose:** Replace "dumb" single-prompt AI with an agentic system where the AI can call tools.
+
+**Tier 1: Regular Users (Agentic Personal Assistant)**
+- Powered by Qwen3.6-35B-A3B via OpenAI-compatible endpoint (MLX/LM Studio/vLLM)
+- The AI can take actions on behalf of the user: check/send mail, search wiki, create logs/reports, set reminders, check mesh presence, get weather
+- Conversation context with per-user session management (capped history, auto-wind-down)
+- Config: `ai_provider: "openai"`, `openai_base_url`, `openai_model`
+
+**Tier 2: Admin Users (Full Hermes Agent)**
+- Admins use `/hermes <request>` or `@hermes` to escalate to full Hermes agent
+- Real computer control: terminal, file system, browser, Docker, firmware flashing
+- Configurable endpoint — can hit local Hermes (meshmaster profile) or cloud model (GLM-5.2)
+- Bridge: `hermes_bridge.py` listens on port 9097, calls `hermes --profile meshmaster chat -q`
+- Config: `agent_webhook_url: "http://localhost:9097/meshmaster/agent"`
+
+**Admin Detection:**
+- `AUTHORIZED_ADMINS` set checked via `sender_key in AUTHORIZED_ADMINS`
+- Admins configured via `admin_whitelist` in config.json or `/ban`/`/unban` commands
+
+---
+
 ## Configuration
 
 ### Main Config ([config.json](config.json))
@@ -222,13 +253,27 @@ If Mesh Master sees multiple networks (e.g., YourNet + LongFast), it bridges the
 - `wifi_host`, `wifi_port` - Network connection
 
 **AI Provider:**
-- `ai_provider` - "ollama" (default)
+- `ai_provider` - "ollama" (default), "groq", "openai", or "home_assistant"
 - `ollama_url` - Local Ollama endpoint
 - `ollama_model` - Model name (e.g., "wizard-math:7b", "llama3.2:1b")
 - `ollama_timeout` - Generation timeout (120s)
 - `ollama_context_chars` - Context window (1600)
 - `ollama_num_ctx` - Ollama num_ctx parameter (1024)
 - `system_prompt` - Core system prompt
+- `openai_base_url` - OpenAI-compatible API URL (MLX, LM Studio, vLLM)
+- `openai_model` - Model name for OpenAI-compatible endpoint
+- `openai_api_key` - API key ("sk-none" for local endpoints)
+- `openai_timeout` - OpenAI request timeout (120s)
+- `agent_webhook_url` - Hermes agent bridge URL (default: http://localhost:9097/meshmaster/agent)
+
+**MeshCore Settings:**
+- `use_meshcore` - Enable MeshCore alongside Meshtastic (false)
+- `radio_protocol` - "auto" (probe at startup), "meshtastic", or "meshcore"
+- `meshcore_connection_type` - "serial", "ble", or "tcp"
+- `meshcore_serial_port` - Serial port for MeshCore device
+- `meshcore_serial_baud` - Baud rate (115200)
+- `meshcore_ble_address` - BLE address (empty = auto-discover)
+- `meshcore_auto_reconnect` - Auto-reconnect on disconnect (true)
 
 **Mesh Settings:**
 - `channel_names` - Channel name mapping (0-9)
