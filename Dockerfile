@@ -29,10 +29,10 @@ RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_
     ln -s /usr/local/bin/pip3.13    /usr/local/bin/pip
 
 # ------------------------------------------------------------
-# Install always-latest Meshtastic Python (pulls matching protobufs)
+# Install Meshtastic + MeshCore Python packages
 # ------------------------------------------------------------
 RUN pip install --no-cache-dir --upgrade \
-    "meshtastic @ git+https://github.com/meshtastic/meshtastic-python.git" \
+    "meshtastic>=2.6.0" \
     "meshcore>=2.3.0"
 
 # ------------------------------------------------------------
