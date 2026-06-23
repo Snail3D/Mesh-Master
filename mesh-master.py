@@ -14839,14 +14839,16 @@ Original by MR-TBOT
 
     return _cmd_reply(cmd, about_text)
 
-  elif cmd == "/agent":
+  elif cmd in ["/agent", "/hermes"]:
     # Hermes agent integration - admin only
+    # /hermes is an alias for /agent — escalates to full Hermes agent
+    # Also configurable to hit local meshmaster profile or cloud model (GLM-5.2, etc.)
     if sender_key not in AUTHORIZED_ADMINS:
-      return _cmd_reply(cmd, "⛔ This command is admin-only.")
+      return _cmd_reply(cmd, "⛔ This command is admin-only.\n\nRegular users: just send a message and the AI can help you with mail, logs, wiki, and more. Admins can use /hermes for full computer control.")
     
     user_prompt = full_text[len(cmd):].strip()
     if not user_prompt:
-      return _cmd_reply(cmd, "Usage: /agent <your request>\n\nExample: /agent research weather in El Paso\n\nThis sends your request to the Hermes agent for complex multi-step tasks.")
+      return _cmd_reply(cmd, "Usage: /hermes <your request>\n\nExample: /hermes check the mesh dashboard and report node status\n\nThis escalates your request to the full Hermes agent with computer control, terminal access, and Mesh Master management capabilities. You can also use @hermes in any message.")
     
     # Call Hermes agent
     add_script_log(f"[Agent] /agent command from {sender_key}: {user_prompt[:40]}...")

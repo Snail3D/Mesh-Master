@@ -8,11 +8,22 @@
 
 ### v2.6 — Off-Grid AI Operations Suite
 
-**MESH MASTER** is a resilient copilot for Meshtastic LoRa mesh networks. It remembers conversations, relays messages across networks, handles async messaging, runs games, and maintains operations even when internet is unavailable.
+**MESH MASTER** is a resilient copilot for Meshtastic and MeshCore LoRa mesh networks. It remembers conversations, relays messages across networks, handles async messaging, runs games, and maintains operations even when internet is unavailable.
 
-> **Disclaimer:** This is a community project, not affiliated with the official Meshtastic project. Always maintain backup communication paths for emergencies.
+> **Disclaimer:** This is a community project, not affiliated with the official Meshtastic or MeshCore projects. Always maintain backup communication paths for emergencies.
 
 </div>
+
+---
+
+## 🆕 What's New in v2.6
+
+- **MeshCore Protocol Support** — Dual-protocol mesh networking (Meshtastic + MeshCore) with automatic protocol detection
+- **OpenAI-Compatible AI Provider** — Connect any OpenAI-compatible endpoint (MLX, LM Studio, vLLM, Ollama OpenAI mode) with automatic Ollama fallback
+- **Hermes Agent Integration** — Admins can escalate to a full Hermes agent with computer control via `/hermes` or `@hermes`
+- **Two-Tier Agentic AI** — Regular users get an agentic personal assistant; admins get full system control
+- **OrbStack/Docker Support** — Run Mesh Master in Docker with serial passthrough and host MLX endpoint access
+- **Hermes Bridge v2** — Direct synchronous bridge replacing the old file-queue approach
 
 ---
 
@@ -25,6 +36,15 @@
 rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/Mesh-Master && cd ~/Mesh-Master && bash setup.sh
 ```
 
+**Docker / OrbStack (macOS recommended):**
+```bash
+git clone https://github.com/Snail3D/Mesh-Master.git
+cd Mesh-Master
+cp config.json.example config.json
+# Edit config.json with your settings
+docker compose -f docker-compose.meshmaster.yml up -d
+```
+
 **Windows (Automatic - Recommended):**
 > 🎯 **One-Click Install** - Automatically downloads Git, Python, and Mesh Master
 
@@ -35,49 +55,124 @@ rm -rf ~/Mesh-Master && git clone https://github.com/Snail3D/Mesh-Master.git ~/M
 irm https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/install.ps1 | iex
 ```
 
-**What it does:**
-- ✅ Auto-installs Git for Windows if needed
-- ✅ Auto-installs Python 3.11+ if needed
-- ✅ Downloads Mesh Master and all dependencies
-- ✅ Creates Windows service (auto-start on boot)
-- ✅ Creates desktop shortcuts
-
 ### After Installation
 1. Double-click the **Mesh Master** desktop icon (or service starts automatically if installed)
+2. Open the dashboard at **http://localhost:5000**
 
-**Tip:** Install as system service later from the dashboard (Operations Center)
+---
 
-### Uninstall
+## 🧠 AI Provider Configuration
 
-#### Complete Removal (Deletes Everything)
+Mesh Master supports multiple AI providers. Set `ai_provider` in `config.json`:
 
-**macOS / Linux / Raspberry Pi:**
+| Provider | Config Key | Use Case |
+|----------|-----------|----------|
+| **openai** | `openai_base_url`, `openai_model` | Any OpenAI-compatible endpoint (MLX, LM Studio, vLLM) |
+| **ollama** | `ollama_url`, `ollama_model` | Local Ollama instance (default) |
+| **groq** | `groq_api_key`, `groq_model` | Groq cloud (fast inference) |
+| **home_assistant** | — | Home Assistant integration |
+
+### OpenAI-Compatible Endpoint (MLX / LM Studio / vLLM)
+
+```json
+{
+  "ai_provider": "openai",
+  "openai_base_url": "http://localhost:8087/v1",
+  "openai_model": "qwen3.6-35b-a3b",
+  "openai_api_key": "sk-none",
+  "openai_timeout": 120
+}
+```
+
+Works with any OpenAI-compatible API:
+- **MLX** (Apple Silicon): `http://localhost:8087/v1`
+- **LM Studio**: `http://localhost:1234/v1`
+- **vLLM**: `http://localhost:8000/v1`
+- From Docker: use `http://host.docker.internal:8087/v1`
+
+---
+
+## 📡 MeshCore Support
+
+Mesh Master v2.6 supports both Meshtastic and MeshCore protocols:
+
+```json
+{
+  "use_meshcore": true,
+  "meshcore_connection_type": "serial",
+  "meshcore_serial_port": "/dev/cu.usbmodem1101",
+  "meshcore_auto_reconnect": true,
+  "radio_protocol": "auto"
+}
+```
+
+| Setting | Options | Description |
+|---------|---------|-------------|
+| `radio_protocol` | `auto`, `meshtastic`, `meshcore` | Protocol selection. `auto` probes at startup |
+| `use_meshcore` | `true`/`false` | Enable MeshCore alongside Meshtastic |
+| `meshcore_connection_type` | `serial`, `ble`, `tcp` | How to connect to the MeshCore device |
+
+### MeshCore vs Meshtastic
+
+| | Meshtastic | MeshCore |
+|--|-----------|----------|
+| Focus | Casual LoRa comms | Lightweight multi-hop routing |
+| Maturity | Established community | Newer, focused on embedded |
+| Firmware | meshtastic-firmware | MeshCore C++ library |
+| Python pkg | `meshtastic` | `meshcore` |
+| Clients | Many apps | Web/Android/iOS/CLI |
+
+---
+
+## 🤖 Hermes Agent Integration
+
+Admins can escalate requests to a full Hermes agent with computer control, terminal access, and Mesh Master management capabilities.
+
+### Usage
+
+```
+/hermes <your request>       — Admin command
+@hermes <your request>       — Mention in any message
+/agent <your request>        — Alias (legacy)
+```
+
+### Setup
+
+1. Install [Hermes Agent](https://github.com/NousResearch/hermes-agent) on the host
+2. Create a `meshmaster` profile: `hermes profile create meshmaster --description "Mesh Master agent"`
+3. Start the Hermes Bridge: `python3 hermes_bridge.py` (listens on port 9097)
+4. Configure in `config.json`:
+   ```json
+   {
+     "agent_webhook_url": "http://localhost:9097/meshmaster/agent"
+   }
+   ```
+
+### How It Works
+
+```
+Mesh Master (Docker) → HTTP POST → Hermes Bridge → hermes chat -q → Response
+```
+
+The bridge calls `hermes --profile meshmaster chat -q "<query>"` synchronously and returns the response. The Hermes agent has full computer control — terminal, file system, browser, Docker management.
+
+---
+
+## 🏗 Docker / OrbStack
+
+### docker-compose.meshmaster.yml
+
+Pre-configured for OrbStack with serial passthrough and MLX endpoint access:
+
 ```bash
-AUTO_DELETE=true bash ~/Mesh-Master/scripts/universal/uninstall.sh
+docker compose -f docker-compose.meshmaster.yml up -d
 ```
 
-**Windows:**
-```powershell
-$env:AUTO_DELETE="true"; powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Mesh-Master\scripts\windows\uninstall.ps1"
-```
-
-**This will remove:** Service, shortcuts, processes, AND the entire directory (including config.json and data).
-
-#### Keep Config & Data (Remove Service Only)
-
-**macOS / Linux / Raspberry Pi:**
-```bash
-bash ~/Mesh-Master/scripts/universal/uninstall.sh
-```
-
-**Windows:**
-```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Mesh-Master\scripts\windows\uninstall.ps1"
-```
-
-**This will remove:** Service, shortcuts, processes. **Preserves:** Directory, config.json, data folder.
-
-You can also use the **Complete Uninstall** button in the dashboard (Operations Center).
+Features:
+- Serial device passthrough (`/dev/cu.usbmodem1101`)
+- Host MLX endpoint access (`host.docker.internal:8087`)
+- Live config and data volume mounts
+- Auto-restart on failure
 
 ---
 
@@ -85,62 +180,46 @@ You can also use the **Complete Uninstall** button in the dashboard (Operations 
 
 ### Network Relay
 Send messages to any node by shortname:
-_(snmo here is the radio shortname. Put the shortname
-first while DM'ing the bot with or without the '/'
-in order to send the relay)_
 ```
 snmo how's the weather?
 /snmo how's the weather?
 ```
 - Real-time ACK tracking with 20-second timeout
 - Multi-chunk support for long messages
-- Respects no nag quiet hours _(set in dashboard)_
 - Auto-delivery queue when recipient is offline
 - Privacy controls: `/optout` and `/optin`
 
 ### Mesh Mail
-Async messaging system (like email on the mesh)
+Async messaging system (like email on the mesh) with PIN-protected mailboxes
 
 ### 20+ Games
 Chess, Blackjack, Hangman, Wordle, Morse code, Quizzes, and more. All DM-friendly.
 
-### AI Assistant (With conversation memory!)
-Ask questions, get help, adjust personality. Use any Ollama model!
-```
-```
+### AI Assistant
+Ask questions, get help, adjust personality. Supports Ollama, OpenAI-compatible endpoints, and Groq.
+
 ### Offline Knowledge
+Cached Wikipedia, web archive, DuckDuckGo search — works without internet.
 
 ### Logs & Reports
+Private logs and public searchable reports with fuzzy matching.
 
 ### Dashboard
-Real-time web interface for monitoring and control:
-- Activity feed with emoji categories
-- Per-channel message metrics with 30-day charts
-- Radio configuration (names, roles, presets)
-- Ollama model management
-- Command browser
-- GitHub version control
+Real-time web interface for monitoring and control at **http://localhost:5000**
 
 ### Telegram Bot
-Control your mesh from Telegram:
-- Send commands remotely
-- Receive relay ACK notifications
-- Monitor system health
+Control your mesh from Telegram with remote commands and notifications.
 
 ### Security & Privacy
 - Message content redacted from logs
 - PIN-protected mailboxes with bcrypt hashing
-- Encrypted conversation contexts per user
-- URL filter blocks adult/warez sites
+- Self-service blocking and data deletion
 - All user data excluded from git
-- Security audit trail with Telegram alerts
-- **Self-service blocking:** Users can blacklist themselves to stop all bot replies (DM `blacklist me` and confirm with Y). Unblock anytime with `/unblock`.
-- **Data deletion:** Users can permanently delete all their data with `/deleteme` (logs, reports, sole-owner mailboxes, conversation history, AI settings).
 
 ---
 
 ## Commands (Quick Reference)
-[COMMANDS.md](COMMANDS.md) (all commands),
+[COMMANDS.md](COMMANDS.md) (all commands)
 
 **Network & Relay**
 - `<shortname> <msg>` — Relay message to shortname
@@ -149,56 +228,40 @@ Control your mesh from Telegram:
 - `/optout`, `/optin` — Control relay receipt
 
 **Mesh Mail**
-- `/m <box> <msg>` — Send to mailbox _(sending a message to a mailbox that doesn't exist yet will prompt the user to open a new mailbox)_
-- `/c <box> PIN` — Check mail _(pin only needed if one was set when the mailbox was created and for opening for the first time from the radio)_
+- `/m <box> <msg>` — Send to mailbox
+- `/c <box> PIN` — Check mail
 - `/emailhelp` — Mail system help
 
-**Notes & Search**
-- `/log <title>` — Create private log entry
-- `/report <title>` — Create public report
-- `/find <query>` — Search across everything
-
 **AI & Personality**
-- `/ai <question>` — Ask AI (no /ai prefix needed in DM mode, just speak normally)
+- `/ai <question>` — Ask AI (no /ai prefix needed in DM mode)
+- `/hermes <request>` — Escalate to full Hermes agent (admin only)
 - `/vibe [tone]` — Adjust conversation tone
 - `/save [name]` — Capture context
 - `/recall [name]` — Restore context
 
 **Games & Fun**
 - `/games` — List all games
-- `/hangman start`, `/wordle start`, 
+- `/hangman start`, `/wordle start`
 - `/masterquiz`, `/meshtasticquiz`
 - `/rps`, `/coinflip`, `/yahtzee`, `/blackjack`
 
 **Knowledge**
 - `/offline wiki <topic>` — Local Wikipedia mirror
 - `/wiki <topic>` — Fetch from online Wikipedia
-- `/web <query>` — DuckDuckGo search (with URL caching)
-- `/web <url>` — Fetch single webpage
-- `/web crawl <domain>` — Crawl site and extract contacts
-- `/meshtastic <question>` — LoRa field guide
+- `/web <query>` — DuckDuckGo search
 - `/find <query>` — Search logs, reports, wiki, and crawl cache
 - `/bible [topic]` — Bible verses
 - `/weather` — Weather forecast
 
-**User Controls**
-- `/stop` — Pause AI replies (DM your messages without responses)
-- `/resume` — Re-enable AI replies
-- `blacklist me` — Block all bot replies (reply Y/N to confirm)
-- `/unblock` — Restore bot replies after blacklist
-- `/deleteme` or `delete me` — Delete ALL your data permanently (logs, reports, mailboxes, history)
-
 **Admin (DM-only)**
+- `/hermes <request>` — Full Hermes agent with computer control
 - `/menu` — Main menu
 - `/about` — Version info
-- `/help` — Help system
 - `/status` — System status
 - `/update` — Pull latest from GitHub
-- `/reboot` — Restart server (reply Y/N to confirm)
+- `/reboot` — Restart server
 - `/ban <shortname>` — Permanently ban a user
 - `/timeout <shortname>` — Timeout a user for 24 hours
-- `/unban <shortname>` — Remove ban or timeout
-- `/showbanned` — View all banned and timed-out users
 
 ---
 
@@ -212,46 +275,12 @@ Control your mesh from Telegram:
 - `config.json` — Contains passwords and API keys
 - `data/` — User logs, mail, conversations
 - `*.log`, `*.db` files — Runtime data
-- SSH keys — `*.pem`, `*.key`, `*_rsa`, `*_ed25519`
-
-**Protected files are gitignored automatically.**
-
----
-
-## Telegram Bot
-
-Control your mesh remotely via Telegram. Setup is in the dashboard:
-
-1. Create a bot with [@BotFather](https://t.me/BotFather)
-2. Open dashboard → **Telegram panel**
-3. Paste bot token and authorize your chat ID
-4. Send commands: `/nodes`, `/ai question`, `/relay message`, `/status`, etc.
-
-**Features:** Remote command control, real-time notifications, system monitoring, bidirectional messaging. Only authorized chat IDs can control.
-
----
-
-## Dashboard
-
-Access at: **http://localhost:5001/dashboard**
-
-Features:
-- Real-time activity feed 
-- Per-channel metrics with 30-day charts
-- Relay tracking and ACK telemetry
-- Radio configuration controls
-- Ollama model management
-- Command browser with descriptions
-- GitHub branch/version selector
-- Redacted Log, Activity feed, and telegram
- output for user privacy on managed systems. 
-- Configuration editor
 
 ---
 
 ## Support
 
-- 📖 **Docs:** [COMMANDS.md](COMMANDS.md) (all commands), [README_SERVICE.md](README_SERVICE.md) (systemd/LaunchAgent), `docs/mail_readme.md` (mail internals)
+- 📖 **Docs:** [COMMANDS.md](COMMANDS.md), [README_SERVICE.md](README_SERVICE.md), [CLAUDE.md](CLAUDE.md)
 - 🐛 **Issues:** Report on GitHub
 - ⭐ **Star the Project:** [github.com/Snail3D/Mesh-Master](https://github.com/Snail3D/Mesh-Master)
 
@@ -261,10 +290,10 @@ Features:
 
 MIT License — See [LICENSE](LICENSE)
 
-Meshtastic is a trademark of Meshtastic LLC
+Meshtastic is a trademark of Meshtastic LLC. MeshCore is a project by meshcore-dev.
+
 ---
 
 - Original Mesh-AI by [MR_TBOT](https://github.com/mr-tbot/mesh-ai)
-- Meshtastic community for hardware, testing, and feedback
-
----
+- Enhanced by [Snail3D](https://github.com/Snail3D)
+- Meshtastic & MeshCore communities for hardware, testing, and feedback

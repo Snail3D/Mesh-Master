@@ -41,8 +41,8 @@ RUN pip install --no-cache-dir --upgrade \
 WORKDIR /app
 COPY mesh-master.py .
 COPY mesh_master ./mesh_master
-COPY mesh_master_mail.py .
 COPY data ./data
+COPY static ./static
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
