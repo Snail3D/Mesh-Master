@@ -138,26 +138,22 @@ class MeshCoreManager:
             logger.warning("send_direct called but MeshCore not connected")
             return False
         try:
-            print(f"[DEBUG] send_direct called: dst_key={dst_key[:8] if dst_key else 'None'}, text_len={len(text)}, _is_ready={self._is_ready()}, _mc={self._mc is not None}, _loop={self._loop is not None}")
-            
             # Check if event loop is closed before attempting send
             if self._loop and self._loop.is_closed():
                 logger.error("send_direct failed: event loop is closed")
                 return False
-                
+
             future = asyncio.run_coroutine_threadsafe(
                 self._mc.commands.send_msg(dst_key, text),
                 self._loop,
             )
             result = future.result(timeout=timeout)
-            print(f"[DEBUG] send_direct result: type={result.type}, error={result.type == EventType.ERROR}")
-            logger.info(f"send_direct: result.type={result.type}, EventType.ERROR={EventType.ERROR}")
-            
-            # If result is ERROR, log the reason
+
             if result.type == EventType.ERROR:
                 logger.error(f"send_msg returned ERROR: {result.payload}, {result.attributes}")
-                
-            return result.type != EventType.ERROR
+                return False
+
+            return True
         except Exception as exc:
             import traceback
             tb_str = traceback.format_exc()
@@ -434,7 +430,13 @@ class MeshCoreManager:
                 "raw": payload,
             }
             logger.debug(f"MeshCore DM from {sender_name}: [{len(text)} chars]")
-            self._on_message(normalized)
+            # CRITICAL: dispatch to a separate thread — the callback may call
+            # send_direct(), which uses run_coroutine_threadsafe on THIS loop.
+            # If we block the loop here, that call deadlocks.
+            threading.Thread(
+                target=self._on_message, args=(normalized,),
+                daemon=True, name="MeshCoreMsgHandler",
+            ).start()
         except Exception as exc:
             logger.error(f"Error handling contact message: {exc}")
 
@@ -464,7 +466,11 @@ class MeshCoreManager:
                 "raw": payload,
             }
             logger.debug(f"MeshCore CH{channel_idx}: [{len(text)} chars]")
-            self._on_message(normalized)
+            # CRITICAL: dispatch to a separate thread (same reason as DM handler)
+            threading.Thread(
+                target=self._on_message, args=(normalized,),
+                daemon=True, name="MeshCoreChanHandler",
+            ).start()
         except Exception as exc:
             logger.error(f"Error handling channel message: {exc}")
 
