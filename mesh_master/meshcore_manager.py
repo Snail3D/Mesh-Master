@@ -129,7 +129,7 @@ class MeshCoreManager:
         self._set_status("Disconnected")
         logger.info("MeshCoreManager stopped")
 
-    def send_direct(self, dst_key: str, text: str, timeout: float = 15.0) -> bool:
+    def send_direct(self, dst_key: str, text: str, timeout: float = 30.0) -> bool:
         """
         Send a direct message to a contact identified by public key prefix.
         Thread-safe; blocks until sent or timeout.
