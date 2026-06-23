@@ -164,7 +164,7 @@ class MeshCoreManager:
             return False
 
     def send_direct_chunks(self, dst_key: str, text: str, chunk_size: int = 150,
-                           chunk_delay: float = 2.0, timeout: float = 30.0) -> bool:
+                           chunk_delay: float = 3.0, timeout: float = 30.0) -> bool:
         """
         Send a direct message, splitting into chunks for LoRa.
         Waits chunk_delay seconds between chunks to avoid overwhelming the network.

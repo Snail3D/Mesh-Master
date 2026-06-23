@@ -7052,6 +7052,14 @@ def _reset_user_personality(sender_key: str) -> None:
 def build_system_prompt_for_sender(sender_id: Any) -> str:
     base = _sanitize_prompt_text(SYSTEM_PROMPT) or "You are a helpful assistant responding to mesh network chats."
 
+    # Mesh network context — the AI needs to know it IS the mesh network operator
+    mesh_context = (
+        "You are Mesh Master, an AI assistant running directly on a LoRa mesh network node. "
+        "You ARE the mesh network — you can see connected nodes, manage messages, and know the network state. "
+        "When asked about the network, nodes, or signal, answer as the operator of THIS network, not as a generic chatbot. "
+        "Messages are sent over LoRa radio (918 MHz, MeshCore protocol). Keep replies under 200 characters when possible due to radio bandwidth."
+    )
+
     # Add frustration detection guidance
     frustration_guidance = (
         "If the user seems frustrated with your responses (e.g., repeated questions, expressing confusion, "
@@ -7060,7 +7068,7 @@ def build_system_prompt_for_sender(sender_id: Any) -> str:
     )
 
     # Only use the configured system prompt (plus optional persona and web context).
-    segments = [base, frustration_guidance]
+    segments = [base, mesh_context, frustration_guidance]
     persona_id: Optional[str] = None
     web_context: List[str] = []
     if sender_id is not None:
