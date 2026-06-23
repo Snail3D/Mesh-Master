@@ -13,7 +13,7 @@ Returns the Hermes agent's response synchronously.
 Config:
   HERMES_PROFILE (env) — which Hermes profile to use (default: meshmaster)
   HERMES_BRIDGE_PORT (env) — port to listen on (default: 9097)
-  HERMES_TIMEOUT (env) — max seconds for Hermes to respond (default: 120)
+  HERMES_TIMEOUT (env) — max seconds for Hermes to respond (default: 180)
 """
 
 import json
@@ -27,7 +27,10 @@ from datetime import datetime
 
 HERMES_PROFILE = os.environ.get("HERMES_PROFILE", "meshmaster")
 PORT = int(os.environ.get("HERMES_BRIDGE_PORT", "9097"))
-HERMES_TIMEOUT = int(os.environ.get("HERMES_TIMEOUT", "120"))
+# 180s default matches hermes profile terminal.timeout (180) — gives the agent
+# enough time to do computer_use / browser / multi-step terminal work without
+# the bridge killing it mid-flight. Override with HERMES_TIMEOUT env var.
+HERMES_TIMEOUT = int(os.environ.get("HERMES_TIMEOUT", "180"))
 
 
 class HermesBridgeHandler(http.server.BaseHTTPRequestHandler):
@@ -74,6 +77,12 @@ class HermesBridgeHandler(http.server.BaseHTTPRequestHandler):
             prompt_parts.append(query)
             prompt_parts.append("")
             prompt_parts.append(
+                "You (Hermes) have full computer control via the terminal, browser, and "
+                "computer_use tools. The mesh profile is configured with yolo mode "
+                "(approvals.mode=false), so you are authorized to execute commands "
+                "the user requests. If you actually carry out the request, briefly report "
+                "what you did. Do NOT invent failures or refusals you did not actually "
+                "encounter. If a tool genuinely fails or times out, report the real error. "
                 "Respond concisely — this will be sent over a LoRa mesh radio. "
                 "Keep it under 200 characters if possible. No markdown formatting."
             )
@@ -89,7 +98,8 @@ class HermesBridgeHandler(http.server.BaseHTTPRequestHandler):
                 "--quiet",
             ]
 
-            print(f"  Calling: hermes --profile {HERMES_PROFILE} chat -q ...")
+            print(f"  Calling: hermes --profile {HERMES_PROFILE} chat -q ...", flush=True)
+            print(f"  (timeout: {HERMES_TIMEOUT}s)", flush=True)
 
             try:
                 result = subprocess.run(
@@ -103,20 +113,26 @@ class HermesBridgeHandler(http.server.BaseHTTPRequestHandler):
                     response_text = result.stdout.strip()
                     if not response_text:
                         response_text = "🐌 Agent processed the request but returned no output."
-                    print(f"  Response ({len(response_text)} chars): {response_text[:60]}...")
+                    print(f"  Response ({len(response_text)} chars): {response_text[:120]}", flush=True)
                 else:
                     error_msg = result.stderr.strip()[:200] if result.stderr else "Unknown error"
-                    print(f"  Hermes error (exit {result.returncode}): {error_msg}")
+                    stdout_excerpt = (result.stdout or "").strip()[:200]
+                    print(f"  Hermes error (exit {result.returncode}): {error_msg}", flush=True)
+                    if stdout_excerpt:
+                        print(f"  Hermes stdout: {stdout_excerpt}", flush=True)
                     response_text = f"⚠️ Agent error: {error_msg}"
 
             except subprocess.TimeoutExpired:
-                print(f"  Hermes timeout after {HERMES_TIMEOUT}s")
-                response_text = f"⏱️ Agent timeout ({HERMES_TIMEOUT}s) — request may be too complex for synchronous mode."
+                print(f"  Hermes timeout after {HERMES_TIMEOUT}s — agent did not finish", flush=True)
+                response_text = (
+                    f"⏱️ Agent timeout ({HERMES_TIMEOUT}s) — request may be too complex for synchronous mode. "
+                    "Try a smaller request or raise HERMES_TIMEOUT."
+                )
             except FileNotFoundError:
-                print("  Hermes CLI not found — is hermes installed?")
+                print("  Hermes CLI not found — is hermes installed?", flush=True)
                 response_text = "🔌 Agent offline — Hermes CLI not found on host."
             except Exception as e:
-                print(f"  Unexpected error: {e}")
+                print(f"  Unexpected error: {e}", flush=True)
                 response_text = f"❌ Agent error: {str(e)[:100]}"
 
             self._json_response(200, {"response": response_text, "status": "completed"})

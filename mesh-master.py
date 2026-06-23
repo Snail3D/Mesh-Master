@@ -7049,27 +7049,77 @@ def _reset_user_personality(sender_key: str) -> None:
     _set_user_prompt_override(sender_key, None)
 
 
+def _format_mesh_contacts_brief(max_contacts: int = 12) -> str:
+    """Return a short, comma-separated list of known mesh shortnames for prompt context.
+
+    Uses SHORTNAME_TO_NODE_CACHE (preferred, real shortnames only) and falls back to
+    interface.nodes. Returns an empty string if no contacts are known yet.
+    """
+    try:
+        shortnames: List[str] = []
+        seen: set[str] = set()
+        # Prefer cache entries — these are shortnames the relay system already accepts.
+        with SHORTNAME_CACHE_LOCK:
+            for sn in SHORTNAME_TO_NODE_CACHE.keys():
+                low = sn.lower()
+                if low not in seen and sn:
+                    seen.add(low)
+                    shortnames.append(sn)
+        # Fallback / supplement from interface.nodes (includes long+short names)
+        if interface and hasattr(interface, "nodes") and interface.nodes:
+            for _nid, ndata in interface.nodes.items():
+                try:
+                    user_dict = (ndata or {}).get("user", {}) or {}
+                    sn = user_dict.get("shortName", "")
+                    if sn and not sn.startswith("Node_"):
+                        low = sn.lower()
+                        if low not in seen:
+                            seen.add(low)
+                            shortnames.append(sn)
+                except Exception:
+                    continue
+        if not shortnames:
+            return ""
+        if len(shortnames) > max_contacts:
+            shortnames = shortnames[:max_contacts] + ["…"]
+        return ", ".join(shortnames)
+    except Exception:
+        return ""
+
+
 def build_system_prompt_for_sender(sender_id: Any) -> str:
     base = _sanitize_prompt_text(SYSTEM_PROMPT) or "You are a helpful assistant responding to mesh network chats."
 
     # Mesh network context — the AI needs to know it IS the mesh network operator
+    contacts_str = _format_mesh_contacts_brief()
+    contacts_line = (
+        f"Contacts currently on the mesh (use these shortnames for relays): {contacts_str}"
+        if contacts_str
+        else "No mesh contacts are currently known — the relay system will populate this as nodes are seen."
+    )
+
     mesh_context = (
-        "You are Mesh Master, an AI assistant running directly on a LoRa mesh network node (910.525 MHz, MeshCore protocol). "
+        "You are Mesh Master, an AI assistant running directly on a LoRa mesh network node (910.525 MHz, BW 62.5, SF 7, CR 5, MeshCore protocol). "
         "You ARE the mesh network — you can see connected nodes, manage messages, and know the network state. "
         "When asked about the network, nodes, or signal, answer as the operator of THIS network, not as a generic chatbot.\n\n"
+        "How to send a relay message (CRITICAL — do NOT hallucinate relay results):\n"
+        "Relays are triggered by the shortname-prefix syntax that you output as your reply, NOT by any internal tool you can call. "
+        "To send a relay to someone, your response must start with their shortname followed by the message — "
+        "for example: \"magda hello there\" or \"snmo are you around?\". "
+        "The relay subsystem intercepts that shortname-prefixed reply and handles delivery over LoRa automatically "
+        "(including ACK tracking, offline queuing, and reply-back routing). "
+        "Do NOT claim that you sent a relay yourself — you have no relay capability, and any confirmation you fabricate will be false. "
+        "If the user asks you to \"send a relay to X\", respond with a shortname-prefixed message like \"X <their message>\" "
+        "so the relay system takes over. Never invent node numbers, packet IDs, ACK times, or success messages.\n\n"
+        f"{contacts_line}\n\n"
         "Your capabilities:\n"
         "- /mail — PIN-protected mesh mail system for async messaging between nodes\n"
         "- /agent or /hermes — escalate to full Hermes agent with computer control, terminal, email, and web access\n"
         "- /log, /report — private logs and public reports\n"
         "- /wiki, /web — offline Wikipedia and web search\n"
-        "- 20+ games, alarms, timers, and more\n\n"
-        "IMPORTANT RULES:\n"
-        "1. RELAYING: You CANNOT send relay messages yourself. To relay to someone, the user must type "
-        "the recipient's shortname followed by their message (e.g., 'magda hello there'). "
-        "Never claim to have sent a relay — tell the user to type the shortname + message instead.\n"
-        "2. Be honest about what you can and cannot do. Do not fabricate success or failure of actions you didn't perform.\n"
-        "3. When a user asks to send email, use the internet, or do something beyond LoRa radio, "
-        "tell them to use /agent <request> which escalates to a full AI agent with internet and computer access.\n"
+        "- 20+ games, alarms, timers, and more\n"
+        "When a user asks to send email, use the internet, or do something beyond LoRa radio, "
+        "tell them to use /agent <request> which escalates to a full AI agent with internet and computer access. "
         "Keep replies under 200 characters when possible due to radio bandwidth."
     )
 
@@ -10193,7 +10243,7 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
         response = requests.post(
             AGENT_URL,
             json=payload,
-            timeout=120,
+            timeout=180,  # Matches hermes_bridge.py HERMES_TIMEOUT default
             headers={"Content-Type": "application/json"}
         )
         add_script_log(f"[Agent] Response status: {response.status_code}")
@@ -10220,8 +10270,8 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
             return f"⚠️ Agent error (HTTP {response.status_code})"
     
     except requests.exceptions.Timeout:
-        add_script_log(f"Agent timeout for {sender_key}")
-        return "⏱️ Agent timeout - request may still be processing"
+        add_script_log(f"Agent timeout for {sender_key} after 180s")
+        return "⏱️ Agent timeout — request may still be processing"
     except requests.exceptions.ConnectionError:
         add_script_log(f"Agent connection error - is agent running at {AGENT_URL}?")
         return "🔌 Agent offline - check agent status"
