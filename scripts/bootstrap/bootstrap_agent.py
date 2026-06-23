@@ -41,17 +41,20 @@ YOUR MISSION: Install and configure a complete Hermes Agent setup:
 3. Create a new Hermes profile called "meshmaster" if it doesn't exist
 4. Configure the profile to use THIS local model endpoint (http://localhost:8087/v1)
 5. Set up the model config: provider=custom, base_url=http://localhost:8087/v1, api_key=sk-none
-6. Ask the user to create a Telegram bot (walk them through @BotFather steps)
+6. Set up Telegram bot — Hermes has AUTOMATED bot creation via @HermesSetupBot:
+   - Run: hermes gateway setup (or hermes setup gateway)
+   - This will create a bot automatically — the user just taps "Create Bot" in Telegram
+   - If the automated flow fails, fall back to asking the user for a manual @BotFather token
 7. Configure the Telegram bot token in the profile's .env file
 8. Enable useful toolsets (terminal, web, file, skills, vision)
-9. Start the Telegram gateway
+9. Start the Telegram gateway (hermes gateway install && hermes gateway start)
 10. Test that everything works
 
 RULES:
 - Be autonomous — run commands, don't just suggest them
 - If something fails, try a different approach
 - Keep the user informed of progress
-- Ask the user only when you genuinely need their input (e.g., Telegram bot token)
+- Ask the user only when you genuinely need their input (e.g., tap "Create Bot" in Telegram)
 - Be concise in your status updates
 - When you're done, confirm the agent is live and tell them how to test it
 
