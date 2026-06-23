@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] - 2026-06-22
+
+### Added
+- **OpenAI-compatible AI provider**: New `openai` provider option for any OpenAI-compatible API endpoint (MLX, LM Studio, vLLM, etc.)
+  - Config keys: `openai_base_url`, `openai_model`, `openai_api_key`, `openai_timeout`
+  - Works with local MLX strip proxy (localhost:8087) for Qwen3.6-35B-A3B
+  - Automatic fallback to Ollama if the OpenAI endpoint fails
+- **MeshCore protocol support**: Dual-protocol mesh networking (Meshtastic + MeshCore)
+  - `radio_protocol: "auto"` probes at startup and uses whichever is detected
+  - `use_meshcore: true` enables MeshCore alongside Meshtastic
+  - Connection types: serial, BLE, TCP
+  - Config keys: `meshcore_connection_type`, `meshcore_serial_port`, `meshcore_ble_address`, etc.
+- **meshcore Python package** added to requirements.txt and Dockerfile
+- **OrbStack/Docker support** with serial device passthrough and host MLX endpoint access
+- Config descriptions for all new MeshCore and OpenAI settings
+- New `docker-compose.meshmaster.yml` for OrbStack with serial passthrough + MLX endpoint
+
+### Changed
+- Version bumped to 2.6
+- `_VALID_PROVIDERS` now includes `"openai"`
+- CLAUDE.md updated to reflect MeshCore support and v2.6
+
 ## [2.1.0] - 2025-10-07
 
 Highlights

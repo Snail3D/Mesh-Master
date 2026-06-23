@@ -2926,6 +2926,15 @@ CONFIG_HIDDEN_KEYS = {
     "lmstudio_model",
     "lmstudio_timeout",
     "lmstudio_api_key",
+    "meshcore_connection_type",
+    "meshcore_serial_port",
+    "meshcore_serial_baud",
+    "meshcore_tcp_host",
+    "meshcore_tcp_port",
+    "meshcore_ble_address",
+    "meshcore_auto_reconnect",
+    "radio_protocol",
+    "use_meshcore",
     "notify_active_start_hour",
     "notify_active_end_hour",
     "mail_notify_quiet_hours_enabled",
@@ -3117,7 +3126,11 @@ CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
     "wifi_port": "TCP port number for the Wi-Fi mesh link.",
     "use_bluetooth": "Enable Bluetooth Low Energy (BLE) connection to the radio.",
     "bluetooth_device": "Bluetooth device name or address (e.g., 'meshtastic_1234'). Use 'meshtastic --ble-scan' to discover devices.",
-    "ai_provider": "Selects the large language model provider powering AI replies.",
+    "ai_provider": "Selects the large language model provider powering AI replies. Options: 'ollama', 'groq', 'openai', 'home_assistant'.",
+    "openai_base_url": "Base URL for the OpenAI-compatible API (e.g. http://host.docker.internal:8087/v1 for MLX, http://localhost:1234/v1 for LM Studio).",
+    "openai_model": "Model name for the OpenAI-compatible endpoint (e.g. qwen3.6-35b-a3b).",
+    "openai_api_key": "API key for the OpenAI-compatible endpoint. Use 'sk-none' for local endpoints that don't require auth.",
+    "openai_timeout": "Seconds to wait before giving up on an OpenAI API request.",
     "system_prompt": "Base instruction prompt prepended to every AI conversation.",
     "chunk_size": "Character count for each streaming chunk returned back to the radio.",
     "max_ai_chunks": "Maximum number of streaming chunks allowed per AI reply.",
@@ -6384,7 +6397,7 @@ def _sender_key(sender_id: Any) -> str:
 DEBUG_ENABLED = bool(config.get("debug", False))
 CLEAN_LOGS = bool(config.get("clean_logs", True))  # Enable emoji-enhanced clean logging by default
 AI_PROVIDER = config.get("ai_provider", "ollama").lower()
-_VALID_PROVIDERS = {"ollama", "groq", "home_assistant"}
+_VALID_PROVIDERS = {"ollama", "groq", "openai", "home_assistant"}
 if AI_PROVIDER not in _VALID_PROVIDERS:
     clean_log(
         f"AI provider '{AI_PROVIDER}' not recognized; defaulting to Ollama.",
@@ -14333,6 +14346,152 @@ def send_to_home_assistant(user_message):
         print(f"⚠️ HA request failed: {e}")
         return _format_ai_error("Home Assistant", str(e))
 
+# -----------------------------
+# OpenAI-compatible API provider
+# Works with any OpenAI-compatible endpoint: MLX, LM Studio, vLLM, etc.
+# -----------------------------
+def send_to_openai(
+    user_message,
+    sender_id=None,
+    is_direct=False,
+    channel_idx=None,
+    thread_root_ts=None,
+    system_prompt: Optional[str] = None,
+    *,
+    use_history: bool = True,
+    extra_context: Optional[str] = None,
+):
+    """Send a message to an OpenAI-compatible API and return the response text.
+
+    Supports MLX (localhost:8087), LM Studio, vLLM, or any other OpenAI-compatible endpoint.
+    Config keys: openai_base_url, openai_model, openai_api_key, openai_timeout
+    """
+    dprint(f"send_to_openai: user_message={_redact_message_content(user_message)} sender_id={sender_id}")
+    if not is_ai_enabled():
+        ai_log("Blocked: AI responses disabled", "openai")
+        return AI_DISABLED_MESSAGE
+
+    # Read config from live config so changes take effect without restart
+    openai_base_url = config.get("openai_base_url", "http://localhost:11434/v1")
+    openai_model = config.get("openai_model", "qwen3.6-35b-a3b")
+    openai_key = config.get("openai_api_key", "sk-none")
+    try:
+        openai_timeout = int(config.get("openai_timeout", 120))
+    except (ValueError, TypeError):
+        openai_timeout = 120
+
+    if not openai_base_url:
+        return _format_ai_error("OpenAI", "base_url not configured (set openai_base_url in config.json)")
+
+    # Build the chat completions URL
+    api_url = openai_base_url.rstrip("/")
+    if not api_url.endswith("/chat/completions"):
+        api_url = f"{api_url}/chat/completions"
+
+    start_time = time.perf_counter()
+    try:
+        STATS.record_ai_request()
+    except Exception:
+        pass
+
+    user_message = unidecode(user_message)
+    effective_system_prompt = _sanitize_prompt_text(system_prompt) or _sanitize_prompt_text(SYSTEM_PROMPT) or ""
+    extra_block = extra_context.strip() if extra_context else ""
+    history_limit = OLLAMA_CONTEXT_CHARS
+    if extra_block:
+        reserve_chars = max(500, OLLAMA_CONTEXT_CHARS // 3)
+        history_limit = max(reserve_chars, OLLAMA_CONTEXT_CHARS - len(extra_block))
+
+    history = ""
+    if use_history and sender_id is not None:
+        try:
+            history, _ = build_ollama_history(
+                sender_id=sender_id,
+                is_direct=is_direct,
+                channel_idx=channel_idx,
+                thread_root_ts=thread_root_ts,
+                max_chars=history_limit,
+            )
+        except Exception as e:
+            dprint(f"Warning: failed building history for OpenAI: {e}")
+
+    combined_context = ""
+    if extra_block:
+        combined_context = extra_block
+    if history.strip():
+        combined_context = f"{combined_context}\n\n{history.strip()}".strip() if combined_context else history.strip()
+
+    sys_content = effective_system_prompt
+    if combined_context:
+        sys_content = f"{sys_content}\n\nContext:\n{combined_context}".strip() if sys_content else f"Context:\n{combined_context}"
+
+    messages = []
+    if sys_content:
+        messages.append({"role": "system", "content": sys_content})
+    messages.append({"role": "user", "content": user_message})
+
+    payload = {
+        "model": openai_model,
+        "messages": messages,
+        "max_tokens": 2048,
+        "temperature": 0.7,
+        "top_p": 0.9,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {openai_key}",
+        "Content-Type": "application/json",
+    }
+
+    ai_log(f"Sending to OpenAI-compatible endpoint ({openai_model})", "openai")
+    try:
+        globals()['last_ai_request_time'] = _now()
+    except Exception:
+        pass
+
+    try:
+        r = requests.post(api_url, json=payload, headers=headers, timeout=openai_timeout)
+        if r.status_code == 200:
+            jr = r.json()
+            choices = jr.get("choices", [])
+            resp = choices[0].get("message", {}).get("content", "") if choices else ""
+            if not resp:
+                resp = "Mongo no know... Mongo only pawn in game of life"
+            elapsed = max(0.01, time.perf_counter() - start_time)
+            clean_log(f"OpenAI replied in {elapsed:.1f}s 🤖", emoji="", show_always=False, rate_limit=False)
+            try:
+                STATS.record_ai_response(elapsed)
+            except Exception:
+                pass
+            resp_with_time = f"{resp} ({int(round(elapsed))}s)"
+            if len(resp_with_time.encode("utf-8")) > MAX_RESPONSE_LENGTH:
+                encoded = resp_with_time.encode("utf-8")[:MAX_RESPONSE_LENGTH]
+                resp_with_time = encoded.decode("utf-8", errors="ignore")
+            return resp_with_time
+        else:
+            try:
+                err_detail = r.json().get("error", {}).get("message", r.text[:200])
+            except Exception:
+                err_detail = r.text[:200]
+            err = f"status {r.status_code}: {err_detail}"
+            clean_log(f"OpenAI error: {err}", "⚠️", show_always=False)
+            try:
+                globals()['ai_last_error'] = f"OpenAI {err}"
+                globals()['ai_last_error_time'] = _now()
+            except Exception:
+                pass
+            return _format_ai_error("OpenAI", err)
+    except Exception as e:
+        msg = f"OpenAI request failed: {e}"
+        clean_log(f"⚠️ {msg}", "⚠️", show_always=False)
+        try:
+            globals()['ai_last_error'] = msg
+            globals()['ai_last_error_time'] = _now()
+        except Exception:
+            pass
+        return _format_ai_error("OpenAI", str(e))
+
+
 def send_to_groq(
     user_message,
     sender_id=None,
@@ -14524,7 +14683,34 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
   if provider == "home_assistant":
     return send_to_home_assistant(prompt)
 
-  if provider == "groq":
+  if provider == "openai":
+    _log_high_cost(sender_id, "openai", prompt[:80])
+    response = send_to_openai(
+        prompt,
+        sender_id=sender_id,
+        is_direct=is_direct,
+        channel_idx=channel_idx,
+        thread_root_ts=thread_root_ts,
+        system_prompt=system_prompt,
+        use_history=use_history,
+        extra_context=extra_context,
+    )
+    # Fallback to Ollama if OpenAI-compatible endpoint fails
+    if isinstance(response, str) and ("⚠️" in response or "error" in response.lower()):
+        clean_log("🤖 OpenAI endpoint failed, falling back to Ollama...", "🔄", show_always=False)
+        _log_high_cost(sender_id, "ollama", prompt[:80])
+        response = send_to_ollama(
+            prompt,
+            sender_id=sender_id,
+            is_direct=is_direct,
+            channel_idx=channel_idx,
+            thread_root_ts=thread_root_ts,
+            system_prompt=system_prompt,
+            use_history=use_history,
+            extra_context=extra_context,
+            allow_streaming=(session_notice is None),
+        )
+  elif provider == "groq":
     _log_high_cost(sender_id, "groq", prompt[:80])
     response = send_to_groq(
         prompt,

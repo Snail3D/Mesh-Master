@@ -1,6 +1,7 @@
 protobuf==4.25.3
 tornado==6.5.1
 meshtastic==2.6.4
+meshcore>=2.3.0
 pubsub==0.1.2
 requests==2.32.4
 Flask==3.1.0
@@ -8,3 +9,6 @@ unidecode==1.4.0
 reportlab==4.4.4
 python-chess==1.999
 pytest==8.3.3
+openai>=1.0.0
+meshcore>=2.0.0
+bleak>=0.21.0

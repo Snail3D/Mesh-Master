@@ -7,7 +7,7 @@
 
 ## Project Overview
 
-**MESH MASTER v2.5** is an off-grid AI operations suite for Meshtastic LoRa mesh networks. It functions as a resilient AI copilot that remembers conversations, coordinates teams, and maintains network operations even when internet connectivity is unavailable.
+**MESH MASTER v2.6** is an off-grid AI operations suite for Meshtastic and MeshCore LoRa mesh networks. It functions as a resilient AI copilot that remembers conversations, coordinates teams, and maintains network operations even when internet connectivity is unavailable.
 
 **Repository:** https://github.com/Snail3D/Mesh-Master
 **Fork of:** Original Mesh Master by MR_TBOT
