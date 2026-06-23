@@ -138,14 +138,22 @@ class MeshCoreManager:
             logger.warning("send_direct called but MeshCore not connected")
             return False
         try:
+            print(f"[DEBUG] send_direct called: dst_key={dst_key[:8] if dst_key else 'None'}, text_len={len(text)}, _is_ready={self._is_ready()}, _mc={self._mc is not None}, _loop={self._loop is not None}")
             future = asyncio.run_coroutine_threadsafe(
                 self._mc.commands.send_msg(dst_key, text),
                 self._loop,
             )
             result = future.result(timeout=timeout)
+            print(f"[DEBUG] send_direct result: type={result.type}, error={result.type == EventType.ERROR}")
+            logger.info(f"send_direct: result.type={result.type}, EventType.ERROR={EventType.ERROR}")
             return result.type != EventType.ERROR
         except Exception as exc:
-            logger.error(f"send_direct failed: {exc}")
+            import traceback
+            tb_str = traceback.format_exc()
+            exc_str = str(exc) if str(exc) else "(empty message)"
+            exc_type = type(exc).__name__
+            print(f"[DEBUG] send_direct exception: type={exc_type}, msg={exc_str}")
+            logger.error(f"send_direct failed: type={exc_type}, msg={exc_str}\n{tb_str}")
             return False
 
     def send_direct_with_retry(self, dst_key: str, text: str, timeout: float = 30.0) -> bool:
