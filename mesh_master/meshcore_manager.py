@@ -310,7 +310,10 @@ class MeshCoreManager:
             logger.error(f"MeshCore event loop crashed: {exc}")
         finally:
             self._connected = False
-            self._loop.close()
+            # Delay closing the loop to allow BLE callbacks to complete
+            if self._loop and not self._loop.is_closed():
+                asyncio.run_coroutine_threadsafe(asyncio.sleep(0.5), self._loop).result(timeout=1.0)
+                self._loop.close()
             self._loop = None
 
     async def _connection_manager(self) -> None:
@@ -342,6 +345,10 @@ class MeshCoreManager:
         mc = await self._create_connection()
         if mc is None:
             raise ConnectionError(f"Failed to connect via {self._connection_type}")
+
+        # CRITICAL: Start the dispatcher before using mc
+        # The dispatcher must be running before BLE callbacks fire
+        await mc.dispatcher.start()
 
         self._mc = mc
         self._connected = True
