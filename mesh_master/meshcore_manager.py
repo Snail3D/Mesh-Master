@@ -163,6 +163,43 @@ class MeshCoreManager:
             logger.error(f"send_direct failed: type={exc_type}, msg={exc_str}\n{tb_str}")
             return False
 
+    def send_direct_chunks(self, dst_key: str, text: str, chunk_size: int = 150,
+                           chunk_delay: float = 2.0, timeout: float = 30.0) -> bool:
+        """
+        Send a direct message, splitting into chunks for LoRa.
+        Waits chunk_delay seconds between chunks to avoid overwhelming the network.
+        """
+        if not text:
+            return True
+        if not self._is_ready():
+            logger.warning("send_direct_chunks called but MeshCore not connected")
+            return False
+
+        # Split into chunks at word boundaries
+        chunks = []
+        while text:
+            if len(text) <= chunk_size:
+                chunks.append(text)
+                break
+            cut = text.rfind(' ', 0, chunk_size)
+            if cut == -1:
+                cut = chunk_size
+            chunks.append(text[:cut])
+            text = text[cut:].lstrip()
+
+        logger.info(f"send_direct_chunks: {len(chunks)} chunk(s) to {dst_key[:8]}")
+        all_ok = True
+        for i, chunk in enumerate(chunks):
+            if i > 0:
+                time.sleep(chunk_delay)
+            ok = self.send_direct(dst_key, chunk, timeout=timeout)
+            if not ok:
+                logger.error(f"send_direct_chunks: chunk {i+1}/{len(chunks)} failed")
+                all_ok = False
+            else:
+                logger.info(f"send_direct_chunks: chunk {i+1}/{len(chunks)} sent ({len(chunk)} chars)")
+        return all_ok
+
     def send_direct_with_retry(self, dst_key: str, text: str, timeout: float = 30.0) -> bool:
         """Send a direct message with automatic retry on failure."""
         if not self._is_ready():

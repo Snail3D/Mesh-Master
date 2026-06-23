@@ -19021,7 +19021,7 @@ def on_meshcore_message(msg: dict) -> None:
                     if sender_key:
                         import logging
                         logging.getLogger("meshcore_manager").info(f"on_meshcore_message: sending reply to {sender_key[:8]}, len={len(reply_text)}, preview={reply_text[:80]}...")
-                        mgr.send_direct(sender_key, reply_text)
+                        mgr.send_direct_chunks(sender_key, reply_text)
                     else:
                         clean_log("MeshCore DM reply skipped: no sender_key", "⚠️", show_always=False)
                 else:
