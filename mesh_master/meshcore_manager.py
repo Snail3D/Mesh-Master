@@ -139,6 +139,12 @@ class MeshCoreManager:
             return False
         try:
             print(f"[DEBUG] send_direct called: dst_key={dst_key[:8] if dst_key else 'None'}, text_len={len(text)}, _is_ready={self._is_ready()}, _mc={self._mc is not None}, _loop={self._loop is not None}")
+            
+            # Check if event loop is closed before attempting send
+            if self._loop and self._loop.is_closed():
+                logger.error("send_direct failed: event loop is closed")
+                return False
+                
             future = asyncio.run_coroutine_threadsafe(
                 self._mc.commands.send_msg(dst_key, text),
                 self._loop,
@@ -146,6 +152,11 @@ class MeshCoreManager:
             result = future.result(timeout=timeout)
             print(f"[DEBUG] send_direct result: type={result.type}, error={result.type == EventType.ERROR}")
             logger.info(f"send_direct: result.type={result.type}, EventType.ERROR={EventType.ERROR}")
+            
+            # If result is ERROR, log the reason
+            if result.type == EventType.ERROR:
+                logger.error(f"send_msg returned ERROR: {result.payload}, {result.attributes}")
+                
             return result.type != EventType.ERROR
         except Exception as exc:
             import traceback
@@ -455,6 +466,7 @@ class MeshCoreManager:
 
     async def _handle_disconnect(self, event: Any) -> None:
         """Handle a disconnect event from MeshCore."""
-        logger.warning("MeshCore device disconnected")
+        reason = event.payload.get("reason", "unknown") if isinstance(event.payload, dict) else str(event.payload)
+        logger.warning(f"MeshCore device disconnected: {reason}")
         self._connected = False
         self._set_status("Disconnected")
