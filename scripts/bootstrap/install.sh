@@ -143,20 +143,32 @@ if [[ "$OS" == "macos" ]] && [[ "$ARCH" == "arm64" ]]; then
     echo -e "  ${CYAN}Platform: Apple Silicon — using MLX${NC}"
     pip install mlx-lm -q
     
-    # Model selection — smallest uncensored Qwen3 that fits
-    MODEL_ID="mlx-community/Qwen2.5-7B-Instruct-4bit"
+    # Model: Qwen3.6-35B-A3B (same as LocalSnail) — 35B MoE, 3B active, 4-bit
+    # 19GB download, requires 32GB+ RAM for best performance
+    MODEL_ID="mlx-community/Qwen3.6-35B-A3B-4bit"
     
-    echo -e "  ${BLUE}Downloading model: $MODEL_ID${NC}"
-    echo -e "  ${YELLOW}(This may take a few minutes depending on your internet)...${NC}"
+    echo -e "  ${BLUE}Model: Qwen3.6-35B-A3B (4-bit MLX)${NC}"
+    echo -e "  ${YELLOW}  📦 Download size: ~19GB${NC}"
+    echo -e "  ${YELLOW}  💾 Recommended RAM: 32GB+${NC}"
+    echo -e "  ${YELLOW}  ⏱️  This will take a while depending on your internet...${NC}"
+    echo ""
     
     # Download model
     pip install huggingface_hub -q
     python3 -c "
 from huggingface_hub import snapshot_download
-snapshot_download('$MODEL_ID', local_dir='$INSTALL_DIR/model')
-print('Model downloaded successfully')
-" 2>/dev/null || {
+import sys
+print('Downloading Qwen3.6-35B-A3B-4bit (19GB)...')
+try:
+    path = snapshot_download('$MODEL_ID', local_dir='$INSTALL_DIR/model')
+    print(f'✅ Model downloaded to {path}')
+except Exception as e:
+    print(f'❌ Download failed: {e}', file=sys.stderr)
+    sys.exit(1)
+" || {
         echo -e "${RED}❌ Failed to download model. Check your internet connection.${NC}"
+        echo -e "   You can retry later with:"
+        echo -e "   python3 -c \"from huggingface_hub import snapshot_download; snapshot_download('$MODEL_ID', local_dir='$INSTALL_DIR/model')\""
         exit 1
     }
     
@@ -190,8 +202,14 @@ else
         LLLAMA_BIN="$INSTALL_DIR/llama.cpp/build/bin/llama-server"
     fi
     
-    # Download model (GGUF format)
-    MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf"
+    # Download model — Qwen3.6-35B-A3B GGUF (same model, different format)
+    echo -e "  ${BLUE}Model: Qwen3.6-35B-A3B (4-bit GGUF)${NC}"
+    echo -e "  ${YELLOW}  📦 Download size: ~20GB${NC}"
+    echo -e "  ${YELLOW}  💾 Recommended RAM: 32GB+${NC}"
+    echo -e "  ${YELLOW}  ⏱️  This will take a while...${NC}"
+    echo ""
+    
+    MODEL_URL="https://huggingface.co/Qwen/Qwen3.6-35B-A3B-GGUF/resolve/main/qwen3.6-35b-a3b-q4_k_m.gguf"
     MODEL_FILE="$INSTALL_DIR/model.gguf"
     
     if [[ ! -f "$MODEL_FILE" ]]; then
