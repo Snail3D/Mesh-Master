@@ -18964,10 +18964,9 @@ def on_meshcore_message(msg: dict) -> None:
         try:
             reply = parse_incoming_text(
                 text,
-                sender_id=sender_id,
-                is_direct=is_direct,
-                channel_idx=channel_idx,
-                sender_node=sender_name,
+                sender_id,
+                is_direct,
+                channel_idx,
             )
         except Exception as exc:
             clean_log(f"MeshCore parse_incoming_text error: {exc}", "⚠️", show_always=False)
