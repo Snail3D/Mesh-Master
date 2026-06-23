@@ -8953,6 +8953,7 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     "/yomomma": "Light-hearted yo momma jokes.",
     "/alarm": "Set an alarm: /alarm 2:34pm [daily|mm/dd|sunday] [label]",
     "/timer": "Start a countdown: /timer 10m [label]",
+    "/sendat": "Schedule a message: /sendat <time> <shortname> <message>",
     "/stopwatch": "Start/stop a stopwatch: /stopwatch start|stop|status",
     "/log": "Create a private log entry (only you can see it). Usage: /log <title>",
     "/checklog": "View your private log entries. Usage: /checklog [title]",
@@ -9562,7 +9563,7 @@ COMMAND_CATEGORY_DEFINITIONS: "OrderedDict[str, Dict[str, Any]]" = OrderedDict([
         {
             "label": "Utilities",
             "commands": [
-                "/alarm", "/timer", "/stopwatch", "/test", "/offline", "/system",
+                "/alarm", "/timer", "/sendat", "/stopwatch", "/test", "/offline", "/system",
             ],
         },
     ),
@@ -11959,10 +11960,15 @@ def _relay_worker():
                         except Exception:
                             pass
                         # Send confirmation back to sender
-                        send_direct_chunks(None, f"✅ Delivered to {target_shortname}", sender_id)
+                        send_direct_chunks(None, f"✅ Sent to {target_shortname}", sender_id)
                     else:
-                        clean_log(f"Relay to {target_shortname} failed via MeshCore", "⚠️")
-                        send_direct_chunks(None, f"❌ Failed to deliver to {target_shortname}", sender_id)
+                        clean_log(f"Relay to {target_shortname} failed via MeshCore - queuing offline", "📬")
+                        # Queue for offline delivery (same as Meshtastic path)
+                        queued = _queue_offline_relay(sender_id, target_node_id, target_shortname, message)
+                        if queued:
+                            send_direct_chunks(None, f"📬 {target_shortname} not reachable. Message queued for delivery when they come online.", sender_id)
+                        else:
+                            send_direct_chunks(None, f"❌ Failed to deliver to {target_shortname}", sender_id)
                     continue
 
                 if not interface:
@@ -17681,6 +17687,43 @@ Users can DM "telegram <message>" or "/telegram <message>" on mesh to forward th
     if ALARM_TIMER_MANAGER is None:
       return _cmd_reply(cmd, "Timer scheduler not available.")
     ok, msg = ALARM_TIMER_MANAGER.add_timer(sender_key, sender_id, remainder)
+    return _cmd_reply(cmd, msg)
+
+  elif cmd == "/sendat":
+    sender_key = _safe_sender_key(sender_id)
+    remainder = full_text[len(cmd):].strip()
+    if not sender_key:
+      return _cmd_reply(cmd, "⚠️ Unable to identify your session. Try again.")
+    low = remainder.lower()
+    if low.startswith("list"):
+      if ALARM_TIMER_MANAGER is None:
+        return _cmd_reply(cmd, "Scheduler not available.")
+      text = ALARM_TIMER_MANAGER.list_scheduled_messages(sender_key)
+      return _cmd_reply(cmd, text)
+    if low.startswith(("cancel", "delete", "remove")):
+      if ALARM_TIMER_MANAGER is None:
+        return _cmd_reply(cmd, "Scheduler not available.")
+      parts = remainder.split()
+      if len(parts) >= 2 and parts[1].lower() == "all":
+        text = ALARM_TIMER_MANAGER.clear_scheduled_messages(sender_key)
+        return _cmd_reply(cmd, text)
+      if len(parts) >= 2:
+        text = ALARM_TIMER_MANAGER.cancel_scheduled_message(sender_key, parts[1])
+        return _cmd_reply(cmd, text)
+      return _cmd_reply(cmd, "Usage: /sendat cancel <id|all>")
+    if not remainder:
+      return _cmd_reply(cmd, (
+        "📬 Schedule a message for later delivery\n\n"
+        "Usage: /sendat <time> <shortname> <message>\n\n"
+        "Examples:\n"
+        "  /sendat 3pm magda don't forget pickup\n"
+        "  /sendat in 1h snmo check the dish\n"
+        "  /sendat tomorrow 9am magda happy birthday\n\n"
+        "Commands: /sendat list | /sendat cancel <id>"
+      ))
+    if ALARM_TIMER_MANAGER is None:
+      return _cmd_reply(cmd, "Scheduler not available.")
+    ok, msg = ALARM_TIMER_MANAGER.add_scheduled_message(sender_key, sender_id, remainder)
     return _cmd_reply(cmd, msg)
 
   elif cmd == "/stopwatch":
@@ -35123,6 +35166,38 @@ def main():
                 send_direct_fn=send_direct_chunks,
             )
             ALARM_TIMER_MANAGER.start()
+
+            # Wire up relay callback for scheduled messages
+            def _scheduled_relay_cb(sender_node, target_shortname, message, sender_key):
+                """Relay callback for scheduled message delivery."""
+                try:
+                    # Resolve shortname to node ID
+                    target_nid = SHORTNAME_TO_NODE_CACHE.get(target_shortname)
+                    if not target_nid:
+                        # Try case-insensitive
+                        for sn, nid in SHORTNAME_TO_NODE_CACHE.items():
+                            if sn.lower() == target_shortname.lower():
+                                target_nid = nid
+                                break
+                    if not target_nid:
+                        clean_log(f"Scheduled relay: cannot resolve {target_shortname}", "⚠️")
+                        return False
+
+                    # Queue it through the standard relay system
+                    relay_task = {
+                        'sender_id': sender_node,
+                        'target_shortname': target_shortname,
+                        'target_node_id': target_nid,
+                        'relay_text': f"📨 Scheduled relay from {get_node_shortname(sender_node)}:\n{message}\n\n💬 To reply: {get_node_shortname(sender_node).lower()} <your message>",
+                        'message': message,
+                    }
+                    RELAY_QUEUE.put(relay_task, block=False)
+                    return True
+                except Exception as e:
+                    clean_log(f"Scheduled relay error: {e}", "⚠️")
+                    return False
+
+            ALARM_TIMER_MANAGER.set_relay_callback(_scheduled_relay_cb)
         except Exception:
             pass
 

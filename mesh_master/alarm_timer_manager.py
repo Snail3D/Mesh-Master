@@ -73,8 +73,12 @@ class AlarmTimerManager:
             "alarms": {},
             "timers": {},
             "stopwatches": {},
+            "scheduled_messages": {},
         }
         self._load()
+        # Ensure scheduled_messages key exists in loaded state
+        if "scheduled_messages" not in self.state:
+            self.state["scheduled_messages"] = {}
 
     # Persistence ------------------------------------------------------
     def _load(self) -> None:
@@ -85,6 +89,7 @@ class AlarmTimerManager:
             self.state["alarms"] = data.get("alarms") or {}
             self.state["timers"] = data.get("timers") or {}
             self.state["stopwatches"] = data.get("stopwatches") or {}
+            self.state["scheduled_messages"] = data.get("scheduled_messages") or {}
 
     def _save(self) -> None:
         with self._lock:
@@ -445,6 +450,213 @@ class AlarmTimerManager:
         self._save()
         return f"⏹️ Stopwatch stopped at {_fmt_hms(elapsed)}."
 
+    # Scheduled messages ----------------------------------------------
+    def add_scheduled_message(
+        self,
+        sender_key: str,
+        sender_node_id: Any,
+        text: str,
+        resolve_shortname_fn: Optional[Callable] = None,
+    ) -> Tuple[bool, str]:
+        """Schedule a message to be relayed at a future time.
+
+        Syntax: <time> <shortname> <message>
+        Examples:
+          3pm magda don't forget the pickup
+          2:30 snmo status update please
+          tomorrow 9am magda happy birthday
+          in 1h snmo check the dish
+        """
+        parts = [p for p in (text or "").strip().split() if p]
+        if not parts:
+            return False, (
+                "Usage: /sendat <time> <shortname> <message>\n"
+                "Examples:\n"
+                "  /sendat 3pm magda don't forget pickup\n"
+                "  /sendat in 1h snmo check the dish\n"
+                "  /sendat tomorrow 9am magda happy birthday"
+            )
+
+        now_dt = datetime.now().astimezone()
+        now = _now_ts()
+        idx = 0
+        due_ts: Optional[float] = None
+
+        # Handle "in <duration>" syntax: "in 1h", "in 30m", "in 2h30m"
+        if parts[0].lower() == "in" and len(parts) >= 2:
+            secs = self._parse_duration(parts[1])
+            if secs and secs > 0:
+                due_ts = now + int(secs)
+                idx = 2
+        else:
+            # Try to parse time-of-day from first token
+            parsed = self._parse_time_of_day(parts[0])
+            if parsed:
+                hh, mm = parsed
+                target = now_dt.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                # If time already passed today, assume tomorrow
+                if target.timestamp() <= now:
+                    target = target + timedelta(days=1)
+                # Check for date hint in next token
+                next_idx = 1
+                if len(parts) > 1:
+                    date_hint = self._parse_date_hint(parts[1], now_dt)
+                    if date_hint:
+                        target = date_hint.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                        if target.timestamp() <= now:
+                            return False, "That time has already passed."
+                        next_idx = 2
+                due_ts = target.timestamp()
+                idx = next_idx
+            else:
+                # Try date first, then time
+                date_hint = self._parse_date_hint(parts[0], now_dt)
+                if date_hint and len(parts) > 1:
+                    parsed = self._parse_time_of_day(parts[1])
+                    if parsed:
+                        hh, mm = parsed
+                        target = date_hint.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                        if target.timestamp() <= now:
+                            return False, "That time has already passed."
+                        due_ts = target.timestamp()
+                        idx = 2
+
+        if due_ts is None:
+            return False, (
+                "Couldn't understand the time. Examples:\n"
+                "  /sendat 3pm magda message\n"
+                "  /sendat in 1h snmo message\n"
+                "  /sendat tomorrow 9am magda message"
+            )
+
+        remaining = parts[idx:]
+        if len(remaining) < 2:
+            return False, "Need a shortname and message. Example: /sendat 3pm magda hello there"
+
+        target_shortname = remaining[0]
+        message = " ".join(remaining[1:])[:200]  # Cap at 200 chars for radio
+        if not message:
+            return False, "Need a message to send."
+
+        sched = {
+            "id": uuid.uuid4().hex[:6],
+            "sender_key": sender_key,
+            "sender_node_id": sender_node_id,
+            "target_shortname": target_shortname,
+            "message": message,
+            "due_ts": float(due_ts),
+            "created_ts": now,
+            "delivered": False,
+            "attempts": 0,
+        }
+        with self._lock:
+            self.state.setdefault("scheduled_messages", {}).setdefault(sender_key, []).append(sched)
+        self._save()
+
+        when_str = datetime.fromtimestamp(due_ts).strftime("%a %I:%M %p")
+        return True, (
+            f"📬 Scheduled for {when_str}\n"
+            f"To: {target_shortname}\n"
+            f"Msg: {message[:60]}{'...' if len(message) > 60 else ''}\n"
+            f"ID: {sched['id']}"
+        )
+
+    def list_scheduled_messages(self, sender_key: str) -> str:
+        with self._lock:
+            items = list(self.state.get("scheduled_messages", {}).get(sender_key, []))
+        # Filter out delivered/expired
+        now = _now_ts()
+        active = [s for s in items if not s.get("delivered") and float(s.get("due_ts", 0)) > now]
+        if not active:
+            return "No scheduled messages. Use /sendat <time> <shortname> <message>"
+        lines = ["Your scheduled messages:"]
+        for s in active:
+            due = datetime.fromtimestamp(float(s.get("due_ts", 0))).strftime("%a %I:%M %p")
+            target = s.get("target_shortname", "?")
+            msg = s.get("message", "")[:40]
+            lines.append(f"• {s.get('id')}: {due} → {target}: {msg}")
+        return "\n".join(lines)
+
+    def cancel_scheduled_message(self, sender_key: str, msg_id: str) -> str:
+        with self._lock:
+            items = list(self.state.get("scheduled_messages", {}).get(sender_key, []))
+            new_items = [s for s in items if str(s.get("id")) != str(msg_id)]
+            removed = len(items) - len(new_items)
+            if removed:
+                self.state["scheduled_messages"][sender_key] = new_items
+                self._save()
+        if removed:
+            return f"✅ Cancelled scheduled message {msg_id}."
+        return "No matching scheduled message found."
+
+    def clear_scheduled_messages(self, sender_key: str) -> str:
+        with self._lock:
+            items = self.state.get("scheduled_messages", {}).get(sender_key, [])
+            count = len([s for s in items if not s.get("delivered")])
+            self.state.get("scheduled_messages", {}).pop(sender_key, None)
+            if count:
+                self._save()
+        return f"Cleared {count} scheduled message(s)."
+
+    def _tick_scheduled_messages(self, now: float) -> None:
+        """Check for due scheduled messages and deliver them via relay."""
+        with self._lock:
+            items_by_user = dict(self.state.get("scheduled_messages", {}))
+        for user_key, items in list(items_by_user.items()):
+            if not items:
+                continue
+            for s in list(items):
+                if s.get("delivered"):
+                    continue
+                if float(s.get("due_ts", 0)) > now:
+                    continue
+                if s.get("attempts", 0) >= 3:
+                    s["delivered"] = True  # Give up
+                    self._send_dm(
+                        s.get("sender_node_id"),
+                        f"❌ Scheduled message to {s.get('target_shortname')} "
+                        f"failed after 3 attempts."
+                    )
+                    continue
+
+                s["attempts"] = s.get("attempts", 0) + 1
+                target = s.get("target_shortname", "")
+                message = s.get("message", "")
+                sender_node = s.get("sender_node_id")
+
+                # Try to relay via the global relay queue
+                try:
+                    # Import here to avoid circular imports
+                    import mesh_master.alarm_timer_manager as _self_mod
+                    # Use the callback set by mesh-master.py
+                    relay_fn = getattr(self, "_relay_callback", None)
+                    if relay_fn:
+                        success = relay_fn(sender_node, target, message, user_key)
+                        if success:
+                            s["delivered"] = True
+                            self._send_dm(
+                                sender_node,
+                                f"✅ Scheduled message delivered to {target}."
+                            )
+                        else:
+                            # Will retry next tick
+                            pass
+                    else:
+                        # No relay callback — deliver as DM to sender as fallback
+                        s["delivered"] = True
+                        self._send_dm(
+                            sender_node,
+                            f"📨 (Scheduled) Relay to {target}: {message}"
+                        )
+                except Exception:
+                    pass
+
+        self._save()
+
+    def set_relay_callback(self, fn: Callable) -> None:
+        """Set the relay function used to deliver scheduled messages."""
+        self._relay_callback = fn
+
     # Background worker ------------------------------------------------
     def _tick_alarms(self, now: float) -> None:
         with self._lock:
@@ -529,6 +741,7 @@ class AlarmTimerManager:
                 self._tick_alarms(now)
                 self._tick_timers(now)
                 self._tick_stopwatches(now)
+                self._tick_scheduled_messages(now)
             except Exception:
                 time.sleep(1)
             time.sleep(1)
