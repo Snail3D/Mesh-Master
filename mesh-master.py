@@ -35038,6 +35038,9 @@ def main():
         """Helper: create, start and register the MeshCoreManager. Returns the manager or None."""
         def _meshcore_status_cb(status: str) -> None:
             clean_log(f"MeshCore: {status}", "📡", show_always=False)
+            # CRITICAL: update global connection_status so connection_monitor
+            # doesn't trigger a restart loop (it checks connection_status == "Disconnected")
+            globals()['connection_status'] = status
         try:
             mgr = MeshCoreManager(
                 on_message=on_meshcore_message,
