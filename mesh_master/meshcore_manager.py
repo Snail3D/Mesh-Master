@@ -365,22 +365,6 @@ class MeshCoreManager:
         except Exception as exc:
             logger.warning(f"Failed to start auto message fetching: {exc}")
 
-        # Backup message polling — some devices don't reliably emit
-        # MESSAGES_WAITING events, so poll every 5s as a fallback.
-        # This replaces the accidental polling the old restart loop provided.
-        async def _poll_messages():
-            while self._running and self._connected:
-                try:
-                    await asyncio.sleep(5)
-                    if not self._connected or self._mc is None:
-                        break
-                    result = await self._mc.commands.get_msg()
-                    # If no messages, result will be NO_MORE_MSGS — that's fine
-                except Exception:
-                    pass
-
-        asyncio.create_task(_poll_messages())
-
         # Keep running until stopped or disconnected
         while self._running and self._connected:
             await asyncio.sleep(0.5)
