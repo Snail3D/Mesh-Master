@@ -41,6 +41,7 @@ RUN pip install --no-cache-dir --upgrade \
 WORKDIR /app
 COPY mesh-master.py .
 COPY mesh_master ./mesh_master
+COPY scripts ./scripts
 COPY data ./data
 COPY static ./static
 COPY requirements.txt .
