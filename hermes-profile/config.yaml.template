@@ -1,0 +1,101 @@
+# Mesh Master Hermes Profile — Configuration Template
+#
+# Copy this to ~/.hermes-supabot/profiles/meshmaster/config.yaml
+# and fill in your values. Run: ./install-profile.sh
+#
+# IMPORTANT: Never commit your real config.yaml — it contains API keys.
+
+model:
+  provider: custom
+  default: /Users/snailmac/models/Qwen3.6-35B-A3B-4bit-mlx
+  base_url: http://127.0.0.1:8087/v1
+  api_key: sk-none
+  context_length: 262144
+  max_tokens: 32768
+  timeout: 180
+  supports_vision: true
+providers: {}
+fallback_providers: []
+credential_pool_strategies: {}
+toolsets: '["terminal","web","file","browser","skills","vision","computer_use","todo","memory","session_search"]'
+max_concurrent_sessions: null
+
+agent:
+  max_turns: 90
+  gateway_timeout: 1800
+  restart_drain_timeout: 60
+  api_max_retries: 3
+  tool_use_enforcement: auto
+  task_completion_guidance: true
+  parallel_tool_call_guidance: true
+  environment_probe: true
+  environment_hint: ''
+  coding_context: auto
+  gateway_timeout_warning: 900
+  clarify_timeout: 600
+  gateway_notify_interval: 600
+  gateway_auto_continue_freshness: 3600
+  image_input_mode: auto
+  disabled_toolsets: []
+
+terminal:
+  backend: local
+  cwd: .
+  timeout: 180
+  persistent_shell: true
+
+# Auto-approve all commands — mesh agent is fully autonomous
+yolo: true
+
+approvals:
+  mode: false
+  timeout: 60
+  cron_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: false
+
+security:
+  redact_secrets: true
+  tirith_enabled: false
+  allow_lazy_installs: true
+
+# Use a different port from the default (8643) to avoid conflicts
+platforms:
+  api_server:
+    enabled: false
+    extra:
+      port: 8650
+      host: 127.0.0.1
+    port: 8650
+
+# Telegram bot — fill in your bot token from @BotFather
+# telegram:
+#   bot_token: YOUR_BOT_TOKEN_HERE
+
+plugins:
+  enabled: []
+
+display:
+  language: en
+  show_reasoning: false
+
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+  memory_char_limit: 2200
+  user_char_limit: 1375
+
+delegation:
+  max_concurrent_children: 3
+  max_spawn_depth: 1
+  orchestrator_enabled: true
+
+curator:
+  enabled: true
+  interval_hours: 168
+  min_idle_hours: 2
+  stale_after_days: 30
+  prune_builtins: true
+
+skills:
+  disabled: []
