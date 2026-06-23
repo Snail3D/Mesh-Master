@@ -10180,7 +10180,7 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
         response = requests.post(
             AGENT_URL,
             json=payload,
-            timeout=30,
+            timeout=120,
             headers={"Content-Type": "application/json"}
         )
         add_script_log(f"[Agent] Response status: {response.status_code}")
