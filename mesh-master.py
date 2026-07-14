@@ -14892,6 +14892,13 @@ def get_ai_response(prompt, sender_id=None, is_direct=False, channel_idx=None, t
       return response
     if isinstance(response, str):
       return f"{session_notice}\n\n{response}" if response else session_notice
+  # StreamingResult: chunks were already pushed over LoRa by send_to_ollama,
+  # or streaming was disabled and the full text is sitting in .text.
+  # Unwrap so downstream code never sees the dataclass repr.
+  if isinstance(response, StreamingResult):
+    if response.already_sent:
+      return PendingReply(response.text or "", "streaming-sent", send_reply=False)
+    return PendingReply(response.text or "", "streaming-result")
   return response
 # -----------------------------
 # Helper: Validate/Strip PIN (for Home Assistant)
@@ -19740,7 +19747,7 @@ def api_password_hint():
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
 # Version caching - force fetch on startup by setting last_fetch to 0
-_version_cache = {'version': 'v2.6.1', 'last_fetch': 0}
+_version_cache = {'version': 'v2.6.2', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
 def _get_current_version():
