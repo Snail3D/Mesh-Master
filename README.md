@@ -112,6 +112,50 @@ Mesh Master v2.6 supports both Meshtastic and MeshCore protocols:
 | `use_meshcore` | `true`/`false` | Enable MeshCore alongside Meshtastic |
 | `meshcore_connection_type` | `serial`, `ble`, `tcp` | How to connect to the MeshCore device |
 
+### macOS BLE Connection (LaunchAgent required)
+
+On macOS 15+, running Mesh Master with `meshcore_connection_type: "ble"` from an SSH session or `osascript`-launched Terminal will fail with:
+
+```
+ERROR:meshcore_manager:MeshCore _create_connection failed: BLE is not authorized - check macOS privacy settings
+```
+
+macOS TCC denies CoreBluetooth access to processes launched without a GUI context, and the permission prompt never appears. Even after `tccutil reset All`, SSH-launched Python cannot trigger the dialog.
+
+**Fix:** run Mesh Master as a user LaunchAgent so launchd provides the proper CoreBluetooth context:
+
+```bash
+# 1. Create the plist
+cat > ~/Library/LaunchAgents/com.snail.mesh-master.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.snail.mesh-master</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOUR_USER/Mesh-Master/.venv/bin/python</string>
+        <string>/Users/YOUR_USER/Mesh-Master/mesh-master.py</string>
+    </array>
+    <key>WorkingDirectory</key><string>/Users/YOUR_USER/Mesh-Master</string>
+    <key>StandardOutPath</key><string>/Users/YOUR_USER/Mesh-Master/mesh-master.log</string>
+    <key>StandardErrorPath</key><string>/Users/YOUR_USER/Mesh-Master/mesh-master.log</string>
+</dict>
+</plist>
+EOF
+
+# 2. Load and start
+launchctl load ~/Library/LaunchAgents/com.snail.mesh-master.plist
+launchctl start com.snail.mesh-master
+
+# 3. Verify
+lsof -i :5001 | grep LISTEN
+tail -f ~/Mesh-Master/mesh-master.log | grep -iE 'meshcore|ble|connect'
+```
+
+Only one BLE client can hold the radio at a time — disconnect any MeshCore companion app or iPhone app before starting.
+
+
 ### MeshCore vs Meshtastic
 
 | | Meshtastic | MeshCore |
