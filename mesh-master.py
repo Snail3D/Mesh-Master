@@ -18267,6 +18267,30 @@ def _admin_control_command(text: str, sender_id: Any, sender_key: str, channel_i
     return PendingReply(f"🛠️ Command {normalized} {verb}.", "admin control")
 
 
+def _resolve_meshcore_shortname(sender_id) -> str:
+    """Resolve a MeshCore sender_id (mc_<pubkey_prefix>) to a contact name."""
+    if sender_id is None:
+        return "Unknown"
+    s = str(sender_id)
+    if s.startswith("mc_") and len(s) > 3:
+        prefix = s[3:]
+        try:
+            mgr = globals().get("MESHCORE_MANAGER")
+            if mgr and mgr.is_connected:
+                name = mgr.get_contact_name(prefix)
+                if name and not name.startswith(prefix):
+                    return name
+        except Exception:
+            pass
+    try:
+        name = get_node_shortname(sender_id)
+        if name and not name.startswith("Node_"):
+            return name
+        return name or f"Node_{s}"
+    except Exception:
+        return f"Node_{s}"
+
+
 def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=None, check_only=False):
   dprint(f"parse_incoming_text => text={_redact_message_content(text)} is_direct={is_direct} channel={channel_idx} check_only={check_only}")
   sender_key = _safe_sender_key(sender_id)
@@ -18299,7 +18323,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
 
     if user_message:
       # Get sender's shortname using existing helper function
-      sender_name = get_node_shortname(sender_id)
+      sender_name = _resolve_meshcore_shortname(sender_id)
 
       # Forward to Telegram with shortname (no reply instructions on Telegram side)
       telegram_msg = f"📨 DM from {sender_name}:\n\n{user_message}"
@@ -19749,7 +19773,7 @@ def api_password_hint():
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
 # Version caching - force fetch on startup by setting last_fetch to 0
-_version_cache = {'version': 'v2.6.4', 'last_fetch': 0}
+_version_cache = {'version': 'v2.6.5', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
 def _get_current_version():
@@ -34991,6 +35015,17 @@ if TELEGRAM_AVAILABLE:
                     else:
                         await update.message.reply_text("❌ No mesh interface available")
                 else:
+                    # Short ack words from Telegram users should not trigger AI replies.
+                    # Common acks: got it, ok, okay, thanks, ty, thumbs up, etc.
+                    _ack_pattern = re.compile(
+                        r"^(?:got\s*it|ok(?:ay)?|k\b|thanks?(?:\s+a\s*lot)?|ty\b|"
+                        r"cheers|cool|nice|roger|copy|10-4|👍|🙏|❤️|\s*)$",
+                        re.IGNORECASE,
+                    )
+                    if _ack_pattern.match(text.strip()):
+                        add_script_log(f"Telegram short-ack from {chat_id}, ignoring: {text[:30]}")
+                        # Do not send a reply; acks are silent.
+                        return
                     # Not a DM or channel, treat as AI query - queue directly to AsyncAI
                     add_script_log(f"AI query (len={len(text)})")
                     ai_enabled = is_ai_enabled()
