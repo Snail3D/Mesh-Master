@@ -455,6 +455,8 @@ class MeshCoreManager:
             sender_name = self.get_contact_name(pubkey_prefix)
             sender_id = f"mc_{pubkey_prefix}"
 
+            # Propagate RF/route fields from MeshCore payload so Telegram & dashboard
+            # can show hops, SNR, RSSI. Keys match what meshcore.reader.py puts in the payload.
             normalized = {
                 "type": "direct",
                 "sender_id": sender_id,
@@ -465,6 +467,13 @@ class MeshCoreManager:
                 "is_direct": True,
                 "timestamp": payload.get("sender_timestamp", int(time.time())),
                 "raw": payload,
+                # RF/route metadata (only present in V3 packets or when logged)
+                "snr": payload.get("SNR"),
+                "rssi": payload.get("RSSI"),
+                "path_len": payload.get("path_len"),
+                "path_hash_mode": payload.get("path_hash_mode"),
+                "path": payload.get("path"),
+                "attempt": payload.get("attempt"),
             }
             logger.debug(f"MeshCore DM from {sender_name}: [{len(text)} chars]")
             # CRITICAL: dispatch to a separate thread — the callback may call
@@ -491,6 +500,8 @@ class MeshCoreManager:
             sender_id = f"mc_chan{channel_idx}"
             sender_name = f"Channel {channel_idx}"
 
+            # Propagate RF/route fields from MeshCore payload so Telegram & dashboard
+            # can show hops, SNR, RSSI. Keys match what meshcore.reader.py puts in the payload.
             normalized = {
                 "type": "channel",
                 "sender_id": sender_id,
@@ -501,6 +512,13 @@ class MeshCoreManager:
                 "is_direct": False,
                 "timestamp": payload.get("sender_timestamp", int(time.time())),
                 "raw": payload,
+                # RF/route metadata (only present in V3 packets or when logged)
+                "snr": payload.get("SNR"),
+                "rssi": payload.get("RSSI"),
+                "path_len": payload.get("path_len"),
+                "path_hash_mode": payload.get("path_hash_mode"),
+                "path": payload.get("path"),
+                "attempt": payload.get("attempt"),
             }
             logger.debug(f"MeshCore CH{channel_idx}: [{len(text)} chars]")
             # CRITICAL: dispatch to a separate thread (same reason as DM handler)

@@ -6424,7 +6424,11 @@ except (ValueError, TypeError):
     OLLAMA_NUM_CTX = 8192
 # Max messages to include in conversation context (limits to recent exchanges for performance)
 try:
-    OLLAMA_MAX_MESSAGES = int(config.get("ollama_max_messages", 20))
+    # Rolling history: keep last N user+AI exchanges (default 10 turns = 20 messages).
+    # Configurable via ollama_history_turns; falls back to legacy ollama_max_messages.
+    _history_turns = int(config.get("ollama_history_turns", 10))
+    _legacy_max = int(config.get("ollama_max_messages", 0)) or 0
+    OLLAMA_MAX_MESSAGES = max(2, _history_turns * 2 if _legacy_max == 0 else _legacy_max)
 except (ValueError, TypeError):
     OLLAMA_MAX_MESSAGES = 20
 
@@ -7112,14 +7116,12 @@ def build_system_prompt_for_sender(sender_id: Any) -> str:
         "If the user asks you to \"send a relay to X\", respond with a shortname-prefixed message like \"X <their message>\" "
         "so the relay system takes over. Never invent node numbers, packet IDs, ACK times, or success messages.\n\n"
         f"{contacts_line}\n\n"
-        "Your capabilities:\n"
+        "Your capabilities (use these when relevant, do not refuse questions by sending users elsewhere):\n"
         "- /mail — PIN-protected mesh mail system for async messaging between nodes\n"
-        "- /agent or /hermes — escalate to full Hermes agent with computer control, terminal, email, and web access\n"
         "- /log, /report — private logs and public reports\n"
         "- /wiki, /web — offline Wikipedia and web search\n"
         "- 20+ games, alarms, timers, and more\n"
-        "When a user asks to send email, use the internet, or do something beyond LoRa radio, "
-        "tell them to use /agent <request> which escalates to a full AI agent with internet and computer access. "
+        "Just answer the user\u2019s question directly. If you do not know the answer, say so plainly. "
         "Keep replies under 200 characters when possible due to radio bandwidth."
     )
 
@@ -19747,7 +19749,7 @@ def api_password_hint():
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
 # Version caching - force fetch on startup by setting last_fetch to 0
-_version_cache = {'version': 'v2.6.2', 'last_fetch': 0}
+_version_cache = {'version': 'v2.6.4', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
 def _get_current_version():
@@ -34894,76 +34896,100 @@ if TELEGRAM_AVAILABLE:
 
                 add_script_log(f"Check DM: node={target_node_id}, msg_len={len(message_text)}, both={bool(target_node_id and message_text)}")
                 if target_node_id and message_text:
-                    # It's a DM to a specific node - queue to relay system for ACK tracking
+                    # It's a DM to a specific node (MeshCore path; falls back to Meshtastic if no manager)
                     add_script_log(f"Sending DM to {target_name}")
-                    if interface:
-                        # Send DM directly and send ACK notification to Telegram
+                    mgr = globals().get("MESHCORE_MANAGER")
+                    if mgr and mgr.is_connected:
+                        import threading
+
+                        def send_dm_bg():
+                            try:
+                                # For MeshCore, target_node_id is the pubkey prefix; add reply instructions
+                                message_with_instructions = f"{message_text}\n\n---\nReply with: telegram <message>"
+                                ok = mgr.send_direct_chunks(target_node_id, message_with_instructions)
+                                result_msg = f"📨 Sent to {target_name}" if ok else f"⚠️ DM to {target_name} may have failed"
+                                import requests
+                                bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
+                                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                                requests.post(url, json={"chat_id": chat_id, "text": result_msg}, timeout=10)
+                            except Exception as e:
+                                clean_log(f"❌ DM send failed: {e}", "❌", show_always=False)
+
+                        thread = threading.Thread(target=send_dm_bg, daemon=True)
+                        thread.start()
+                    elif interface:
+                        # Legacy Meshtastic fallback
                         import threading
 
                         def send_dm():
                             try:
-                                # Add reply instructions to message sent to mesh user
                                 message_with_instructions = f"{message_text}\n\n---\nReply with: telegram <message>"
                                 interface.sendText(message_with_instructions, destinationId=target_node_id)
-                                # Send simple confirmation to Telegram
                                 import requests
                                 bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
                                 url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
                                 requests.post(url, json={"chat_id": chat_id, "text": f"📨 Sent to {target_name}"}, timeout=10)
                             except Exception as e:
-                                # Send error to Telegram
                                 import requests
                                 bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
                                 url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
                                 requests.post(url, json={"chat_id": chat_id, "text": f"❌ Send failed: {e}"}, timeout=10)
 
-                        # Send in background thread
                         thread = threading.Thread(target=send_dm, daemon=True)
                         thread.start()
                     else:
-                        await update.message.reply_text("❌ Interface not available")
+                        await update.message.reply_text("❌ No mesh interface available")
                 elif target_channel_idx is not None and message_text:
-                    # It's a channel message
+                    # It's a channel message (MeshCore path; falls back to Meshtastic interface if no manager)
                     add_script_log(f"Telegram channel message: {target_name} -> channel {target_channel_idx}, len={len(message_text)}")
-                    if interface:
-                        # Send with ACK tracking in background (don't await - let it notify later)
-                        import asyncio
+                    mgr = globals().get("MESHCORE_MANAGER")
+                    if mgr and mgr.is_connected:
                         import threading
+
+                        def send_channel_bg():
+                            try:
+                                ok = mgr.send_channel(target_channel_idx, message_text)
+                                result_msg = f"✅ Sent to {target_name}" if ok else f"⚠️ Channel send to {target_name} may have failed"
+                                import requests
+                                bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
+                                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                                requests.post(url, json={"chat_id": chat_id, "text": result_msg}, timeout=10)
+                            except Exception as e:
+                                clean_log(f"❌ Channel send failed: {e}", "❌", show_always=False)
+
+                        thread = threading.Thread(target=send_channel_bg, daemon=True)
+                        thread.start()
+                        add_script_log("Telegram channel send dispatched via MeshCore manager")
+                    elif interface:
+                        # Legacy Meshtastic fallback
+                        import asyncio
                         loop = asyncio.get_event_loop()
 
                         def send_channel_and_track():
-                            # Send message
                             chunks = split_message(message_text)
                             packet_ids = []
-
                             for chunk in chunks:
                                 try:
                                     packet = interface.sendText(chunk, channelIndex=target_channel_idx, wantAck=True)
-                                    # Extract packet ID from MeshPacket object
                                     packet_id = packet.id if hasattr(packet, 'id') else packet
                                     if packet_id:
                                         packet_ids.append(packet_id)
                                 except Exception as e:
                                     clean_log(f"❌ Send failed: {e}", "❌", show_always=False, rate_limit=False)
-
-                            # For channel messages, just confirm sent (no individual ACKs expected)
                             if packet_ids:
-                                time.sleep(2)  # Brief delay
-                                result_msg = f"✅ Sent to {target_name}"
-
-                                # Send via HTTP (sync)
+                                time.sleep(2)
                                 try:
                                     import requests
                                     bot_token = telegram_app.bot.token if telegram_app and telegram_app.bot else ""
                                     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                                    requests.post(url, json={"chat_id": chat_id, "text": result_msg}, timeout=10)
+                                    requests.post(url, json={"chat_id": chat_id, "text": f"✅ Sent to {target_name}"}, timeout=10)
                                 except Exception as e:
                                     clean_log(f"❌ Channel ack notify failed: {e}", "❌", show_always=False, rate_limit=False)
 
                         loop.run_in_executor(None, send_channel_and_track)
-                        add_script_log("Telegram channel message queued")
+                        add_script_log("Telegram channel message queued (Meshtastic fallback)")
                     else:
-                        await update.message.reply_text("❌ Interface not available")
+                        await update.message.reply_text("❌ No mesh interface available")
                 else:
                     # Not a DM or channel, treat as AI query - queue directly to AsyncAI
                     add_script_log(f"AI query (len={len(text)})")
