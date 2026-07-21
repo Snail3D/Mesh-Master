@@ -19218,11 +19218,37 @@ def on_meshcore_message(msg: dict) -> None:
             clean_log(f"MeshCore send reply error: {exc}", "⚠️", show_always=False)
 
         # ----------------------------------------------------------------
-        # v2.6.6: forward inbound MeshCore messages to Telegram (the
-        # "public chat forwarding" path that the Meshtastic on_receive()
-        # branch already covers). DMs get a discreet notification,
-        # channel messages get full text + hops + SNR/RSSI metadata.
+        # v2.6.6: forward inbound MeshCore messages to Telegram. v2.6.7:
+        # unicode/emoji-safe (strip Telegram Markdown metachars; truncate
+        # runaway names; allow per-protocol channel names; defend against
+        # usernames containing * _ [ ` which would otherwise mangle
+        # the rendered message. User feedback: snail emoji as username
+        # is canonical; obscure multi-codepoint emoji sequences must
+        # work end-to-end.
         # ----------------------------------------------------------------
+        def _tg_escape(value):
+            """Escape Telegram-special characters in user-supplied strings.
+
+            Telegram parses these as Markdown / entity chars in plain
+            messages. Stripping (NOT quoting) is the safer default because
+            most meshes rarely need formatting in their shortname.
+            """
+            if not isinstance(value, str):
+                value = str(value) if value is not None else ""
+            return re.sub(r"([_*[\`])", "", value)
+
+        def _tg_truncate(value, limit=64):
+            """Truncate a string by visible-char count, not bytes.
+
+            Emoji like 🐌 are 1 visible character but 4 UTF-8 bytes; a
+            naive byte-truncate can split a codepoint and produce mojibake.
+            """
+            if not isinstance(value, str):
+                value = str(value) if value is not None else ""
+            if len(value) <= limit:
+                return value
+            return value[:limit].rstrip() + "…"
+
         try:
             if not telegram_config.get("enabled"):
                 pass  # forwarding disabled when telegram is off
@@ -19239,19 +19265,36 @@ def on_meshcore_message(msg: dict) -> None:
                     _mc_meta.append(f"RSSI {rssi}")
                 _meta_suffix = f" ({' · '.join(_mc_meta)})" if _mc_meta else ""
 
+                # Sanitize sender_name: strip Telegram Markdown metachars
+                # and truncate to 64 visible chars. Preserves arbitrary
+                # unicode (snail emoji 🐌, multi-codepoint sequences).
+                safe_sender = _tg_truncate(_tg_escape(sender_name or "Unknown"))
+
                 if is_direct:
                     # DM notification: discreet, no message body (privacy)
-                    forward_text = f"📨 DM from {sender_name}{_meta_suffix}"
+                    forward_text = f"📨 DM from {safe_sender}{_meta_suffix}"
                 else:
-                    # Resolve channel name from config.json channel_names
-                    _ch_names = (config.get("channel_names") if isinstance(config, dict) else None) or {}
+                    # Resolve channel name. Prefer meshcore_channel_names
+                    # (per-protocol), fall back to channel_names (shared),
+                    # fall back to "Channel {idx}".
+                    _cfg = config if isinstance(config, dict) else {}
+                    _mc_ch_names = _cfg.get("meshcore_channel_names") or {}
+                    _ch_names = _mc_ch_names or _cfg.get("channel_names") or {}
                     if isinstance(_ch_names, dict):
-                        _ch_name = _ch_names.get(str(channel_idx)) or _ch_names.get(channel_idx)
+                        _ch_name = (
+                            _ch_names.get(str(channel_idx))
+                            or _ch_names.get(channel_idx)
+                        )
                     else:
                         _ch_name = None
                     if not _ch_name:
                         _ch_name = f"Channel {channel_idx}"
-                    forward_text = f"{_ch_name}|{sender_name}: {text}{_meta_suffix}"
+                    safe_ch = _tg_truncate(_tg_escape(_ch_name), 32)
+                    # Sanitize the message body too — protects against
+                    # an inbound message with formatting chars getting
+                    # rendered as bold/italic/link in Telegram.
+                    safe_text = _tg_truncate(_tg_escape(text or ""), 500)
+                    forward_text = f"{safe_ch}|{safe_sender}: {safe_text}{_meta_suffix}"
 
                 add_script_log(f"MeshCore->Telegram forward: {forward_text[:120]}")
                 send_to_telegram(forward_text)
@@ -19814,7 +19857,7 @@ def api_password_hint():
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
 # Version caching - force fetch on startup by setting last_fetch to 0
-_version_cache = {'version': 'v2.6.6', 'last_fetch': 0}
+_version_cache = {'version': 'v2.6.7', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
 def _get_current_version():
