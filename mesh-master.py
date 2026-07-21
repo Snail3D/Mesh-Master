@@ -19217,6 +19217,47 @@ def on_meshcore_message(msg: dict) -> None:
         except Exception as exc:
             clean_log(f"MeshCore send reply error: {exc}", "⚠️", show_always=False)
 
+        # ----------------------------------------------------------------
+        # v2.6.6: forward inbound MeshCore messages to Telegram (the
+        # "public chat forwarding" path that the Meshtastic on_receive()
+        # branch already covers). DMs get a discreet notification,
+        # channel messages get full text + hops + SNR/RSSI metadata.
+        # ----------------------------------------------------------------
+        try:
+            if not telegram_config.get("enabled"):
+                pass  # forwarding disabled when telegram is off
+            else:
+                _mc_meta = []
+                hops = msg.get("path_len")
+                if isinstance(hops, int):
+                    _mc_meta.append(f"{hops} hop{'s' if hops != 1 else ''}")
+                snr = msg.get("snr")
+                if isinstance(snr, (int, float)):
+                    _mc_meta.append(f"SNR {snr:.1f}")
+                rssi = msg.get("rssi")
+                if isinstance(rssi, (int, float)):
+                    _mc_meta.append(f"RSSI {rssi}")
+                _meta_suffix = f" ({' · '.join(_mc_meta)})" if _mc_meta else ""
+
+                if is_direct:
+                    # DM notification: discreet, no message body (privacy)
+                    forward_text = f"📨 DM from {sender_name}{_meta_suffix}"
+                else:
+                    # Resolve channel name from config.json channel_names
+                    _ch_names = (config.get("channel_names") if isinstance(config, dict) else None) or {}
+                    if isinstance(_ch_names, dict):
+                        _ch_name = _ch_names.get(str(channel_idx)) or _ch_names.get(channel_idx)
+                    else:
+                        _ch_name = None
+                    if not _ch_name:
+                        _ch_name = f"Channel {channel_idx}"
+                    forward_text = f"{_ch_name}|{sender_name}: {text}{_meta_suffix}"
+
+                add_script_log(f"MeshCore->Telegram forward: {forward_text[:120]}")
+                send_to_telegram(forward_text)
+        except Exception as _fwd_exc:
+            clean_log(f"MeshCore->Telegram forward error: {_fwd_exc}", "⚠️", show_always=False)
+
     except Exception as exc:
         clean_log(f"on_meshcore_message error: {exc}", "⚠️", show_always=False)
 
@@ -19773,7 +19814,7 @@ def api_password_hint():
     return jsonify({'hint': ADMIN_PASSWORD_HINT})
 
 # Version caching - force fetch on startup by setting last_fetch to 0
-_version_cache = {'version': 'v2.6.5', 'last_fetch': 0}
+_version_cache = {'version': 'v2.6.6', 'last_fetch': 0}
 _version_cache_ttl = 3600  # Cache for 1 hour
 
 def _get_current_version():
@@ -35118,10 +35159,20 @@ else:
 
 
 def telegram_error_monitor():
-    """Monitor system health and send repeated alerts to Telegram when errors occur."""
+    """Monitor system health and send alerts to Telegram on extended outages.
+
+    v2.6.6 change: respect an initial grace period so brief radio sleep/BLE
+    hiccups do not page the admin. Added alert_initial_grace_seconds and
+    lengthened alert_interval from 60s -> 1800s (30 min).
+    """
     last_alert_time = 0
     last_status = None
-    alert_interval = 60  # Send alert every 60 seconds when disconnected
+    disconnect_start_ts = None  # when current outage began
+
+    # Configurable knobs (overridable via config.json -> telegram_error_monitor.*)
+    _alert_cfg = (config.get("telegram_error_monitor") if isinstance(config, dict) else {}) or {}
+    alert_initial_grace_seconds = int(_alert_cfg.get("initial_grace_seconds", 300))   # 5 min
+    alert_interval              = int(_alert_cfg.get("alert_interval", 1800))       # 30 min
 
     while True:
         try:
@@ -35136,21 +35187,43 @@ def telegram_error_monitor():
 
             # If disconnected and enough time has passed since last alert
             if current_status == "Disconnected":
-                if current_time - last_alert_time >= alert_interval:
+                # Track when this outage began (only the first time we see it down)
+                if last_status != "Disconnected":
+                    disconnect_start_ts = current_time
+                # Only send an alert after the initial grace period AND per alert_interval
+                outage_duration = current_time - (disconnect_start_ts or current_time)
+                if (outage_duration >= alert_initial_grace_seconds and
+                        current_time - last_alert_time >= alert_interval):
                     error_msg = last_error_message if last_error_message else "System disconnected"
-                    alert_message = f"🚨 SYSTEM ALERT 🚨\n\nStatus: Disconnected\nError: {error_msg}\nTime: {datetime.now().strftime('%H:%M:%S')}"
+                    alert_message = (
+                        f"🚨 SYSTEM ALERT 🚨\n\n"
+                        f"Status: Disconnected\n"
+                        f"Outage duration: {int(outage_duration//60)}m {int(outage_duration%60)}s\n"
+                        f"Error: {error_msg}\n"
+                        f"Time: {datetime.now().strftime('%H:%M:%S')}\n\n"
+                        f"(Subsequent alerts every {alert_interval//60}m until recovery.)"
+                    )
 
                     # Send to Telegram
                     send_to_telegram(alert_message)
                     last_alert_time = current_time
-                    add_script_log("Sent error alert to Telegram")
+                    add_script_log(
+                        f"Sent disconnect alert to Telegram after "
+                        f"{int(outage_duration//60)}m {int(outage_duration%60)}s outage"
+                    )
 
             # If status changed from Disconnected to Connected, send recovery notice
             elif current_status == "Connected" and last_status == "Disconnected":
-                recovery_message = f"✅ SYSTEM RECOVERED\n\nConnection restored\nTime: {datetime.now().strftime('%H:%M:%S')}"
+                outage_secs = (current_time - (disconnect_start_ts or current_time))
+                recovery_message = (
+                    f"✅ SYSTEM RECOVERED\n\n"
+                    f"Connection restored after {int(outage_secs//60)}m {int(outage_secs%60)}s\n"
+                    f"Time: {datetime.now().strftime('%H:%M:%S')}"
+                )
                 send_to_telegram(recovery_message)
                 add_script_log("Sent recovery notice to Telegram")
-                last_alert_time = 0  # Reset alert timer
+                last_alert_time = 0     # Reset alert timer
+                disconnect_start_ts = None
 
             last_status = current_status
 
