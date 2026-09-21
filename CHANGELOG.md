@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.8] - 2026-09-20
+
+### Fixed
+- **Linux serial connections** (Kali/Debian/Ubuntu): a scanned radio now actually connects.
+  - The dashboard "Save Serial Settings" and "Save WiFi Settings" buttons had no
+    click handlers and never persisted a port. They now save atomically and
+    reconnect live (no process restart).
+  - New `/dashboard/serial/diagnose` + a per-port **🩺 Diagnose** button detects
+    permissions, port holders, brltty, and ModemManager, and returns the exact
+    copy-paste fix.
+  - Auto-detect now genuinely probes Meshtastic/MeshCore instead of always
+    reporting 38400 (it used `ser.isOpen()`, which is always true).
+  - Serial failures now surface actionable hints (dialout group, brltty,
+    ModemManager, changing `/dev/ttyUSB*` paths, holder process names).
+- MeshCore propagates the real connection error instead of a generic
+  "Failed to connect via serial".
+- Bluetooth connect/forget write config atomically under lock and reconnect in
+  place instead of spawning a second process.
+
+### Changed
+- Public default serial baud is now **115200** (native Meshtastic USB); 38400
+  remains available for legacy/long-cable UART runs.
+- Added `scripts/linux/fix-serial.sh` and Linux serial notes to README/setup.sh.
+- Added `pyserial` and `pyserial-asyncio-fast` to requirements and removed the
+  duplicate `meshcore` pin.
+- Untracked `config.json.bak` and ignored config backups (may hold secrets).
+
 ## [2.6.0] - 2026-06-22
 
 ### Added
