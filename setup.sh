@@ -730,15 +730,18 @@ echo "Platform-specific notes:"
 if [[ "$OS" == "macOS" ]]; then
     echo "  • Port 5001 is used to avoid macOS AirPlay conflict"
     echo "  • Desktop shortcut is a .app bundle"
-    echo "  • Add Meshtastic device to dialout group if needed"
+    echo "  • Serial ports appear as /dev/cu.usbmodem* (no group setup needed)"
 elif [[ "$OS" == "Raspberry Pi" ]]; then
-    echo "  • Add user to dialout group: sudo usermod -a -G dialout \$USER"
+    echo "  • Add user to serial group: sudo usermod -a -G dialout \$USER"
     echo "  • Reboot after adding to group"
     echo "  • Recommended model: llama3.2:1b (lightweight)"
     echo "  • Desktop shortcut is a .desktop file"
 elif [[ "$OS" == "Linux" ]]; then
     echo "  • Desktop shortcut is a .desktop file"
     echo "  • May need to mark as trusted/executable"
+    echo "  • Serial permission: sudo usermod -a -G dialout \$USER (then log out/in)"
+    echo "  • Port shows up but won't open? brltty/ModemManager are grabbing it:"
+    echo "      sudo bash scripts/linux/fix-serial.sh"
 elif [[ "$OS" == "Windows (Git Bash)" ]]; then
     echo "  • Python must be in PATH"
     echo "  • Use COM ports for serial (e.g., COM3)"

@@ -25608,17 +25608,26 @@ def dashboard():
                 </div>
 
                 <div style="margin-top: 12px;">
+                  <label for="serialProtocol" style="display: block; margin-bottom: 4px; font-weight: 500;">Radio Protocol</label>
+                  <select id="serialProtocol" class="config-select" style="width: 100%;">
+                    <option value="meshtastic" selected>Meshtastic</option>
+                    <option value="meshcore">MeshCore</option>
+                  </select>
+                </div>
+
+                <div style="margin-top: 12px;">
                   <label for="serialBaud" style="display: block; margin-bottom: 4px; font-weight: 500;">Baud Rate</label>
                   <select id="serialBaud" class="config-select" style="width: 100%;">
-                    <option value="38400">38400 (Default)</option>
+                    <option value="115200" selected>115200 (Meshtastic default)</option>
+                    <option value="38400">38400 (legacy / low-speed)</option>
                     <option value="57600">57600</option>
-                    <option value="115200">115200</option>
                     <option value="921600">921600</option>
                   </select>
                 </div>
 
                 <button type="button" id="serialSaveBtn" class="config-save-btn" style="width: 100%; margin-top: 12px;">Save Serial Settings</button>
                 <div id="serialStatus" style="margin-top: 8px; font-size: 12px; text-align: center;"></div>
+                <div id="serialDiagnostics" style="display: none; margin-top: 12px; font-size: 12px;"></div>
               </div>
             </div>
           </div>
@@ -31556,7 +31565,7 @@ def dashboard():
               bluetoothStatusText.textContent = 'Connected';
               bluetoothStatusText.style.color = '#6a9955';
 
-              bluetoothScanStatus.textContent = '✅ Device configured! Restart Mesh Master to connect.';
+              bluetoothScanStatus.textContent = '✅ Device configured! Connecting…';
               bluetoothScanStatus.style.color = '#6a9955';
 
               currentlySelectedDevice = null;
@@ -31752,6 +31761,9 @@ def dashboard():
       const serialPortsContainer = document.getElementById('serialPortsContainer');
       const serialPortInput = document.getElementById('serialPort');
       const serialBaudSelect = document.getElementById('serialBaud');
+      const serialProtocolSelect = document.getElementById('serialProtocol');
+      const serialSaveBtn = document.getElementById('serialSaveBtn');
+      const serialDiagnostics = document.getElementById('serialDiagnostics');
 
       if (serialScanBtn) {
         serialScanBtn.addEventListener('click', async () => {
@@ -31808,7 +31820,7 @@ def dashboard():
           });
 
           const badge = port.is_meshtastic ?
-            '<span style="background: rgba(76, 175, 80, 0.2); color: #4CAF50; padding: 2px 8px; border-radius: 3px; font-size: 10px; margin-left: 8px;">Likely Meshtastic</span>' : '';
+            '<span style="background: rgba(76, 175, 80, 0.2); color: #4CAF50; padding: 2px 8px; border-radius: 3px; font-size: 10px; margin-left: 8px;">Likely radio</span>' : '';
 
           portCard.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -31819,6 +31831,7 @@ def dashboard():
               </div>
               <div style="display: flex; gap: 8px;">
                 <button class="auto-detect-btn config-save-btn" style="padding: 6px 12px; font-size: 11px;">⚡ Auto-Detect</button>
+                <button class="diagnose-port-btn config-cancel-btn" style="padding: 6px 12px; font-size: 11px;">🩺 Diagnose</button>
                 <button class="select-port-btn config-save-btn" style="padding: 6px 12px; font-size: 11px;">Select</button>
               </div>
             </div>
@@ -31844,7 +31857,8 @@ def dashboard():
               if (result.success) {
                 // Fill in the form
                 serialPortInput.value = port.device;
-                serialBaudSelect.value = result.baud_rate;
+                if (result.baud_rate) serialBaudSelect.value = String(result.baud_rate);
+                if (serialProtocolSelect && result.protocol) serialProtocolSelect.value = result.protocol;
 
                 if (result.is_default) {
                   serialScanStatus.innerHTML = `⚠️ ${result.message}`;
@@ -31853,6 +31867,7 @@ def dashboard():
                   serialScanStatus.innerHTML = `✅ ${result.message}`;
                   serialScanStatus.style.color = '#6a9955';
                 }
+                renderSerialDiagnostics(result.diagnostics || null);
 
                 // Highlight the selected port
                 serialPortInput.style.borderColor = '#4CAF50';
@@ -31860,7 +31875,9 @@ def dashboard():
                   serialPortInput.style.borderColor = '';
                 }, 2000);
               } else {
-                alert(`Auto-detection failed: ${result.error}`);
+                serialScanStatus.innerHTML = `❌ ${result.error || 'Auto-detection failed'}`;
+                serialScanStatus.style.color = '#f44747';
+                renderSerialDiagnostics(result.diagnostics || null);
               }
             } catch (error) {
               alert(`Error: ${error.message}`);
@@ -31879,7 +31896,148 @@ def dashboard():
             serialScanStatus.style.color = '#6a9955';
           });
 
+          // Diagnose button — explains WHY a port won't open
+          const diagnoseBtn = portCard.querySelector('.diagnose-port-btn');
+          diagnoseBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            diagnoseBtn.disabled = true;
+            diagnoseBtn.textContent = '⏳ Checking…';
+            try {
+              const response = await fetch('/dashboard/serial/diagnose', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'include',
+                body: JSON.stringify({ port: port.device })
+              });
+              const result = await response.json();
+              if (result.success && result.diagnostics) {
+                renderSerialDiagnostics(result.diagnostics);
+                const errors = result.diagnostics.issues.filter(i => i.severity === 'error');
+                serialScanStatus.innerHTML = errors.length
+                  ? `⚠️ ${errors.length} problem(s) found for ${port.device}`
+                  : `✅ ${port.device} looks ready`;
+                serialScanStatus.style.color = errors.length ? '#d7ba7d' : '#6a9955';
+              } else {
+                serialScanStatus.innerHTML = `❌ ${result.error || 'Diagnostics failed'}`;
+                serialScanStatus.style.color = '#f44747';
+              }
+            } catch (error) {
+              serialScanStatus.innerHTML = `❌ ${error.message}`;
+              serialScanStatus.style.color = '#f44747';
+            } finally {
+              diagnoseBtn.disabled = false;
+              diagnoseBtn.textContent = '🩺 Diagnose';
+            }
+          });
+
           serialPortsContainer.appendChild(portCard);
+        });
+      }
+
+      // Render a diagnostics report (issues + fixes) inside the serial panel
+      function renderSerialDiagnostics(report) {
+        if (!serialDiagnostics) return;
+        if (!report || !report.issues || report.issues.length === 0) {
+          serialDiagnostics.style.display = 'none';
+          serialDiagnostics.innerHTML = '';
+          return;
+        }
+        const toneColor = { error: '#f44747', warning: '#d7ba7d', info: '#569cd6' };
+        const rows = report.issues.map(issue => `
+          <div style="border-left: 3px solid ${toneColor[issue.severity] || '#888'}; padding: 8px 10px; margin-bottom: 8px; background: rgba(255,255,255,0.03); border-radius: 4px;">
+            <div style="font-weight: 600; color: ${toneColor[issue.severity] || '#ccc'}; font-size: 12px;">${issue.title}</div>
+            <div style="font-size: 11px; color: #bbb; margin-top: 3px;">${issue.detail}</div>
+            ${issue.fix ? `<pre style="font-size: 11px; color: #6a9955; margin: 6px 0 0; white-space: pre-wrap; word-break: break-all;">${issue.fix}</pre>` : ''}
+          </div>`).join('');
+        serialDiagnostics.innerHTML = `<div style="font-weight: 600; margin-bottom: 6px; color: #ccc;">Diagnostics — ${report.port || ''}</div>${rows}`;
+        serialDiagnostics.style.display = 'block';
+      }
+
+      // Save serial settings and connect (persists config, then reconnects live)
+      if (serialSaveBtn) {
+        serialSaveBtn.addEventListener('click', async () => {
+          const port = serialPortInput ? serialPortInput.value.trim() : '';
+          const baud = serialBaudSelect ? parseInt(serialBaudSelect.value, 10) : 115200;
+          const protocol = serialProtocolSelect ? serialProtocolSelect.value : 'meshtastic';
+
+          if (!port) {
+            serialScanStatus.innerHTML = '⚠️ Enter or select a serial port first.';
+            serialScanStatus.style.color = '#d7ba7d';
+            return;
+          }
+
+          serialSaveBtn.disabled = true;
+          serialSaveBtn.textContent = '⏳ Connecting…';
+          serialScanStatus.textContent = 'Saving and connecting…';
+          try {
+            const response = await fetch('/dashboard/serial/connect', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              credentials: 'include',
+              body: JSON.stringify({ port, baud, protocol })
+            });
+            const result = await response.json();
+            if (result.success) {
+              serialScanStatus.innerHTML = `✅ ${result.message}`;
+              serialScanStatus.style.color = '#6a9955';
+            } else {
+              serialScanStatus.innerHTML = `❌ ${result.error || 'Connect failed'}`;
+              serialScanStatus.style.color = '#f44747';
+              // Pull a fresh diagnostic report so the user sees WHY
+              try {
+                const diagRes = await fetch('/dashboard/serial/diagnose', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  credentials: 'include',
+                  body: JSON.stringify({ port })
+                });
+                const diag = await diagRes.json();
+                if (diag.success) renderSerialDiagnostics(diag.diagnostics);
+              } catch (e) { /* diagnostics are best-effort */ }
+            }
+          } catch (error) {
+            serialScanStatus.innerHTML = `❌ Error: ${error.message}`;
+            serialScanStatus.style.color = '#f44747';
+          } finally {
+            serialSaveBtn.disabled = false;
+            serialSaveBtn.textContent = 'Save Serial Settings';
+          }
+        });
+      }
+
+      // Save WiFi/TCP settings and connect
+      const wifiSaveBtn = document.getElementById('wifiSaveBtn');
+      const wifiHostInput = document.getElementById('wifiHost');
+      const wifiPortInput = document.getElementById('wifiPort');
+      const wifiStatus = document.getElementById('wifiStatus');
+      if (wifiSaveBtn) {
+        wifiSaveBtn.addEventListener('click', async () => {
+          const host = wifiHostInput ? wifiHostInput.value.trim() : '';
+          const port = wifiPortInput && wifiPortInput.value ? parseInt(wifiPortInput.value, 10) : 4403;
+          if (!host) {
+            if (wifiStatus) { wifiStatus.textContent = 'Enter the radio IP/hostname'; wifiStatus.style.color = '#d7ba7d'; }
+            return;
+          }
+          wifiSaveBtn.disabled = true;
+          wifiSaveBtn.textContent = '⏳ Connecting…';
+          try {
+            const response = await fetch('/dashboard/wifi/connect', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              credentials: 'include',
+              body: JSON.stringify({ host, port, protocol: 'meshtastic' })
+            });
+            const result = await response.json();
+            if (wifiStatus) {
+              wifiStatus.textContent = result.success ? `✅ ${result.message}` : `❌ ${result.error || 'Connect failed'}`;
+              wifiStatus.style.color = result.success ? '#6a9955' : '#f44747';
+            }
+          } catch (error) {
+            if (wifiStatus) { wifiStatus.textContent = `❌ ${error.message}`; wifiStatus.style.color = '#f44747'; }
+          } finally {
+            wifiSaveBtn.disabled = false;
+            wifiSaveBtn.textContent = 'Save WiFi Settings';
+          }
         });
       }
       // Poll every 3 seconds
@@ -34323,36 +34481,46 @@ def bluetooth_connect():
         if not device_address:
             return jsonify({'success': False, 'error': 'Device address required'}), 400
 
-        # Update config
-        config['bluetooth_device'] = device_address
-        config['bluetooth_preferred_device'] = device_address
-        config['use_bluetooth'] = True
+        # Update + persist config atomically (same path the serial/WiFi endpoints use)
+        with CONFIG_LOCK:
+            config['bluetooth_device'] = device_address
+            config['bluetooth_preferred_device'] = device_address
+            config['use_bluetooth'] = True
+            config['use_wifi'] = False
+            config['radio_protocol'] = 'meshtastic'
+            config['use_meshcore'] = False
+            try:
+                write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+            except Exception as exc:
+                return jsonify({'success': False, 'error': f'Failed to write config.json: {exc}'}), 500
 
-        # Save config
-        with open('config.json', 'w') as f:
-            json.dump(config, f, indent=2)
+        # Apply runtime globals and reconnect in-place (no process restart)
+        globals()['USE_BLUETOOTH'] = True
+        globals()['BLUETOOTH_DEVICE'] = device_address
+        globals()['USE_WIFI'] = False
+        globals()['RADIO_PROTOCOL'] = 'meshtastic'
+        globals()['USE_MESHCORE'] = False
+        existing_mgr = globals().get('MESHCORE_MANAGER')
+        if existing_mgr:
+            try:
+                existing_mgr.stop()
+            except Exception:
+                pass
+            globals()['MESHCORE_MANAGER'] = None
+        global interface
+        try:
+            if interface:
+                interface.close()
+        except Exception:
+            pass
+        interface = None
+        globals()['connection_status'] = 'Connecting'
+        reset_event.set()
 
         clean_log(f"📱 Bluetooth device set: {device_address}", show_always=False, rate_limit=False)
-
-        # Auto-restart to connect immediately
-        import subprocess
-        import sys
-        clean_log(f"🔄 Restarting to connect via Bluetooth...", show_always=False, rate_limit=False)
-
-        # Return success immediately, then restart
-        def restart_app():
-            import time
-            time.sleep(1)  # Give time for response to be sent
-            python = sys.executable
-            subprocess.Popen([python, 'mesh-master.py'])
-            os._exit(0)
-
-        import threading
-        threading.Thread(target=restart_app, daemon=True).start()
-
         return jsonify({
             'success': True,
-            'message': 'Device configured. Restarting Mesh Master to connect...',
+            'message': 'Device configured. Connecting…',
             'device': device_address
         })
 
@@ -34367,19 +34535,20 @@ def bluetooth_forget():
     """Forget/unpair a Bluetooth device."""
     global USE_BLUETOOTH, BLUETOOTH_DEVICE, connection_status
     try:
-        # Clear Bluetooth config
-        config['bluetooth_device'] = ''
-        config['bluetooth_preferred_device'] = ''
-        config['use_bluetooth'] = False
+        # Clear Bluetooth config (atomic, shared lock)
+        with CONFIG_LOCK:
+            config['bluetooth_device'] = ''
+            config['bluetooth_preferred_device'] = ''
+            config['use_bluetooth'] = False
+            try:
+                write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+            except Exception as exc:
+                return jsonify({'success': False, 'error': f'Failed to write config.json: {exc}'}), 500
 
         # Update global variables immediately
         USE_BLUETOOTH = False
         BLUETOOTH_DEVICE = None
         connection_status = "Disconnected"
-
-        # Save config
-        with open('config.json', 'w') as f:
-            json.dump(config, f, indent=2)
 
         # Close the interface and trigger reconnection
         global interface
@@ -34401,6 +34570,280 @@ def bluetooth_forget():
         clean_log(f"❌ Failed to forget device: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
+
+
+# ---------------------------------------------------------------------------
+# Serial port diagnostics
+# ---------------------------------------------------------------------------
+# Debian/Kali/Ubuntu ship userspace daemons that grab USB serial adapters
+# (brltty, ModemManager). The radio then shows up in a port scan but refuses to
+# open. These helpers detect the common causes and return copy-pasteable fixes.
+
+def _read_proc_comm(pid: str) -> str:
+    try:
+        with open(f"/proc/{pid}/comm", "r", encoding="utf-8", errors="ignore") as fh:
+            name = fh.read().strip()
+            return name or f"pid {pid}"
+    except Exception:
+        return f"pid {pid}"
+
+
+def _serial_port_holders(port: str) -> List[Dict[str, Any]]:
+    """Best-effort list of processes that currently hold `port` open."""
+    holders: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+    self_pid = str(os.getpid())
+
+    # lsof is present on most Unix systems but may be missing on minimal Kali
+    try:
+        proc = subprocess.run(["lsof", "-t", port], capture_output=True, text=True, timeout=3)
+        for pid in proc.stdout.split():
+            pid = pid.strip()
+            if pid and pid not in seen:
+                seen.add(pid)
+                holders.append({"pid": pid, "command": _read_proc_comm(pid), "self": pid == self_pid})
+    except Exception:
+        pass
+
+    # Fall back to scanning /proc/<pid>/fd (Linux only, no external binary needed)
+    if os.path.isdir("/proc"):
+        real = os.path.realpath(port)
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit() or entry in seen:
+                continue
+            fd_dir = os.path.join("/proc", entry, "fd")
+            try:
+                fds = os.listdir(fd_dir)
+            except Exception:
+                continue
+            for fd in fds:
+                try:
+                    target = os.readlink(os.path.join(fd_dir, fd))
+                except Exception:
+                    continue
+                if target in (port, real):
+                    seen.add(entry)
+                    holders.append({"pid": entry, "command": _read_proc_comm(entry), "self": entry == self_pid})
+                    break
+    return holders
+
+
+def _linux_known_blockers() -> List[Dict[str, str]]:
+    """Detect daemons that commonly hijack USB serial adapters on Linux."""
+    blockers: List[Dict[str, str]] = []
+    if not os.path.isdir("/proc"):
+        return blockers
+
+    def _pgrep(pattern: str) -> Optional[str]:
+        try:
+            proc = subprocess.run(["pgrep", "-a", pattern], capture_output=True, text=True, timeout=3)
+            out = proc.stdout.strip()
+            return out.splitlines()[0] if out else None
+        except Exception:
+            return None
+
+    brltty = _pgrep("brltty")
+    if brltty:
+        blockers.append({
+            "name": "brltty",
+            "process": brltty,
+            "why": ("brltty (the Braille terminal daemon, installed by default on "
+                    "Debian/Kali/Ubuntu) claims CH340/CP210x/FTDI serial adapters. The "
+                    "radio still shows up in a port scan but cannot be opened."),
+            "fix": ("sudo systemctl stop brltty-udev.service brltty.service && "
+                    "sudo systemctl mask brltty-udev.service && sudo apt-get remove -y brltty"),
+        })
+
+    modemmanager = _pgrep("ModemManager")
+    if modemmanager:
+        blockers.append({
+            "name": "ModemManager",
+            "process": modemmanager,
+            "why": "ModemManager probes new serial devices and can lock the port while it does.",
+            "fix": "sudo systemctl stop ModemManager && sudo systemctl mask ModemManager",
+        })
+
+    if not brltty:
+        for rule in ("/usr/lib/udev/rules.d/85-brltty.rules",
+                     "/lib/udev/rules.d/85-brltty.rules",
+                     "/etc/udev/rules.d/85-brltty.rules"):
+            if os.path.exists(rule):
+                blockers.append({
+                    "name": "brltty udev rule",
+                    "process": rule,
+                    "why": "brltty's udev rule is installed and may grab the adapter on plug-in.",
+                    "fix": "sudo apt-get remove -y brltty   # or: sudo systemctl mask brltty-udev.service",
+                })
+                break
+    return blockers
+
+
+def _serial_diagnostics(port: str) -> Dict[str, Any]:
+    """Collect a full, human-readable diagnostic report for a serial port."""
+    import stat as _stat
+
+    report: Dict[str, Any] = {
+        "port": port,
+        "platform": sys.platform,
+        "exists": False,
+        "is_char_device": False,
+        "readable": False,
+        "writable": False,
+        "group": None,
+        "in_group": None,
+        "holders": [],
+        "blockers": [],
+        "open_tests": [],
+        "working_baud": None,
+        "issues": [],
+        "ready": False,
+    }
+
+    if not port:
+        report["issues"].append({
+            "severity": "error",
+            "title": "No port selected",
+            "detail": "Pick a serial port from the scan list or type its path.",
+            "fix": "Click 'Scan Serial Ports', then choose your radio.",
+        })
+        return report
+
+    report["exists"] = os.path.exists(port)
+    if report["exists"]:
+        try:
+            st = os.stat(port)
+            report["is_char_device"] = _stat.S_ISCHR(st.st_mode)
+            report["readable"] = os.access(port, os.R_OK)
+            report["writable"] = os.access(port, os.W_OK)
+            try:
+                import grp
+                report["group"] = grp.getgrgid(st.st_gid).gr_name
+            except Exception:
+                report["group"] = str(st.st_gid)
+            try:
+                report["in_group"] = (st.st_gid in os.getgroups()) or os.geteuid() == 0
+            except Exception:
+                report["in_group"] = None
+        except Exception as exc:
+            report["issues"].append({
+                "severity": "error",
+                "title": "Could not inspect the port",
+                "detail": str(exc),
+                "fix": "Re-plug the radio and re-scan.",
+            })
+
+    report["holders"] = _serial_port_holders(port)
+    report["blockers"] = _linux_known_blockers()
+
+    if report["exists"]:
+        try:
+            import serial as _serial
+            for baud in (115200, 38400, 57600, 921600, 9600, 19200):
+                entry = {"baud": baud, "ok": False, "error": None}
+                try:
+                    ser = _serial.Serial(port, baud, timeout=0.5, write_timeout=0.5, exclusive=True)
+                    entry["ok"] = True
+                    with suppress(Exception):
+                        ser.close()
+                    report["open_tests"].append(entry)
+                    report["working_baud"] = baud
+                    break
+                except Exception as exc:
+                    entry["error"] = str(exc)
+                    report["open_tests"].append(entry)
+        except ImportError:
+            report["issues"].append({
+                "severity": "error",
+                "title": "pyserial is not installed",
+                "detail": "The serial library could not be imported.",
+                "fix": "pip install pyserial",
+            })
+
+    # ---- Compose issues ----
+    if not report["exists"]:
+        report["issues"].append({
+            "severity": "error",
+            "title": "Port not present",
+            "detail": f"{port} does not exist. The radio may be unplugged, or the path changed "
+                      "after a re-plug (e.g. /dev/ttyUSB0 became /dev/ttyUSB1).",
+            "fix": "Re-scan ports and select the current device path.",
+        })
+    elif report["is_char_device"] and not (report["readable"] and report["writable"]):
+        grp_name = report["group"] or "dialout"
+        report["issues"].append({
+            "severity": "error",
+            "title": "No permission to open the port",
+            "detail": f"{port} belongs to group '{grp_name}' and your account is not a member.",
+            "fix": f"sudo usermod -aG {grp_name} $USER && sudo chmod a+rw {port}   # then log out and back in",
+        })
+
+    external_holders = [h for h in report["holders"] if not h.get("self")]
+    if external_holders:
+        names = ", ".join(sorted({h["command"] for h in external_holders}))
+        report["issues"].append({
+            "severity": "warning",
+            "title": "Port is already in use",
+            "detail": f"{port} is held open by: {names}.",
+            "fix": "Close the other program before connecting.",
+        })
+    elif any(h.get("self") for h in report["holders"]):
+        report["issues"].append({
+            "severity": "info",
+            "title": "Port currently held by Mesh Master",
+            "detail": "Mesh Master already has this port open (normal while connected).",
+            "fix": "Disconnect/reconnect to change the port.",
+        })
+
+    for b in report["blockers"]:
+        report["issues"].append({
+            "severity": "warning",
+            "title": f"{b['name']} may be claiming the port",
+            "detail": b["why"],
+            "fix": b["fix"],
+        })
+
+    self_only = bool(report["holders"]) and all(h.get("self") for h in report["holders"])
+    if report["exists"] and report["open_tests"] and not report["working_baud"] and not self_only:
+        last_err = next((t["error"] for t in reversed(report["open_tests"]) if t.get("error")), "unknown error")
+        report["issues"].append({
+            "severity": "error",
+            "title": "Could not open the port at any baud",
+            "detail": last_err,
+            "fix": "Work through the permission / brltty / ModemManager items above.",
+        })
+
+    report["ready"] = bool(
+        report["exists"]
+        and not external_holders
+        and (report["working_baud"] is not None or self_only)
+    )
+    return report
+
+
+def _serial_failure_hint(port: str, message: str) -> str:
+    """Build an actionable, multi-line suffix for a failed serial connection."""
+    low = (message or "").lower()
+    lines: List[str] = []
+    if "permission" in low or "access is denied" in low or "errno 13" in low:
+        lines.append("→ Permission denied. Add your user to the serial group, then log out and back in:\n"
+                     "  sudo usermod -aG dialout $USER")
+    if any(t in low for t in ("exclusively lock", "resource temporarily unavailable", "errno 16", "device or resource busy")):
+        lines.append("→ The port is held by another process. On Debian/Kali/Ubuntu this is usually brltty or ModemManager:\n"
+                     "  sudo systemctl stop brltty-udev.service brltty.service && sudo systemctl mask brltty-udev.service\n"
+                     "  sudo systemctl stop ModemManager && sudo systemctl mask ModemManager")
+    if "no such file" in low or "could not open" in low:
+        lines.append("→ The device path may have changed. Re-scan ports and look for /dev/ttyUSB* or /dev/ttyACM*.")
+    if "not a meshtastic" in low or "no meshtastic" in low or "no response" in low:
+        lines.append("→ The radio did not answer. Confirm Meshtastic/MeshCore firmware is running and try 115200 baud.")
+    try:
+        external = [h for h in _serial_port_holders(port) if not h.get("self")]
+        if external:
+            lines.append("→ Port is currently open by: " + ", ".join(sorted({h["command"] for h in external})))
+    except Exception:
+        pass
+    if not lines:
+        lines.append("→ Open the dashboard → Radio Settings → Serial → Diagnose for a full check.")
+    return "\n" + "\n".join(lines)
 
 
 @app.route('/dashboard/serial/scan', methods=['POST'])
@@ -34427,8 +34870,9 @@ def serial_scan():
             manuf_lower = port_info['manufacturer'].lower() if port_info['manufacturer'] else ''
 
             meshtastic_patterns = [
-                'meshtastic', 'rak', 'wiscore', 'lilygo', 'heltec',
-                't-beam', 'lora', 'esp32', 'ch340', 'cp210', 'ftdi'
+                'meshtastic', 'rak', 'wiscore', 'lilygo', 'heltec', 'seeed',
+                't-beam', 'lora', 'esp32', 'ch340', 'ch9102', 'cp210', 'cp2105',
+                'ftdi', 'ft232', 'silicon labs', 'acm', 'usb serial', 'nrf'
             ]
 
             if any(pattern in desc_lower or pattern in hwid_lower or pattern in manuf_lower
@@ -34452,51 +34896,261 @@ def serial_scan():
 @app.route('/dashboard/serial/test-baud', methods=['POST'])
 @require_auth
 def serial_test_baud():
-    """Test a serial port at different baud rates to find the working one."""
-    try:
-        import serial
-        import time
+    """Probe a serial port and report which protocol (if any) answers.
 
-        payload = request.get_json(force=True, silent=False) or {}
-        port = payload.get('port')
+    Meshtastic native USB serial is fixed at 115200 baud by the protocol
+    library, so we try that first, then other common bauds for MeshCore or
+    non-standard UART runs. Returns the detected protocol and the working baud.
+    """
+    try:
+        payload = request.get_json(force=True, silent=True) or {}
+        port = (payload.get('port') or '').strip()
 
         if not port:
             return jsonify({'success': False, 'error': 'Port required'}), 400
 
-        # Common baud rates to test, in order of likelihood
-        baud_rates = [38400, 115200, 57600, 921600, 9600, 19200]
+        report = _serial_diagnostics(port)
 
-        for baud in baud_rates:
+        if not report.get('exists'):
+            return jsonify({
+                'success': False,
+                'error': f'{port} does not exist. Re-scan and pick the current device path.',
+                'diagnostics': report,
+            })
+
+        if not report.get('working_baud'):
+            first_error = next((i for i in report['issues'] if i['severity'] == 'error'), None)
+            return jsonify({
+                'success': False,
+                'error': (first_error['detail'] if first_error else f'Could not open {port}.'),
+                'diagnostics': report,
+            })
+
+        detected_protocol = None
+        detected_baud = 115200
+
+        # 1) Meshtastic handshake first — the program default, native USB serial is 115200.
+        #    Trying it first avoids repeatedly re-opening the port (which can reset the radio).
+        try:
+            iface = meshtastic.serial_interface.SerialInterface(devPath=port)
             try:
-                # Try to open the port
-                ser = serial.Serial(port, baud, timeout=2)
-                time.sleep(0.5)  # Give it a moment to stabilize
+                if getattr(iface, 'myInfo', None) is not None:
+                    detected_protocol = 'meshtastic'
+                    detected_baud = 115200
+            finally:
+                with suppress(Exception):
+                    iface.close()
+        except Exception as exc:
+            add_script_log(f"Meshtastic probe on {port} failed: {exc}")
 
-                # Try to read some data
-                if ser.in_waiting > 0 or ser.isOpen():
-                    ser.close()
-                    return jsonify({
-                        'success': True,
-                        'baud_rate': baud,
-                        'message': f'Detected working baud rate: {baud}'
-                    })
+        # 2) MeshCore handshake (honours the real UART baud) if Meshtastic did not answer
+        if detected_protocol is None and MESHCORE_AVAILABLE:
+            for baud in (115200, 38400, 57600, 921600, 9600):
+                try:
+                    if _probe_meshcore_sync(serial_port=port, serial_baud=baud, timeout=2.0):
+                        detected_protocol = 'meshcore'
+                        detected_baud = baud
+                        break
+                except Exception:
+                    continue
 
-                ser.close()
-                time.sleep(0.2)
+        if detected_protocol:
+            label = 'MeshCore' if detected_protocol == 'meshcore' else 'Meshtastic'
+            return jsonify({
+                'success': True,
+                'protocol': detected_protocol,
+                'baud_rate': detected_baud,
+                'message': f'Detected {label} on {port} at {detected_baud} baud',
+                'diagnostics': report,
+            })
 
-            except Exception:
-                continue
-
-        # If nothing worked, default to 38400 (Meshtastic default)
         return jsonify({
             'success': True,
-            'baud_rate': 38400,
-            'message': 'Could not auto-detect, using default 38400',
-            'is_default': True
+            'protocol': None,
+            'baud_rate': report['working_baud'],
+            'message': f'Port opens at {report["working_baud"]} baud, but neither Meshtastic nor MeshCore answered',
+            'is_default': True,
+            'diagnostics': report,
         })
 
     except Exception as exc:
         clean_log(f"❌ Baud rate detection failed: {exc}", show_always=False, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/serial/diagnose', methods=['POST'])
+@require_auth
+def serial_diagnose():
+    """Return a full diagnostic report for a serial port (permissions, holders, blockers)."""
+    try:
+        payload = request.get_json(force=True, silent=True) or {}
+        port = (payload.get('port') or '').strip()
+        if not port:
+            return jsonify({'success': False, 'error': 'Port required'}), 400
+        return jsonify({'success': True, 'diagnostics': _serial_diagnostics(port)})
+    except Exception as exc:
+        clean_log(f"❌ Serial diagnostics failed: {exc}", show_always=False, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/serial/connect', methods=['POST'])
+@require_auth
+def serial_connect():
+    """Persist serial settings and trigger a clean reconnect (no restart needed)."""
+    global SERIAL_PORT, SERIAL_BAUD, USE_WIFI, USE_BLUETOOTH, connection_status, interface
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+        port = (payload.get('port') or '').strip()
+        protocol = (payload.get('protocol') or 'meshtastic').strip().lower()
+        try:
+            baud = int(payload.get('baud') or payload.get('baud_rate') or 115200)
+        except (TypeError, ValueError):
+            baud = 115200
+
+        if not port:
+            return jsonify({'success': False, 'error': 'Serial port required'}), 400
+        if protocol not in ('meshtastic', 'meshcore'):
+            protocol = 'meshtastic'
+        if not os.path.exists(port):
+            return jsonify({'success': False, 'error': f'{port} does not exist. Re-scan and pick the current device path.'}), 400
+
+        with CONFIG_LOCK:
+            updates = {
+                'serial_port': port,
+                'serial_baud': baud,
+                'use_wifi': False,
+                'use_bluetooth': False,
+            }
+            if protocol == 'meshcore':
+                updates.update({
+                    'radio_protocol': 'meshcore',
+                    'use_meshcore': True,
+                    'meshcore_connection_type': 'serial',
+                    'meshcore_serial_port': port,
+                    'meshcore_serial_baud': baud,
+                })
+            else:
+                updates.update({
+                    'radio_protocol': 'meshtastic',
+                    'use_meshcore': False,
+                })
+            original = {k: config.get(k) for k in updates}
+            config.update(updates)
+            try:
+                write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+            except Exception as exc:
+                for k, v in original.items():
+                    config[k] = v
+                return jsonify({'success': False, 'error': f'Failed to write config.json: {exc}'}), 500
+
+        SERIAL_PORT = port
+        SERIAL_BAUD = baud
+        USE_WIFI = False
+        USE_BLUETOOTH = False
+        globals()['RADIO_PROTOCOL'] = protocol
+        globals()['USE_MESHCORE'] = (protocol == 'meshcore')
+        globals()['MESHCORE_CONNECTION_TYPE'] = 'serial'
+        if protocol == 'meshcore':
+            globals()['MESHCORE_SERIAL_PORT'] = port
+            globals()['MESHCORE_SERIAL_BAUD'] = baud
+
+        # If we're leaving MeshCore mode, stop any running MeshCore manager so it
+        # doesn't keep holding a radio/port in the background.
+        if protocol != 'meshcore':
+            existing_mgr = globals().get('MESHCORE_MANAGER')
+            if existing_mgr:
+                try:
+                    existing_mgr.stop()
+                except Exception:
+                    pass
+                globals()['MESHCORE_MANAGER'] = None
+
+        try:
+            if interface:
+                interface.close()
+        except Exception:
+            pass
+        interface = None
+        connection_status = 'Connecting'
+        reset_event.set()
+
+        clean_log(f"🔌 Serial configured: {port} @ {baud} baud ({protocol})", show_always=False, rate_limit=False)
+        return jsonify({'success': True, 'port': port, 'baud': baud, 'protocol': protocol,
+                        'message': f'Connecting to {port} at {baud} baud…'})
+    except Exception as exc:
+        clean_log(f"❌ Serial connect failed: {exc}", show_always=False, rate_limit=False)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@app.route('/dashboard/wifi/connect', methods=['POST'])
+@require_auth
+def wifi_connect():
+    """Persist WiFi/TCP settings and trigger a clean reconnect."""
+    global USE_WIFI, WIFI_HOST, WIFI_PORT, USE_BLUETOOTH, connection_status, interface
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+        host = (payload.get('host') or payload.get('wifi_host') or '').strip()
+        protocol = (payload.get('protocol') or 'meshtastic').strip().lower()
+        try:
+            port = int(payload.get('port') or payload.get('wifi_port') or 4403)
+        except (TypeError, ValueError):
+            port = 4403
+
+        if not host:
+            return jsonify({'success': False, 'error': 'WiFi host required'}), 400
+
+        with CONFIG_LOCK:
+            updates = {'wifi_host': host, 'wifi_port': port, 'use_wifi': True, 'use_bluetooth': False}
+            if protocol == 'meshcore':
+                updates.update({
+                    'radio_protocol': 'meshcore',
+                    'use_meshcore': True,
+                    'meshcore_connection_type': 'tcp',
+                    'meshcore_tcp_host': host,
+                    'meshcore_tcp_port': port,
+                })
+            else:
+                updates.update({'radio_protocol': 'meshtastic', 'use_meshcore': False})
+            config.update(updates)
+            try:
+                write_atomic(CONFIG_FILE, json.dumps(config, indent=2, sort_keys=True))
+            except Exception as exc:
+                return jsonify({'success': False, 'error': f'Failed to write config.json: {exc}'}), 500
+
+        USE_WIFI = True
+        WIFI_HOST = host
+        WIFI_PORT = port
+        USE_BLUETOOTH = False
+        globals()['RADIO_PROTOCOL'] = protocol
+        globals()['USE_MESHCORE'] = (protocol == 'meshcore')
+        globals()['MESHCORE_CONNECTION_TYPE'] = 'tcp'
+        if protocol == 'meshcore':
+            globals()['MESHCORE_TCP_HOST'] = host
+            globals()['MESHCORE_TCP_PORT'] = port
+
+        if protocol != 'meshcore':
+            existing_mgr = globals().get('MESHCORE_MANAGER')
+            if existing_mgr:
+                try:
+                    existing_mgr.stop()
+                except Exception:
+                    pass
+                globals()['MESHCORE_MANAGER'] = None
+
+        try:
+            if interface:
+                interface.close()
+        except Exception:
+            pass
+        interface = None
+        connection_status = 'Connecting'
+        reset_event.set()
+
+        clean_log(f"📶 WiFi configured: {host}:{port} ({protocol})", show_always=False, rate_limit=False)
+        return jsonify({'success': True, 'host': host, 'port': port, 'protocol': protocol,
+                        'message': f'Connecting to {host}:{port}…'})
+    except Exception as exc:
+        clean_log(f"❌ WiFi connect failed: {exc}", show_always=False, rate_limit=False)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -34761,10 +35415,11 @@ def connect_interface():
             else:
                 # All attempts failed
                 msg = str(last_exc) if last_exc is not None else "unknown"
+                hint = _serial_failure_hint(SERIAL_PORT, msg)
                 if "exclusively lock" in msg or "Resource temporarily unavailable" in msg:
                     # escalate so systemd restarts the process to clear any stale FDs
-                    raise ExclusiveLockError(f"Could not open serial device {SERIAL_PORT}: {msg}")
-                raise RuntimeError(f"Could not open serial device {SERIAL_PORT}: {msg}")
+                    raise ExclusiveLockError(f"Could not open serial device {SERIAL_PORT}: {msg}{hint}")
+                raise RuntimeError(f"Could not open serial device {SERIAL_PORT}: {msg}{hint}")
         else:
             print(f"SerialInterface auto‑detect (default baud, will switch to {SERIAL_BAUD}) …")
             iface = meshtastic.serial_interface.SerialInterface()

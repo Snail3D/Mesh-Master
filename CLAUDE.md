@@ -248,7 +248,7 @@ If Mesh Master sees multiple networks (e.g., YourNet + LongFast), it bridges the
 
 **Connection:**
 - `serial_port` - USB serial path (e.g., `/dev/serial/by-id/usb-RAKwireless_...`)
-- `serial_baud` - Baud rate (38400)
+- `serial_baud` - Baud rate (115200 for native Meshtastic USB serial; some long-cable / legacy UART setups need 38400)
 - `use_wifi` - WiFi mode toggle
 - `wifi_host`, `wifi_port` - Network connection
 
@@ -611,7 +611,7 @@ All sensitive data gitignored (see .gitignore for complete list)
 ### Serial Connection Issues
 1. Check device path: `ls -la /dev/serial/by-id/`
 2. Check permissions: `sudo usermod -a -G dialout $USER`
-3. Check baud rate: `serial_baud` should match device (38400)
+3. Check baud rate: `serial_baud` should match device (115200 for native USB serial; 38400 only for legacy set-ups)
 4. Apply RAK4631 profile: `./scripts/apply_rak4631_profile.py`
 
 ### Relay Not Working

@@ -191,7 +191,7 @@ esptool --port /dev/cu.usbmodem1101 --baud 460800 \
   "openai_api_key": "sk-none",
   "openai_timeout": 120,
   "serial_port": "/dev/cu.usbmodem1101",
-  "serial_baud": 38400,
+  "serial_baud": 115200,
   "use_meshcore": true,
   "meshcore_connection_type": "ble",
   "meshcore_auto_reconnect": true,

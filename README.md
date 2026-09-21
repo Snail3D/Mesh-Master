@@ -61,6 +61,25 @@ irm https://raw.githubusercontent.com/Snail3D/Mesh-Master/main/scripts/windows/i
 
 ---
 
+### Serial radios on Linux (Kali / Ubuntu / Debian)
+
+If your radio shows up in **Radio Settings → Serial → Scan Serial Ports** but won't open, it is usually one of three things:
+
+1. **brltty** (installed by default on Debian/Kali/Ubuntu) grabs USB serial adapters. One command fixes it:
+   ```bash
+   sudo bash scripts/linux/fix-serial.sh
+   ```
+   then log out and back in (or reboot).
+2. **Permissions** — your user must be in the serial group:
+   ```bash
+   sudo usermod -aG dialout $USER
+   ```
+3. **Wrong device path** — after a re-plug the port can change (e.g. `/dev/ttyUSB0` → `/dev/ttyUSB1`). Re-scan, pick the new path, and click **Save Serial Settings**.
+
+Every scanned port has a **🩺 Diagnose** button that reports the exact problem and the copy-paste command to fix it. The default baud is **115200** (native Meshtastic USB serial); use 38400 only for legacy/long-cable UART setups.
+
+---
+
 ## 🧠 AI Provider Configuration
 
 Mesh Master supports multiple AI providers. Set `ai_provider` in `config.json`:

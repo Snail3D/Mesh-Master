@@ -441,7 +441,9 @@ class MeshCoreManager:
                 )
         except Exception as exc:
             logger.error(f"MeshCore _create_connection failed: {exc}")
-            return None
+            # Propagate so the status callback can surface the real reason
+            # (e.g. permission denied / port busy) instead of a generic message.
+            raise
 
     async def _handle_contact_message(self, event: Any) -> None:
         """Process an incoming direct (contact) message."""

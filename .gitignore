@@ -232,6 +232,8 @@ Mesh-Master/
 
 # Configuration file (may contain secrets like Tailscale auth keys)
 config.json
+config.json.bak
+config.json.*.bak
 
 # SSH keys and deploy keys
 *.pem
