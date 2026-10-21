@@ -52,6 +52,7 @@ from datetime import datetime, timedelta, timezone  # Added timezone import
 import threading
 import os
 import logging
+import secrets
 import string
 from collections import deque, Counter, defaultdict, OrderedDict
 from pathlib import Path
@@ -3940,9 +3941,29 @@ except FileNotFoundError:
     motd_content = "No MOTD available."
 
 
-ADMIN_PASSWORD = str(config.get("admin_password", "password") or "password")
+def _resolve_admin_password() -> str:
+    """Return the dashboard password, generating and persisting one on first run.
+
+    Never falls back to a shared literal: an unconfigured install used to accept
+    the word "password", which is public knowledge from this repo.
+    """
+    configured = str(config.get("admin_password") or "").strip()
+    if configured:
+        return configured
+    generated = secrets.token_urlsafe(18)
+    config["admin_password"] = generated
+    try:
+        write_atomic(CONFIG_FILE, json.dumps(config, indent=2))
+    except Exception as exc:
+        print(f"⚠️ Unable to persist generated dashboard password: {exc}")
+    print("🔐 Generated dashboard password (also written to config.json):")
+    print(f"   {generated}")
+    return generated
+
+
+ADMIN_PASSWORD = _resolve_admin_password()
 ADMIN_PASSWORD_NORM = ADMIN_PASSWORD.strip().casefold()
-ADMIN_PASSWORD_HINT = str(config.get("admin_password_hint", "password") or "password")
+ADMIN_PASSWORD_HINT = str(config.get("admin_password_hint") or "set during first run")
 
 # Auto-update settings
 AUTO_UPDATE_ENABLED = bool(config.get("auto_update_enabled", False))
@@ -32854,14 +32875,16 @@ def update_dashboard_config():
     # Apply certain settings immediately to runtime globals
     if key == 'admin_password':
         try:
-            globals()['ADMIN_PASSWORD'] = str(new_value or "password")
-            globals()['ADMIN_PASSWORD_NORM'] = str(new_value or "password").strip().casefold()
-            clean_log(f"Dashboard password updated", "🔐", show_always=False, rate_limit=False)
+            new_password = str(new_value or "").strip()
+            if new_password:
+                globals()['ADMIN_PASSWORD'] = new_password
+                globals()['ADMIN_PASSWORD_NORM'] = new_password.casefold()
+                clean_log(f"Dashboard password updated", "🔐", show_always=False, rate_limit=False)
         except Exception:
             pass
     if key == 'admin_password_hint':
         try:
-            globals()['ADMIN_PASSWORD_HINT'] = str(new_value or "password")
+            globals()['ADMIN_PASSWORD_HINT'] = str(new_value or "set during first run")
         except Exception:
             pass
     if key == 'auto_update_enabled':
