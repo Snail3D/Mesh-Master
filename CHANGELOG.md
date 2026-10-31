@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.6.9] - 2026-10-31
 
 ### Fixed
 - **Startup crash on non-UTF-8 stdout** (Windows Git Bash, `LANG=C` on a Pi):
