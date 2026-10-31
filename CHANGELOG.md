@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Startup crash on non-UTF-8 stdout** (Windows Git Bash, `LANG=C` on a Pi):
+  `mesh-master.py` died at import with `UnicodeEncodeError` on the first emoji in
+  a log line, because the module emits emoji throughout (286 ⚠ / 191 ❌ / 88 ✅).
+  `sys.stdout` / `sys.stderr` are now reconfigured to UTF-8 with
+  `errors="replace"` before any output. Thanks @kolotush-commits (#3).
+- **Telegram bot silently missing on Docker and Windows installs**:
+  `python-telegram-bot` was never in `requirements.txt`, only in a separate
+  `setup.sh` line. `Dockerfile` and `scripts/windows/install.ps1` install only
+  `requirements.txt`, so both shipped with `TELEGRAM_AVAILABLE = False` and the
+  bot never started. Now declared as `python-telegram-bot>=21.11.1,<22`.
+  Thanks @kolotush-commits (#4).
+
 ## [2.6.8] - 2026-09-20
 
 ### Fixed
