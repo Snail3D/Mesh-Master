@@ -1,10 +1,12 @@
 protobuf==4.25.3
 tornado==6.5.1
-meshtastic==2.6.4
+meshtastic>=2.7.11,<2.8
 meshcore>=2.3.0
 pyserial>=3.5
 pyserial-asyncio-fast>=0.6
-pubsub==0.1.2
+# pypubsub (pulled in by meshtastic) provides the `pubsub` package the app
+# imports. The standalone `pubsub` 0.1.2 distribution ships a single pubsub.py
+# that shadows it and has no `pub` attribute, so it must not be pinned here.
 requests==2.32.4
 Flask==3.1.0
 unidecode==1.4.0
@@ -13,5 +15,9 @@ python-chess==1.999
 pytest==8.3.3
 cryptography>=42.0.0
 openai>=1.0.0
-bleak>=0.21.0
+bleak>=0.22.3
 python-telegram-bot>=21.11.1,<22
+# Imported directly by mesh-master.py (guarded, so their absence only made the
+# dashboard CPU/GPU metrics silently blank).
+psutil>=5.9
+nvidia-ml-py>=12.0

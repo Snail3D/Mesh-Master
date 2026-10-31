@@ -21,16 +21,28 @@ import http.server
 import socketserver
 import subprocess
 import os
+import shutil
 import sys
-import shlex
 from datetime import datetime
 
 HERMES_PROFILE = os.environ.get("HERMES_PROFILE", "meshmaster")
+# Bind loopback by default: the bridge runs `hermes` in yolo mode with terminal
+# and computer_use, and has no authentication of its own.
+BIND_HOST = os.environ.get("HERMES_BRIDGE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("HERMES_BRIDGE_PORT", "9097"))
 # 180s default matches hermes profile terminal.timeout (180) — gives the agent
 # enough time to do computer_use / browser / multi-step terminal work without
 # the bridge killing it mid-flight. Override with HERMES_TIMEOUT env var.
 HERMES_TIMEOUT = int(os.environ.get("HERMES_TIMEOUT", "180"))
+
+# Optional shared secret. When set, every POST must carry it in X-Bridge-Token.
+# Recommended whenever the bridge is reachable by anything but the local app.
+BRIDGE_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
+# Origins allowed to call the bridge from a browser. Empty = reject any Origin
+# (server-to-server callers do not send one).
+ALLOWED_ORIGINS = {
+    o.strip() for o in os.environ.get("HERMES_BRIDGE_ORIGINS", "").split(",") if o.strip()
+}
 
 
 class HermesBridgeHandler(http.server.BaseHTTPRequestHandler):
@@ -43,6 +55,18 @@ class HermesBridgeHandler(http.server.BaseHTTPRequestHandler):
             self.send_error(404, "Not found")
             return
 
+        # The bridge drives `hermes` in yolo mode (terminal + computer_use), so a
+        # request here is arbitrary command execution on this host. Require the
+        # shared secret when one is configured, and reject cross-origin posts
+        # (a drive-by page can reach loopback with a simple no-cors request).
+        if BRIDGE_TOKEN:
+            if self.headers.get("X-Bridge-Token", "") != BRIDGE_TOKEN:
+                self._json_response(401, {"error": "Invalid or missing X-Bridge-Token"})
+                return
+        origin = self.headers.get("Origin")
+        if origin and origin not in ALLOWED_ORIGINS:
+            self._json_response(403, {"error": f"Origin not allowed: {origin}"})
+            return
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             post_data = self.rfile.read(content_length)
@@ -145,10 +169,15 @@ class HermesBridgeHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            self._json_response(200, {
-                "status": "ok",
+            # Report degraded (503) when the CLI is missing, so a health check
+            # does not claim "ok" while every chat would fail.
+            _has_cli = shutil.which("hermes") is not None
+            self._json_response(200 if _has_cli else 503, {
+                "status": "ok" if _has_cli else "degraded",
+                "hermes_cli": _has_cli,
                 "profile": HERMES_PROFILE,
                 "port": PORT,
+                "auth_required": bool(BRIDGE_TOKEN),
                 "timestamp": datetime.now().isoformat(),
             })
         else:
@@ -168,6 +197,7 @@ def main():
     print(f"  Profile: {HERMES_PROFILE}", flush=True)
     print(f"  Port: {PORT}", flush=True)
     print(f"  Timeout: {HERMES_TIMEOUT}s", flush=True)
+    print(f"  Bind: {BIND_HOST}:{PORT}", flush=True)
     print(f"  Endpoint: POST http://localhost:{PORT}/meshmaster/agent", flush=True)
     print(flush=True)
 
@@ -187,7 +217,13 @@ def main():
     print(flush=True)
     print("Listening...", flush=True)
 
-    with socketserver.TCPServer(("0.0.0.0", PORT), HermesBridgeHandler) as httpd:
+    # Threading so /health and a second admin's request are not queued behind a
+    # running chat (each Hermes run can take up to HERMES_TIMEOUT).
+    class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+        daemon_threads = True
+        allow_reuse_address = True
+
+    with _Server((BIND_HOST, PORT), HermesBridgeHandler) as httpd:
         httpd.serve_forever()
 
 

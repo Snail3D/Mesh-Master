@@ -3,7 +3,7 @@ services:
     image: mrtbot/mesh-master:latest
     container_name: mesh-master
     ports:
-      - "5000:5000"
+      - "5001:5001"
     privileged: true
    # environment:  // UNCOMMENT IF USING SERIAL AND MODIFY FOR YOUR MACHINE.  
    #   - MESH_INTERFACE=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
@@ -12,8 +12,8 @@ services:
    #   - /dev:/dev  //UNCOMMENT IF USING SERIAL.
       # Mount config files
       - ./mesh-master/config/config.json:/app/config.json
-      - ./mesh-master/config/commands_config.json:/app/commands_config.json
-      - ./mesh-master/config/motd.json:/app/motd.json
+      - ./mesh-master/config/commands_config.json:/app/data/commands_config.json
+      - ./mesh-master/config/motd.json:/app/data/motd.json
 
       # Mount log files
       - ./mesh-master/logs/messages.log:/app/messages.log

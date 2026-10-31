@@ -44,6 +44,9 @@ echo ""
 
 # Get project directory
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Work from the project root: .venv, config.json and data/ are created relative
+# to the current directory, so running this from elsewhere scattered them.
+cd "$PROJECT_DIR" || { echo -e "${RED}❌ Cannot enter $PROJECT_DIR${NC}"; exit 1; }
 echo -e "${GREEN}✓${NC} Project directory: $PROJECT_DIR"
 echo ""
 
@@ -396,9 +399,18 @@ if [[ "$OS" == "Raspberry Pi" ]]; then
     else
         echo -e "${YELLOW}⚠️${NC}  Some packages may have failed (can install manually later)"
     fi
+
+    # The Pi branch above builds its own dependency set and never reads
+    # requirements.txt, so meshcore (MeshCore support) and python-telegram-bot
+    # were silently absent on Pi. Install the pins last so they win.
+    echo "Installing requirements.txt on top of the Pi package set..."
+    pip install -r requirements.txt --no-cache-dir 2>/dev/null || \
+        echo -e "${YELLOW}⚠️${NC}  Some requirements.txt packages may have failed on Pi"
 else
     echo "Installing additional dependencies..."
-    pip install cryptography python-telegram-bot bcrypt python-chess==1.999 reportlab==4.4.4 pytest==8.3.3 --no-cache-dir
+    # python-telegram-bot is pinned in requirements.txt; leave it out here or an
+    # unpinned install silently upgrades past the supported major version.
+    pip install cryptography python-chess==1.999 reportlab==4.4.4 pytest==8.3.3 --no-cache-dir
     if [[ $? -eq 0 ]]; then
         echo -e "${GREEN}✓${NC} Installed additional dependencies"
     else

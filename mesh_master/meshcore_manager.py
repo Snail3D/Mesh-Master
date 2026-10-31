@@ -19,9 +19,16 @@ logger = logging.getLogger("meshcore_manager")
 # Attempt to import meshcore; gracefully degrade if not installed
 try:
     from meshcore import MeshCore, EventType, SerialConnection, TCPConnection  # type: ignore
+    # `BLEConnection` imports even when `bleak` is missing (it is optional
+    # inside the library), so the real availability flag must come from there —
+    # otherwise a bleak-less install fails later with an ImportError instead of
+    # the friendly message below.
     try:
         from meshcore import BLEConnection  # type: ignore
-        _BLE_AVAILABLE = True
+        try:
+            from meshcore.ble_cx import BLEAK_AVAILABLE as _BLE_AVAILABLE  # type: ignore
+        except Exception:
+            _BLE_AVAILABLE = True
     except ImportError:
         _BLE_AVAILABLE = False
     MESHCORE_AVAILABLE = True
@@ -134,6 +141,10 @@ class MeshCoreManager:
         Send a direct message to a contact identified by public key prefix.
         Thread-safe; blocks until sent or timeout.
         """
+        # The app tags MeshCore destinations as "mc_<pubkeyprefix>"; the library
+        # only accepts bare hex, so strip it here (ValueError otherwise).
+        if isinstance(dst_key, str) and dst_key.startswith("mc_"):
+            dst_key = dst_key[3:]
         if not self._is_ready():
             logger.warning("send_direct called but MeshCore not connected")
             return False
@@ -202,6 +213,8 @@ class MeshCoreManager:
 
     def send_direct_with_retry(self, dst_key: str, text: str, timeout: float = 30.0) -> bool:
         """Send a direct message with automatic retry on failure."""
+        if isinstance(dst_key, str) and dst_key.startswith("mc_"):
+            dst_key = dst_key[3:]
         if not self._is_ready():
             return False
         try:

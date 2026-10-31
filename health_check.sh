@@ -8,7 +8,7 @@ echo "🔍 MESH-MASTER Health Check $(date)"
 echo "=================================="
 
 # Check if service is enabled
-if systemctl is-enabled mesh-master.service &>/dev/null; then
+if systemctl is-enabled mesh-ai.service &>/dev/null; then
     echo "✅ Service enabled for auto-start"
 else
     echo "❌ Service NOT enabled for auto-start"
@@ -16,7 +16,7 @@ else
 fi
 
 # Check if service is active
-if systemctl is-active mesh-master.service &>/dev/null; then
+if systemctl is-active mesh-ai.service &>/dev/null; then
     echo "✅ Service is running"
 else
     echo "❌ Service is NOT running"
@@ -24,8 +24,9 @@ else
 fi
 
 # Check if web interface is responding
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/dashboard | grep -q "200"; then
-    echo "✅ Web interface responding on port 5000"
+PORT="${MESH_MASTER_PORT:-5001}"
+if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/dashboard" | grep -q "200"; then
+    echo "✅ Web interface responding on port ${PORT}"
 else
     echo "❌ Web interface NOT responding"
     exit 1
@@ -52,7 +53,7 @@ else
 fi
 
 # Check service logs for recent errors
-if journalctl -u mesh-master.service --since "5 minutes ago" --no-pager -q | grep -i error; then
+if journalctl -u mesh-ai.service --since "5 minutes ago" --no-pager -q | grep -i error; then
     echo "⚠️  Recent errors found in service logs"
 else
     echo "✅ No recent errors in service logs"

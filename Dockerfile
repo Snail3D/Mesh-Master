@@ -29,16 +29,12 @@ RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_
     ln -s /usr/local/bin/pip3.13    /usr/local/bin/pip
 
 # ------------------------------------------------------------
-# Install Meshtastic + MeshCore Python packages
-# ------------------------------------------------------------
-RUN pip install --no-cache-dir --upgrade \
-    "meshtastic>=2.6.0" \
-    "meshcore>=2.3.0"
-
-# ------------------------------------------------------------
 # Application
 # ------------------------------------------------------------
+# meshtastic/meshcore are installed from requirements.txt below, so they are
+# not installed here as well (that just added a layer and a downgrade).
 WORKDIR /app
+
 COPY mesh-master.py .
 COPY mesh_master ./mesh_master
 COPY scripts ./scripts
@@ -48,5 +44,5 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 5000
+EXPOSE 5001
 CMD ["python", "mesh-master.py"]

@@ -27,7 +27,13 @@ ns = {}
 src = MODULE_PATH.read_text(encoding='utf-8')
 # Avoid creating Flask app / starting threads when executing the source here.
 # Replace Flask init and route decorators so module-level route definitions do not run.
-src_mod = src.replace("app = Flask(__name__)", "app = None  # patched by test harness to avoid Flask init", 1)
+# Keep a stand-in that still supports the module-level attribute writes below
+# (app.secret_key / app.config[...]); a bare None breaks them.
+src_mod = src.replace(
+    "app = Flask(__name__)",
+    "app = _HarnessApp()  # patched by test harness",
+    1,
+)
 src_mod = src_mod.replace("@app.route", "@_no_op_route")
 
 # Provide a sane module identity and file path for Flask-related helpers
@@ -41,6 +47,22 @@ def _no_op_route(*a, **k):
     return _decorator
 
 ns['_no_op_route'] = _no_op_route
+
+class _HarnessApp:
+    """Minimal Flask stand-in: records routes, tolerates config writes."""
+
+    def __init__(self):
+        self.secret_key = None
+        self.config = {}
+
+    def route(self, *a, **k):
+        def _decorator(f):
+            return f
+
+        return _decorator
+
+
+ns['_HarnessApp'] = _HarnessApp
 
 # Inject lightweight mocks for optional external modules so the test harness
 # can exec the real `mesh-master.py` source without requiring all dependencies.

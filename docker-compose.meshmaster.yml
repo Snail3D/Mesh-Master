@@ -4,21 +4,27 @@ services:
     image: mesh-master:latest
     container_name: mesh-master
     ports:
-      - "5000:5000"
+      - "5001:5001"
     privileged: true
     devices:
       - /dev/cu.usbmodem1101:/dev/cu.usbmodem1101
     environment:
-      - MESH_INTERFACE=/dev/cu.usbmodem1101
+      # serial_port lives in the mounted config.json; MESH_INTERFACE is not read by the app.
+      # The Hermes bridge runs on the host. On a Linux Docker host `host-gateway`
+      # is the docker bridge address, so start the bridge with
+      # HERMES_BRIDGE_HOST=0.0.0.0 there (a loopback-bound bridge is unreachable).
+      # On Docker Desktop for macOS the host proxy reaches loopback, so the
+      # default 127.0.0.1 bind works.
+      - AGENT_WEBHOOK_URL=http://host.docker.internal:9097/meshmaster/agent
     volumes:
       - ./config.json:/app/config.json:rw
-      - ./commands_config.json:/app/commands_config.json:rw
+      - ./data/commands_config.json:/app/data/commands_config.json:rw
       - ./data:/app/data:rw
       - ./mesh_master:/app/mesh_master:rw
       - ./mesh-master.py:/app/mesh-master.py:rw
       - ./static:/app/static:ro
-      - ./motd.json:/app/motd.json:rw
-      - ./feature_flags.json:/app/feature_flags.json:rw
+      - ./data/motd.json:/app/data/motd.json:rw
+      - ./data/feature_flags.json:/app/data/feature_flags.json:rw
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

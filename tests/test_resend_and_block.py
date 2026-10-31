@@ -14,12 +14,19 @@ def _exec_module_source():
     """
     src = MODULE_PATH.read_text(encoding='utf-8')
     # Patch out Flask app creation and route decorators so we don't start the server
-    src_mod = src.replace("app = Flask(__name__)", "app = None  # patched by test harness", 1)
+    # Tolerate the module-level app.secret_key / app.config[...] writes that
+    # follow Flask app creation; a bare None breaks them.
+    src_mod = src.replace(
+        "app = Flask(__name__)",
+        "app = types.SimpleNamespace(secret_key=None, config={})  # patched by test harness",
+        1,
+    )
     src_mod = src_mod.replace("@app.route", "@_no_op_route")
 
     ns = {}
     ns['__name__'] = 'mesh_master_test_module'
     ns['__file__'] = str(MODULE_PATH)
+    ns['types'] = types  # used by the patched app stand-in below
 
     def _no_op_route(*a, **k):
         def _decorator(f):
@@ -145,6 +152,13 @@ def test_partial_resend_dm_only():
 
 def test_stop_blacklist_unblock_flow():
     ns = _exec_module_source()
+    # Start from a known-clean access state: mute/block are persisted to
+    # data/user_access.json, so a previous run would otherwise leave the user
+    # blocked and every assertion below would fail.
+    for _key in ('7', '!7'):
+        ns['_set_user_blocked'](_key, False)
+        ns['_set_user_muted'](_key, False)
+
     parse = ns['parse_incoming_text']
     is_muted = ns['_is_user_muted']
     is_blocked = ns['_is_user_blocked']

@@ -4,7 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [2.6.9] - 2026-10-31
 
-### Fixed
+### Security
+- **Unauthenticated secrets disclosure.** `GET /dashboard/metrics` returned the
+  plaintext `admin_password`, the admin passphrase, the Home Assistant token and
+  the Tailscale key to any caller; `GET /dashboard/telegram/config` returned the
+  Telegram bot token; `GET /logs/verbose` returned the log ring buffer, which
+  contains the generated password. All three now require a logged-in session,
+  and the config overview masks secret values in its `raw` field.
+- **Telegram chat allow-list was not enforced inbound.** `authorized_chat_ids`
+  only gated outbound sends, so any Telegram user who found the bot could
+  transmit on the mesh and spend AI credits. Unauthorized chats are now ignored.
+- **Hermes bridge had no authentication.** It runs `hermes` in yolo mode
+  (terminal + computer_use), so a POST to `127.0.0.1:9097` was arbitrary command
+  execution — reachable from any web page via a `no-cors` request. It now binds
+  loopback, honours an optional `HERMES_BRIDGE_TOKEN` (`X-Bridge-Token`) and
+  rejects foreign `Origin`s. Also threaded, so `/health` no longer queues behind
+  a running chat.
+- **Command injection in `/dashboard/update/apply`**: the `version` field was
+  interpolated into a generated bash script. It is now validated. The script is
+  also written with `mkstemp` instead of a predictable `/tmp/mesh_update.sh`
+  (symlink overwrite).
+- Installers no longer ship `admin_password: "password"`; a fresh install
+  generates one on first run.
+
 - **Startup crash on non-UTF-8 stdout** (Windows Git Bash, `LANG=C` on a Pi):
   `mesh-master.py` died at import with `UnicodeEncodeError` on the first emoji in
   a log line, because the module emits emoji throughout (286 ⚠ / 191 ❌ / 88 ✅).
@@ -16,6 +38,50 @@ All notable changes to this project will be documented in this file.
   `requirements.txt`, so both shipped with `TELEGRAM_AVAILABLE = False` and the
   bot never started. Now declared as `python-telegram-bot>=21.11.1,<22`.
   Thanks @kolotush-commits (#4).
+
+- **MeshCore auto-detect never worked**: `MeshCore` was not imported in
+  `mesh-master.py`, so the probe raised `NameError` and `radio_protocol: "auto"`
+  always reported Meshtastic. The probe also no longer leaves the `meshcore`
+  logger pinned to ERROR, and the relay strips the `mc_` destination prefix.
+- **MeshCore → Telegram forwarding skipped channel traffic**: the forward ran
+  after the "no AI reply" early return, so ordinary channel messages never
+  reached Telegram.
+- **DM history leaked between senders**: `build_ollama_history` included every
+  DM's AI replies, so one user's conversation appeared in another's context.
+- **`/hermes` was not a registered command** (and `@hermes` did nothing): both
+  are documented but only `/agent` resolved. `/hermes` is now an alias and
+  `@hermes` / `@agent` are rewritten to the command.
+- **Onboarding swallowed control words**: a new user's first `stop`, `resume`,
+  `blacklistme` or yes/no confirmation was eaten by the tour.
+- **Telegram config save leaked pollers**: the stop event was never read and
+  `run_polling` was never stopped, so each save added another poller and each
+  DM was answered once per poller. Saves now stop and join the old thread.
+- **`/agent` blocked the radio receive thread** for up to the full bridge
+  timeout; it now runs on the async worker.
+- **meshtastic 2.7 raised its command/ACK timeout from 20s to 300s**, which
+  would stall a chunk send for five minutes. All interfaces now get an explicit
+  `radio_op_timeout` (default 30s).
+- **Radio node lookups always missed**: `interface.nodes` is keyed `"!xxxxxxxx"`,
+  but the dashboard indexed it with an int, so radio name / battery / info fell
+  back to defaults. Added a tolerant `lookup_node()`.
+- **`node.writeConfig()` raised `TypeError`** (needs a config name) on every
+  rename, and dead proto3 `ch.settings = ChannelSettings()` assignments always
+  raised. The serial baud switch targeted a non-existent `_serial` attribute.
+- `pubsub==0.1.2` was the wrong distribution (it shadows pypubsub's `pubsub`
+  package and has no `pub`); `psutil` / `nvidia-ml-py` were imported but never
+  declared; `bleak` floor raised to match meshtastic.
+- Docker/compose published port 5000 while the app listens on 5001; config
+  files were mounted at `/app/…` but read from `/app/data/…`; the Dockerfile
+  installed meshtastic twice. `health_check.sh` used the wrong unit name and
+  port. `setup.sh` now `cd`s to the project root and the Pi branch installs
+  `requirements.txt` (it previously omitted meshcore and Telegram entirely).
+
+### Removed
+- Eight orphaned agent scripts that nothing imported or launched
+  (`hermes_poller.py`, `agent_responder.py`, `auto_agent.py`, `agent_system.py`,
+  `simple_agent.py`, `intelligent_agent.py`, `agent_9095.py`, `agent_9096.py`)
+  and the dead `data/hermes_responses.json` polling loop in `mesh-master.py`
+  (nothing wrote that file).
 
 ## [2.6.8] - 2026-09-20
 

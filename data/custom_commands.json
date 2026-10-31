@@ -1,5 +1,1 @@
-{
-  "commands": [],
-  "version": "1.0",
-  "description": "Custom commands created via Command Builder"
-}
+{"commands": [{"name": "hello", "flows": [{"trigger": "yes", "action": "ai", "ai_prompt": "hi"}]}]}

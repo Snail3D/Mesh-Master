@@ -67,6 +67,7 @@ from flask import Flask, request, jsonify, redirect, url_for, stream_with_contex
 import sys
 import socket  # for socket error checking
 import re
+import tempfile
 import random
 import subprocess
 import math
@@ -1302,8 +1303,8 @@ def _gather_dashboard_metrics() -> Dict[str, Any]:
             if interface and hasattr(interface, 'nodes'):
                 # Get my node ID
                 my_node_id = getattr(interface.myInfo, 'my_node_num', None) if hasattr(interface, 'myInfo') else None
-                if my_node_id and my_node_id in interface.nodes:
-                    node_info = interface.nodes[my_node_id]
+                node_info = lookup_node(interface, my_node_id) if my_node_id else None
+                if node_info:
                     user_info = node_info.get('user', {})
                     radio_name = user_info.get('longName', user_info.get('shortName', 'Unknown Radio'))
         except Exception:
@@ -3099,7 +3100,7 @@ CONFIG_KEY_FRIENDLY_NAMES: Dict[str, str] = {
 }
 
 CONFIG_KEY_EXPLAINERS: Dict[str, str] = {
-    "admin_password": "Password required to access the dashboard. Change this from the default 'password' for security.",
+    "admin_password": "Password required to access the dashboard. Generated on first run; change it here.",
     "admin_password_hint": "Helpful hint shown on the login page to remind you of the password.",
     "auto_update_enabled": "Automatically check for new versions from GitHub and notify whitelisted admins via DM when updates are available. Respects quiet hours. Admins can use /update to install.",
     "auto_update_check_interval_hours": "How often to check for updates (in hours). Default is 24 hours. Requires auto_update_enabled to be true. Notifications sent outside quiet hours only.",
@@ -3388,7 +3389,12 @@ def _build_config_overview() -> Dict[str, Any]:
                     "label": _humanize_config_key(key),
                     "value": display,
                     "tooltip": tooltip,
-                    "raw": value,
+                    # `raw` is the unmasked config value; mask it for secrets so
+                    # the config overview cannot leak admin_password/tokens.
+                    "raw": (_mask_config_value(value)
+                            if (key in _SENSITIVE_CONFIG_KEYS or
+                                any(t in key.lower() for t in _SENSITIVE_CONFIG_KEYWORDS))
+                            else value),
                     "type": _config_value_kind(value),
                     "explainer": _build_config_explainer(key, display, tooltip),
                 }
@@ -3414,7 +3420,12 @@ def _build_config_overview() -> Dict[str, Any]:
                     "label": _humanize_config_key(key),
                     "value": display,
                     "tooltip": tooltip,
-                    "raw": value,
+                    # `raw` is the unmasked config value; mask it for secrets so
+                    # the config overview cannot leak admin_password/tokens.
+                    "raw": (_mask_config_value(value)
+                            if (key in _SENSITIVE_CONFIG_KEYS or
+                                any(t in key.lower() for t in _SENSITIVE_CONFIG_KEYWORDS))
+                            else value),
                     "type": _config_value_kind(value),
                     "explainer": _build_config_explainer(key, display, tooltip),
                 }
@@ -7462,6 +7473,13 @@ try:
     SERIAL_BAUD = int(config.get("serial_baud", 115200))
 except (ValueError, TypeError):
     SERIAL_BAUD = 115200
+# meshtastic 2.7 raised its default command/ACK timeout from 20s to 300s. A
+# missing ACK would then stall a chunk send for five minutes, so keep the old
+# behaviour unless overridden.
+try:
+    RADIO_OP_TIMEOUT = int(config.get("radio_op_timeout", 30))
+except (ValueError, TypeError):
+    RADIO_OP_TIMEOUT = 30
 USE_WIFI = bool(config.get("use_wifi", False))
 WIFI_HOST = config.get("wifi_host") or None
 try:
@@ -8913,6 +8931,7 @@ COMMAND_SUMMARIES: Dict[str, str] = {
     # Note: /about and /donate are hardcoded and always enabled (cannot be disabled)
     "/about": "Shows current version, credits, and project links.",
     "/agent": "Invoke the Hermes AI agent for complex multi-step tasks (admin only). Usage: /agent <your request>. Each admin gets their own conversation thread.",
+    "/hermes": "Alias for /agent - escalates to the full Hermes agent (admin only).",
     "/donate": "Support Mesh Master development with a donation.",
     "/help": "Lists top commands with short usage notes.",
     "/menu": "Displays a compact menu of frequently used commands.",
@@ -9043,6 +9062,7 @@ def _command_alias_map() -> Dict[str, List[str]]:
 BUILTIN_COMMANDS = {
     "/about",
     "/agent",
+    "/hermes",
     "/donate",
     "/ai",
     "/bot",
@@ -10230,6 +10250,15 @@ _hermes_conversations: Dict[str, List[Dict[str, Any]]] = {}
 _hermes_last_interaction: Dict[str, float] = {}
 HERMES_CONVERSATION_TTL = 3600  # 1 hour
 
+
+def _agent_headers() -> Dict[str, str]:
+    """Headers for the agent bridge call, including its shared secret if set."""
+    headers = {"Content-Type": "application/json"}
+    token = os.environ.get("HERMES_BRIDGE_TOKEN", "")
+    if token:
+        headers["X-Bridge-Token"] = token
+    return headers
+
 def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str, channel_idx=None, is_direct=False) -> Optional[str]:
     """
     Call external AI agent (Hermes, OpenClaw, etc.) with conversation context.
@@ -10273,8 +10302,10 @@ def _call_hermes_agent(sender_id: Any, sender_key: str, query: str, source: str,
         response = requests.post(
             AGENT_URL,
             json=payload,
-            timeout=180,  # Matches hermes_bridge.py HERMES_TIMEOUT default
-            headers={"Content-Type": "application/json"}
+            # Must exceed the bridge's own HERMES_TIMEOUT (default 180s), or a
+            # run that succeeds near the deadline is discarded by this socket.
+            timeout=int(os.environ.get("AGENT_CLIENT_TIMEOUT", "240")),
+            headers=_agent_headers()
         )
         add_script_log(f"[Agent] Response status: {response.status_code}")
         
@@ -11969,15 +12000,18 @@ def _relay_worker():
                 if not interface and _mgr and _mgr.is_connected:
                     # Resolve MeshCore pubkey from target_node_id
                     # target_node_id may be "mc_<pubkey_prefix>" or a raw pubkey
-                    target_key = str(target_node_id)
-                    if target_key.startswith("mc_"):
-                        target_key = target_key[3:]
-                    # Try shortname cache to get pubkey
-                    if not target_key or target_key == str(target_node_id):
-                        # Try looking up in MeshCore contacts by shortname
-                        contact = _mgr.get_contact_by_prefix(target_key) if target_key else None
+                    _raw_target = str(target_node_id or "")
+                    target_key = _raw_target[3:] if _raw_target.startswith("mc_") else _raw_target
+                    if not target_key:
+                        # No usable key: fall back to a contact lookup by shortname
+                        contact = _mgr.get_contact_by_prefix(target_shortname) if target_shortname else None
                         if not contact:
                             clean_log(f"Relay: cannot resolve MeshCore target {target_shortname}", "⚠️")
+                            send_direct_chunks(None, f"❌ Cannot find {target_shortname} on mesh", sender_id)
+                            continue
+                        target_key = str(contact.get("pubkey_prefix") or contact.get("public_key") or "")
+                        if not target_key:
+                            clean_log(f"Relay: contact for {target_shortname} has no key", "⚠️")
                             send_direct_chunks(None, f"❌ Cannot find {target_shortname} on mesh", sender_id)
                             continue
 
@@ -12847,6 +12881,30 @@ def same_node_id(a, b):
     return ai == bi
   # Fallback string compare
   return str(a) == str(b)
+
+
+def lookup_node(interface, node_id):
+  """Return the node dict for `node_id`, tolerating int vs '!hex' keying.
+
+  meshtastic keys `interface.nodes` by the string id ("!xxxxxxxx"), so a plain
+  `nodes[my_node_num]` with an int always misses. This tries the direct key
+  first, then falls back to a tolerant scan.
+  """
+  if interface is None or not hasattr(interface, "nodes") or not interface.nodes:
+    return None
+  try:
+    node = interface.nodes.get(node_id)
+    if node is not None:
+      return node
+  except Exception:
+    pass
+  try:
+    for key, node in interface.nodes.items():
+      if same_node_id(key, node_id) or (isinstance(node, dict) and same_node_id(node.get("num"), node_id)):
+        return node
+  except Exception:
+    pass
+  return None
 
 def log_message(node_id, text, is_emergency=False, reply_to=None, direct=False, channel_idx=None, force_node=None, is_ai=False):
     """Append a message entry to the in-memory list and persist.
@@ -14028,16 +14086,28 @@ def build_ollama_history(sender_id=None, is_direct=False, channel_idx=None, thre
       # Build a per-DM-thread history scoped strictly to the given sender_id.
       # Include:
       #  - direct human messages from this sender
-      #  - ALL direct AI messages (for better conversation continuity)
+      #  - direct AI messages answering one of this sender's messages
+      # The sender's own messages are collected first so AI replies can be
+      # matched back to them; an AI reply is included only when it answers this
+      # sender, otherwise every DM thread would leak into every other one.
+      own_timestamps = set()
+      for m in snapshot:
+        try:
+          if m.get('direct') is True and same_node_id(m.get('node_id'), sender_id):
+            own_timestamps.add(m.get('timestamp'))
+        except Exception:
+          continue
       for m in snapshot:
         try:
           if m.get('direct') is True:
-            # Include human messages from this sender
             if same_node_id(m.get('node_id'), sender_id):
               candidates.append(m)
-            # Include ALL AI messages in DMs (simplified for better context)
             elif m.get('is_ai') is True:
-              candidates.append(m)
+              reply_to = m.get('reply_to')
+              # Keep AI replies whose parent is unknown (older entries) so
+              # continuity is not lost, but never ones tied to another sender.
+              if reply_to is None or reply_to in own_timestamps:
+                candidates.append(m)
         except Exception:
           continue
     else:
@@ -17957,6 +18027,13 @@ def _cleanup_expired_flow_sessions():
 ADMIN_CONTROL_COMMANDS = {"/admin", "/ai", "/channels+dm", "/channels", "/dm", "/autoping", "/status", "/whatsoff", "/aliases", "/allcommands"}
 ADMIN_CONTROL_RESERVED = {"/ai", "/channels+dm", "/channels", "/dm", "/admin", "/autoping", "/status", "/whatsoff", "/aliases", "/allcommands"}
 
+# Bare words a first-time user must be able to send before the onboarding tour
+# has been completed; the tour would otherwise swallow them.
+ONBOARDING_BYPASS_WORDS = {
+    "stop", "start", "resume", "continue", "mute", "unmute",
+    "blacklistme", "unblockme", "unblock", "unblock me",
+}
+
 
 # -----------------------------------
 # Admin status helpers
@@ -18365,10 +18442,20 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       return _cmd_reply("telegram", "Usage: telegram <your message>\n\nThis will forward your message to the admin's Telegram bot.")
 
   if is_direct and sender_key:
-    # Handle pending reboot confirmations
+    # A pending yes/no confirmation or a bare control word must always reach its
+    # handler; the onboarding tour would otherwise swallow it and the user could
+    # never finish the action (or ever mute/unmute themselves).
+    _onboard_bypass = lower.strip() in ONBOARDING_BYPASS_WORDS or bool(
+      sender_key in PENDING_BLOCK_CONFIRM
+      or sender_key in PENDING_WIPE_REQUESTS
+      or sender_key in PENDING_UPDATE_CONFIRM
+      or sender_key in PENDING_REBOOT_CONFIRM
+      or sender_key in PENDING_ADMIN_REQUESTS
+    )
+
     # Handle onboarding flow
     current_step = get_user_onboarding_step(sender_key)
-    if current_step is not None and not lower.startswith('/') and is_direct:
+    if current_step is not None and not lower.startswith('/') and not _onboard_bypass:
       choice = lower.strip()
       if choice in {"next", "n", "continue", "yes", "y"}:
         next_step_index = advance_user_onboarding(sender_key, skip=False)
@@ -18388,10 +18475,14 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       elif choice in {"exit", "quit", "stop"}:
         return PendingReply("👋 Onboarding paused. Reply /onboard anytime to continue where you left off!", "/onboard")
 
-    # Auto-prompt new users for onboarding (skip for admin commands)
+    # Auto-prompt new users for onboarding (skip for admin commands and for the
+    # bare control words, which must reach their handlers or a first-time user
+    # can never run `stop`/`resume`/`blacklistme`).
     if is_direct and sender_key:
       settings = get_onboarding_settings()
-      is_admin_command = lower.startswith('/') and (lower.split()[0] in ADMIN_CONTROL_COMMANDS or sender_key in AUTHORIZED_ADMINS)
+      is_admin_command = _onboard_bypass or (
+        lower.startswith('/') and (lower.split()[0] in ADMIN_CONTROL_COMMANDS or sender_key in AUTHORIZED_ADMINS)
+      )
       if settings.get("auto_onboard_new_users", True) and not is_admin_command:
         if not is_user_onboarded(sender_key) and current_step is None:
           # First message from this user - offer onboarding
@@ -18522,7 +18613,11 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       if reply:
         return reply
 
-    if lower == "/stop":
+    # `stop` and `/stop` are the same request: bare `stop` is promoted to the
+    # command form later, but `lower` is computed before promotion, so both
+    # spellings must be accepted here or bare `stop` falls through to the
+    # auto-scroll handler below and never mutes the user.
+    if lower in ("/stop", "stop"):
       if check_only:
         return True
       # Check if Bible auto-scroll is active - if so, just stop that without muting
@@ -18563,7 +18658,8 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
           _schedule_auto_resume(sender_key, sender_id, lang)
       note = f"✅ Paused. Use /start or /resume to continue. (cleared {removed} queued replies){extra_note}"
       return PendingReply(note, "stop command")
-    if lower in {"/start", "/resume", "/continue", "/unmute"}:
+    if lower in {"/start", "/resume", "/continue", "/unmute",
+                 "start", "resume", "continue", "unmute"}:
       if check_only:
         return True
       _cancel_auto_resume(sender_key)
@@ -18606,7 +18702,7 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
         return True
       PENDING_BLOCK_CONFIRM[sender_key] = {"ts": time.time()}
       return PendingReply("⚠️ Block all my replies to you? Reply Y to confirm, N to cancel.", "blacklist confirm")
-    if lower in {"/unblock", "unblock", "unblock me", "/unblock me"}:
+    if lower in {"/unblock", "unblock", "unblock me", "/unblock me", "unblockme"}:
       if check_only:
         return True
       _set_user_blocked(sender_key, False)
@@ -18984,6 +19080,14 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
       return vibe_reply
 
   sanitized = text.replace('\u0007', '').strip()
+
+  # `@hermes <request>` / `@agent <request>` are documented aliases for the agent
+  # command. Rewrite to the slash form so the normal command path handles it.
+  if sanitized[:1] == "@":
+    _mention, _sep, _rest = sanitized.partition(" ")
+    if _mention.lower() in ("@hermes", "@agent"):
+      text = ("/agent " + _rest.strip()) if _rest.strip() else "/agent"
+      sanitized = text.strip()
   normalized = sanitized.lower()
   try:
     if sender_key and sanitized:
@@ -19115,8 +19219,11 @@ def parse_incoming_text(text, sender_id, is_direct, channel_idx, thread_root_ts=
         return True
       if cmd_lower in ["/reset"]:
         return False  # Process immediately, not async
-      # Built-in AI commands need async processing
-      if cmd_lower in ["/ai", "/bot", "/data", "/system"]:
+
+      # Built-in AI commands need async processing. /agent is included because
+      # it makes a blocking HTTP call to the Hermes bridge (up to 240s); running
+      # it inline would stop the radio receive thread for that whole time.
+      if cmd_lower in ["/ai", "/bot", "/data", "/system", "/agent", "/hermes"]:
         return True  # Needs AI processing
       if cmd_lower == "/c":
         remainder = text[len(raw_cmd):].strip()
@@ -19177,6 +19284,33 @@ def on_meshcore_message(msg: dict) -> None:
     Callback invoked by MeshCoreManager when a message arrives from a MeshCore device.
     Normalizes the message and feeds it through the same command/AI pipeline as Meshtastic.
     """
+
+    # ----------------------------------------------------------------
+    def _tg_escape(value):
+        """Escape Telegram-special characters in user-supplied strings.
+
+        Telegram parses these as Markdown / entity chars in plain
+        messages. Stripping (NOT quoting) is the safer default because
+        most meshes rarely need formatting in their shortname.
+        """
+        if not isinstance(value, str):
+            value = str(value) if value is not None else ""
+        # Balanced class: the old `([_*[\`])` stripped `[` but left `]`, turning
+        # "a[b]c" into "ab]c". Brackets/backtick must be paired here.
+        return re.sub(r"[_*\[\]`]", "", value)
+
+    def _tg_truncate(value, limit=64):
+        """Truncate a string by visible-char count, not bytes.
+
+        Emoji like 🐌 are 1 visible character but 4 UTF-8 bytes; a
+        naive byte-truncate can split a codepoint and produce mojibake.
+        """
+        if not isinstance(value, str):
+            value = str(value) if value is not None else ""
+        if len(value) <= limit:
+            return value
+        return value[:limit].rstrip() + "…"
+
     try:
         text = (msg.get("text") or "").strip()
         if not text:
@@ -19213,68 +19347,6 @@ def on_meshcore_message(msg: dict) -> None:
         except Exception as exc:
             clean_log(f"MeshCore parse_incoming_text error: {exc}", "⚠️", show_always=False)
             return
-
-        if reply is None:
-            return
-
-        # Extract reply text
-        if isinstance(reply, PendingReply):
-            reply_text = reply.text or ""
-        else:
-            reply_text = str(reply) if reply else ""
-
-        if not reply_text:
-            return
-
-        # Send reply back via MeshCore
-        try:
-            mgr = globals().get("MESHCORE_MANAGER")
-            if mgr and mgr.is_connected:
-                if is_direct:
-                    sender_key = msg.get("sender_key", "")
-                    if sender_key:
-                        import logging
-                        logging.getLogger("meshcore_manager").info(f"on_meshcore_message: sending reply to {sender_key[:8]}, len={len(reply_text)}, preview={reply_text[:80]}...")
-                        mgr.send_direct_chunks(sender_key, reply_text)
-                    else:
-                        clean_log("MeshCore DM reply skipped: no sender_key", "⚠️", show_always=False)
-                else:
-                    if channel_idx is not None:
-                        mgr.send_channel(channel_idx, reply_text)
-        except Exception as exc:
-            clean_log(f"MeshCore send reply error: {exc}", "⚠️", show_always=False)
-
-        # ----------------------------------------------------------------
-        # v2.6.6: forward inbound MeshCore messages to Telegram. v2.6.7:
-        # unicode/emoji-safe (strip Telegram Markdown metachars; truncate
-        # runaway names; allow per-protocol channel names; defend against
-        # usernames containing * _ [ ` which would otherwise mangle
-        # the rendered message. User feedback: snail emoji as username
-        # is canonical; obscure multi-codepoint emoji sequences must
-        # work end-to-end.
-        # ----------------------------------------------------------------
-        def _tg_escape(value):
-            """Escape Telegram-special characters in user-supplied strings.
-
-            Telegram parses these as Markdown / entity chars in plain
-            messages. Stripping (NOT quoting) is the safer default because
-            most meshes rarely need formatting in their shortname.
-            """
-            if not isinstance(value, str):
-                value = str(value) if value is not None else ""
-            return re.sub(r"([_*[\`])", "", value)
-
-        def _tg_truncate(value, limit=64):
-            """Truncate a string by visible-char count, not bytes.
-
-            Emoji like 🐌 are 1 visible character but 4 UTF-8 bytes; a
-            naive byte-truncate can split a codepoint and produce mojibake.
-            """
-            if not isinstance(value, str):
-                value = str(value) if value is not None else ""
-            if len(value) <= limit:
-                return value
-            return value[:limit].rstrip() + "…"
 
         try:
             if not telegram_config.get("enabled"):
@@ -19327,6 +19399,46 @@ def on_meshcore_message(msg: dict) -> None:
                 send_to_telegram(forward_text)
         except Exception as _fwd_exc:
             clean_log(f"MeshCore->Telegram forward error: {_fwd_exc}", "⚠️", show_always=False)
+
+        if reply is None:
+            return
+
+        # Extract reply text
+        if isinstance(reply, PendingReply):
+            reply_text = reply.text or ""
+        else:
+            reply_text = str(reply) if reply else ""
+
+        if not reply_text:
+            return
+
+        # Send reply back via MeshCore
+        try:
+            mgr = globals().get("MESHCORE_MANAGER")
+            if mgr and mgr.is_connected:
+                if is_direct:
+                    sender_key = msg.get("sender_key", "")
+                    if sender_key:
+                        import logging
+                        logging.getLogger("meshcore_manager").info(f"on_meshcore_message: sending reply to {sender_key[:8]}, len={len(reply_text)}, preview={reply_text[:80]}...")
+                        mgr.send_direct_chunks(sender_key, reply_text)
+                    else:
+                        clean_log("MeshCore DM reply skipped: no sender_key", "⚠️", show_always=False)
+                else:
+                    if channel_idx is not None:
+                        mgr.send_channel(channel_idx, reply_text)
+        except Exception as exc:
+            clean_log(f"MeshCore send reply error: {exc}", "⚠️", show_always=False)
+
+        # ----------------------------------------------------------------
+        # v2.6.6: forward inbound MeshCore messages to Telegram. v2.6.7:
+        # unicode/emoji-safe (strip Telegram Markdown metachars; truncate
+        # runaway names; allow per-protocol channel names; defend against
+        # usernames containing * _ [ ` which would otherwise mangle
+        # the rendered message. User feedback: snail emoji as username
+        # is canonical; obscure multi-codepoint emoji sequences must
+        # work end-to-end.
+
 
     except Exception as exc:
         clean_log(f"on_meshcore_message error: {exc}", "⚠️", show_always=False)
@@ -19827,7 +19939,7 @@ def require_auth(f):
     def decorated_function(*args, **kwargs):
         if not is_authenticated():
             return jsonify({
-                'error': 'Authentication required. Please log in at /login (default password: "password")',
+                'error': 'Authentication required. Please log in at /login',
                 'authenticated': False,
                 'redirect': '/login'
             }), 401
@@ -20017,6 +20129,7 @@ def api_tutorial_status():
     return jsonify(data)
 
 @app.route("/api/tutorial/complete", methods=["POST"])
+@require_auth
 def api_tutorial_complete():
     """Mark a tutorial as completed."""
     request_data = request.get_json() or {}
@@ -20125,8 +20238,13 @@ def get_battery_status():
 
 
 @app.route("/dashboard/metrics", methods=["GET"])
+@require_auth
 def get_dashboard_metrics():
-    """Return the live metrics snapshot used by the dashboard overview."""
+    """Return the live metrics snapshot used by the dashboard overview.
+
+    Authenticated: the payload includes the config overview, which contains
+    secrets such as admin_password / home_assistant_token.
+    """
     try:
         payload = _gather_dashboard_metrics()
     except Exception as exc:  # pragma: no cover - defensive guardrail for the UI
@@ -20268,9 +20386,19 @@ def save_telegram_config():
     global telegram_bot_thread, telegram_bot_stop_event, telegram_config
     telegram_config = telegram_data
 
+    # Stop the previous poller and wait for it, otherwise every save leaves an
+    # extra getUpdates loop running and each inbound DM is answered N times.
     if telegram_bot_stop_event:
         telegram_bot_stop_event.set()
+        old_thread = telegram_bot_thread
         telegram_bot_stop_event = None
+        if old_thread is not None and old_thread.is_alive():
+            # The event loop can be inside a blocking /agent call, so the budget
+            # must exceed that client timeout or we start a second poller.
+            _join_budget = int(os.environ.get("AGENT_CLIENT_TIMEOUT", "240")) + 15
+            old_thread.join(timeout=_join_budget)
+            if old_thread.is_alive():
+                add_script_log(f"Warning: previous Telegram poller did not stop within {_join_budget}s")
 
     if enabled and token and chat_ids and TELEGRAM_AVAILABLE:
         telegram_bot_stop_event = threading.Event()
@@ -20293,8 +20421,12 @@ def save_telegram_config():
 
 
 @app.route("/dashboard/telegram/config", methods=["GET"])
+@require_auth
 def get_telegram_config():
-    """Get current Telegram bot configuration."""
+    """Get current Telegram bot configuration.
+
+    Authenticated: the response contains the bot token.
+    """
     return jsonify({"ok": True, "config": telegram_config, "library_available": TELEGRAM_AVAILABLE})
 
 
@@ -20675,6 +20807,10 @@ def dashboard_update_apply():
 
         if not version:
             return jsonify({"success": False, "error": "No version specified"}), 400
+        # `version` is interpolated into the generated bash script below, so it
+        # must not be able to carry shell syntax or a leading dash (git option).
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/+-]*", version):
+            return jsonify({"success": False, "error": f"Invalid version: {version!r}"}), 400
 
         clean_log(f"📦 Update requested to version: {version}", show_always=False, rate_limit=False)
 
@@ -20822,8 +20958,10 @@ fi
 echo "Completed at: $(date)"
 """.format(project_dir=project_dir, version=version, log_file=log_file)
 
-        script_path = "/tmp/mesh_update.sh"
-        with open(script_path, "w") as f:
+        # A fixed path in world-writable /tmp is a symlink-attack target: another
+        # local user could pre-create it and make us overwrite an arbitrary file.
+        _fd, script_path = tempfile.mkstemp(prefix="mesh_update_", suffix=".sh")
+        with os.fdopen(_fd, "w") as f:
             f.write(update_script)
 
         os.chmod(script_path, 0o755)
@@ -21692,6 +21830,7 @@ def _render_log_line_html(line: str) -> str:
 
 
 @app.route("/mesh_locations.kml")
+@require_auth
 def mesh_locations_kml():
   kml = _build_locations_kml()
   headers = {
@@ -21715,7 +21854,10 @@ def health():
   return jsonify({"ok": connection_status == "Connected", "status": connection_status})
 
 @app.route("/logs/verbose", methods=["GET"])
+@require_auth
 def logs_verbose():
+  # Authenticated: the ring buffer contains the generated dashboard password and
+  # bot-token prefixes (both are printed to stdout after the logger is installed).
   captured = script_logs[-400:]
   rendered = "\n".join(captured) if captured else "No logs captured yet."
   escaped = html.escape(rendered, quote=False)
@@ -23446,7 +23588,7 @@ def login_page():
         <form id="loginForm">
             <div class="form-group">
                 <label for="password">Admin Password</label>
-                <input type="password" id="password" name="password" placeholder="default is 'password'" required autofocus>
+                <input type="password" id="password" name="password" placeholder="dashboard password" required autofocus>
             </div>
             <div class="form-group" style="flex-direction: row; align-items: center; margin-top: 8px;">
                 <input type="checkbox" id="rememberMe" name="rememberMe" style="width: auto; margin-right: 8px;">
@@ -32718,6 +32860,7 @@ def _log_config_change(key: str, old_value: Any, new_value: Any, is_security_sen
 
 
 @app.route('/dashboard/config/snapshot', methods=['GET'])
+@require_auth
 def get_config_snapshot():
     """Return a snapshot of the current configuration for the dashboard."""
     # Get connection type and node info
@@ -33522,6 +33665,7 @@ def dashboard_groq_test():
 
 
 @app.route('/dashboard/js-error', methods=['POST'])
+@require_auth
 def log_dashboard_js_error():
     data = request.get_json(silent=True) or {}
     kind = str(data.get('kind') or 'error')
@@ -33783,12 +33927,10 @@ def set_radio_names():
         try:
             # Use setOwner method to set long and short names
             node.setOwner(long_name=long_name, short_name=short_name if short_name else None)
-            # Write config to persist the change
-            try:
-                node.writeConfig()
-                clean_log("Writing config to persist node names...", "💾", show_always=False, rate_limit=False)
-            except Exception as e:
-                clean_log(f"Warning: Failed to write config: {e}", "⚠️", show_always=False, rate_limit=False)
+            # setOwner() already sends the set_owner admin message, which
+            # persists the names on the device. writeConfig() needs a
+            # config_name argument (it raised TypeError when called bare).
+            clean_log("Node names sent to radio...", "💾", show_always=False, rate_limit=False)
         except Exception as exc:
             return jsonify({'ok': False, 'error': f'Failed to set node names: {exc}'}), 500
 
@@ -34141,8 +34283,8 @@ def add_radio_channel():
         try:
             ch = channels[target_idx]
             ch.role = meshtastic_channel_pb2.Channel.Role.SECONDARY
-            if ch.settings is None:
-                ch.settings = meshtastic_channel_pb2.ChannelSettings()
+            # `ch.settings` is a proto3 message field: it is never None, and it
+            # cannot be assigned to (only its sub-fields can be set).
             ch.settings.name = name
             ch.settings.uplink_enabled = uplink
             ch.settings.downlink_enabled = downlink
@@ -34181,8 +34323,7 @@ def update_radio_channel():
         if role == meshtastic_channel_pb2.Channel.Role.DISABLED:
             return jsonify({'ok': False, 'error': 'Channel is disabled'}), 400
         try:
-            if ch.settings is None:
-                ch.settings = meshtastic_channel_pb2.ChannelSettings()
+            # `ch.settings` is a proto3 message field: never None, not assignable.
             if name is not None:
                 ch.settings.name = str(name)
             if uplink is not None:
@@ -34961,7 +35102,7 @@ def serial_test_baud():
         # 1) Meshtastic handshake first — the program default, native USB serial is 115200.
         #    Trying it first avoids repeatedly re-opening the port (which can reset the radio).
         try:
-            iface = meshtastic.serial_interface.SerialInterface(devPath=port)
+            iface = meshtastic.serial_interface.SerialInterface(devPath=port, timeout=RADIO_OP_TIMEOUT)
             try:
                 if getattr(iface, 'myInfo', None) is not None:
                     detected_protocol = 'meshtastic'
@@ -35308,17 +35449,26 @@ def _probe_meshcore_sync(
     if not MESHCORE_AVAILABLE:
         return False
 
+    # `MeshCore` itself is not imported at module scope (only MeshCoreManager is),
+    # so without this the probe raised NameError and auto-detect always reported
+    # Meshtastic, even for a MeshCore radio.
+    try:
+        from meshcore import MeshCore  # noqa: F401  (used by _probe below)
+    except Exception as exc:
+        dprint(f"MeshCore probe unavailable: {exc}")
+        return False
+
     async def _probe() -> bool:
         mc = None
         try:
             if tcp_host:
                 mc = await asyncio.wait_for(
-                    MeshCore.create_tcp(tcp_host, tcp_port, only_error=True, default_timeout=timeout),
+                    MeshCore.create_tcp(tcp_host, tcp_port, default_timeout=timeout),
                     timeout=timeout + 1,
                 )
             elif serial_port:
                 mc = await asyncio.wait_for(
-                    MeshCore.create_serial(serial_port, serial_baud, only_error=True, default_timeout=timeout),
+                    MeshCore.create_serial(serial_port, serial_baud, default_timeout=timeout),
                     timeout=timeout + 1,
                 )
             else:
@@ -35366,14 +35516,14 @@ def connect_interface():
         if USE_WIFI and WIFI_HOST and TCPInterface is not None:
             print(f"TCPInterface → {WIFI_HOST}:{WIFI_PORT}")
             connection_status, last_error_message = "Connected", ""
-            return TCPInterface(hostname=WIFI_HOST, portNumber=WIFI_PORT)
+            return TCPInterface(hostname=WIFI_HOST, portNumber=WIFI_PORT, timeout=RADIO_OP_TIMEOUT)
 
         # 2️⃣  Bluetooth Low Energy ----------------------------------------
         if USE_BLUETOOTH and BLUETOOTH_DEVICE and BLE_INTERFACE_AVAILABLE:
             print(f"BLEInterface → {BLUETOOTH_DEVICE}")
             try:
                 connection_status, last_error_message = "Connected", ""
-                return BLEInterface(address=BLUETOOTH_DEVICE)
+                return BLEInterface(address=BLUETOOTH_DEVICE, timeout=RADIO_OP_TIMEOUT)
             except Exception as exc:
                 connection_status = "Disconnected"
                 last_error_message = f"BLE connection failed: {exc}"
@@ -35399,7 +35549,7 @@ def connect_interface():
             print("MeshInterface() for direct‑radio mode")
             mesh_candidate = None
             try:
-                mesh_candidate = MeshInterface()
+                mesh_candidate = MeshInterface(timeout=RADIO_OP_TIMEOUT)
                 if mesh_candidate.isConnected.wait(timeout=5):
                     connection_status, last_error_message = "Connected", ""
                     return mesh_candidate
@@ -35431,7 +35581,7 @@ def connect_interface():
             while attempt < max_attempts:
                 attempt += 1
                 try:
-                    iface = meshtastic.serial_interface.SerialInterface(devPath=SERIAL_PORT)
+                    iface = meshtastic.serial_interface.SerialInterface(devPath=SERIAL_PORT, timeout=RADIO_OP_TIMEOUT)
                     break
                 except Exception as e:
                     last_exc = e
@@ -35451,12 +35601,13 @@ def connect_interface():
                 raise RuntimeError(f"Could not open serial device {SERIAL_PORT}: {msg}{hint}")
         else:
             print(f"SerialInterface auto‑detect (default baud, will switch to {SERIAL_BAUD}) …")
-            iface = meshtastic.serial_interface.SerialInterface()
+            iface = meshtastic.serial_interface.SerialInterface(timeout=RADIO_OP_TIMEOUT)
 
-        # Attempt to change baudrate after opening
+        # Attempt to change baudrate after opening. meshtastic keeps the open
+        # port on `stream` (not `_serial`), so the old code was a silent no-op.
         try:
-            ser = getattr(iface, "_serial", None)
-            if ser is not None and hasattr(ser, "baudrate"):
+            ser = getattr(iface, "stream", None) or getattr(iface, "_serial", None)
+            if ser is not None and hasattr(ser, "baudrate") and ser.baudrate != SERIAL_BAUD:
                 ser.baudrate = SERIAL_BAUD
                 print(f"Baudrate switched to {SERIAL_BAUD}")
         except Exception as e:
@@ -35601,6 +35752,13 @@ if TELEGRAM_AVAILABLE:
 
         chat_id = update.message.chat_id
         text = update.message.text.strip()
+
+        # Only authorized chats may drive the radio/AI. Without this, anyone who
+        # finds the bot can transmit on the mesh and spend AI tokens.
+        _authorized = telegram_config.get("authorized_chat_ids") or []
+        if _authorized and chat_id not in _authorized:
+            add_script_log(f"Telegram ignoring unauthorized chat {chat_id}")
+            return
 
         add_script_log(f"Telegram message received from {chat_id} (len={len(text)})")
 
@@ -35806,8 +35964,12 @@ if TELEGRAM_AVAILABLE:
                         # Use Telegram chat_id as sender_node for context
                         telegram_sender = f"telegram_{chat_id}"
 
-                        # Log the incoming message for conversation history
-                        log_message(
+                        # Log the incoming message for conversation history.
+                        # Its timestamp is passed as thread_root_ts so the AI
+                        # reply is linked to this chat's message; without it the
+                        # reply gets reply_to=None and every Telegram chat's
+                        # history leaks into every other one.
+                        _tg_entry = log_message(
                             telegram_sender,
                             text,
                             direct=True,
@@ -35815,7 +35977,8 @@ if TELEGRAM_AVAILABLE:
                             is_ai=False
                         )
 
-                        task = (text, telegram_sender, True, None, None, interface)
+                        task = (text, telegram_sender, True, None,
+                                _tg_entry.get("timestamp"), interface)
                         try:
                             response_queue.put(task, block=False)
                             add_script_log(f"AI query queued (queue: {response_queue.qsize()})")
@@ -35849,15 +36012,20 @@ if TELEGRAM_AVAILABLE:
             add_script_log("No authorized Telegram chat IDs configured")
             return
 
+        # Remember which app this thread owns so a restart can stop exactly
+        # this poller instead of leaving it running alongside a new one.
+        _stop_event = telegram_bot_stop_event
+
         try:
             import asyncio
 
             # Create application
-            telegram_app = Application.builder().token(token).build()
+            _app = Application.builder().token(token).build()
+            telegram_app = _app
 
             # Add handlers
-            telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_handle_message))
-            telegram_app.add_handler(MessageHandler(filters.COMMAND, telegram_handle_message))
+            _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_handle_message))
+            _app.add_handler(MessageHandler(filters.COMMAND, telegram_handle_message))
 
             add_script_log(f"Telegram bot handlers registered")
 
@@ -35868,15 +36036,37 @@ if TELEGRAM_AVAILABLE:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+            # Stop the poller when the stop event fires. run_polling() blocks the
+            # thread, so the signal has to come from a watchdog thread that calls
+            # stop_running() on the running event loop.
+            def _watch_stop():
+                if _stop_event is None:
+                    return
+                _stop_event.wait()
+                # stop_running() is a no-op until Application.start() has set
+                # `running`; if it is called earlier the stop is silently lost
+                # and the poller runs forever. Wait for startup first.
+                _deadline = time.time() + 30
+                while not _app.running and time.time() < _deadline:
+                    if not _stop_event.is_set():
+                        return
+                    time.sleep(0.05)
+                try:
+                    loop.call_soon_threadsafe(_app.stop_running)
+                except Exception as exc:
+                    add_script_log(f"Telegram stop failed: {exc}")
+
+            if _stop_event is not None:
+                threading.Thread(target=_watch_stop, daemon=True).start()
+
             add_script_log("Telegram bot starting polling loop...")
 
             # Use run_polling without closing the loop since we manage it
-            telegram_app.run_polling(stop_signals=None)
+            _app.run_polling(stop_signals=None)
 
             add_script_log("Telegram bot polling ended")
 
         except Exception as e:
-            add_script_log(f"Telegram bot error: {e}")
             add_script_log(f"Telegram bot error: {e}")
 else:
     # Stub functions when Telegram library is not available
@@ -36475,12 +36665,6 @@ def heartbeat_worker(period_sec=30):
       clean_log(f"HB conn={status['conn']} q={status['queue']} rx={status['rx_age_s']}s tx={status['tx_age_s']}s ai={status['ai_age_s']}s", "💓", show_always=False, rate_limit=False)
       periodic_status_update()
       
-      # Poll for agent responses
-      try:
-        _agent_heartbeat_hook()
-      except Exception as agent_e:
-        dprint(f"[Agent] Heartbeat hook error: {agent_e}")
-      
       time.sleep(max(5, int(period_sec)))
     except Exception as e:
       print(f"⚠️ Heartbeat error: {e}")
@@ -36529,107 +36713,6 @@ def live():
 def ready():
   ready = (connection_status == "Connected")
   return jsonify({'ok': ready, 'status': connection_status}), (200 if ready else 503)
-
-# -----------------------------
-# Hermes Agent Response Polling
-# -----------------------------
-HERMES_RESPONSES_FILE = "data/hermes_responses.json"
-_last_agent_poll = 0
-
-def _poll_agent_responses():
-    """Poll for agent responses and send them to users"""
-    global _last_agent_poll
-    
-    try:
-        if not os.path.exists(HERMES_RESPONSES_FILE):
-            return
-        
-        with open(HERMES_RESPONSES_FILE, 'r') as f:
-            responses = json.load(f)
-        
-        pending = [r for r in responses if r.get('status') == 'pending_delivery']
-        
-        for resp in pending:
-            sender_key = resp.get('sender_key')
-            message = resp.get('message')
-            source = resp.get('source', 'unknown')
-            channel_idx = resp.get('channel_idx')
-            is_direct = resp.get('is_direct', True)
-            
-            if not sender_key or not message:
-                continue
-            
-            # Send the response
-            delivery_success = False
-            try:
-                if source == 'telegram':
-                    # Send via Telegram using direct HTTP
-                    chat_id = sender_key.replace('telegram_', '')
-                    
-                    # Get token from config
-                    tg_config = {}
-                    try:
-                        with open('data/telegram_config.json', 'r') as f:
-                            tg_config = json.load(f)
-                    except:
-                        pass
-                    
-                    bot_token = tg_config.get('token', '')
-                    
-                    if bot_token:
-                        try:
-                            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                            r = requests.post(
-                                url,
-                                json={"chat_id": chat_id, "text": message[:4000]},
-                                timeout=10
-                            )
-                            r.raise_for_status()
-                            add_script_log(f"[Agent] Telegram response SENT to {chat_id}")
-                            delivery_success = True
-                        except Exception as e:
-                            add_script_log(f"[Agent] Telegram send FAILED: {e}")
-                    else:
-                        add_script_log(f"[Agent] No bot token found!")
-                        
-                elif is_direct:
-                    # Send DM via mesh
-                    send_direct_chunks(interface, message, sender_key)
-                    delivery_success = True
-                else:
-                    # Send to channel
-                    send_broadcast_chunks(interface, message, channel_idx or 0)
-                    delivery_success = True
-                
-                # Only mark as delivered if actually sent
-                if delivery_success:
-                    resp['status'] = 'delivered'
-                    resp['delivered_at'] = time.time()
-                    add_script_log(f"[Agent] Response DELIVERED to {sender_key}")
-                else:
-                    add_script_log(f"[Agent] Response NOT delivered (will retry)")
-                    
-            except Exception as e:
-                add_script_log(f"[Agent] Failed to deliver to {sender_key}: {e}")
-        
-        # Save updated responses
-        with open(HERMES_RESPONSES_FILE, 'w') as f:
-            json.dump(responses, f, indent=2)
-            
-    except Exception as e:
-        add_script_log(f"[Agent] Poll error: {e}")
-
-# Hook into existing heartbeat
-_original_heartbeat = None
-
-def _agent_heartbeat_hook():
-    """Called periodically to check for agent responses"""
-    global _last_agent_poll
-    
-    now = time.time()
-    if now - _last_agent_poll >= 10:  # Poll every 10 seconds
-        _last_agent_poll = now
-        _poll_agent_responses()
 
 if __name__ == "__main__":
     # App-level single-instance guard (complements service/script lock)
