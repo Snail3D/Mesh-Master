@@ -2135,7 +2135,12 @@ def acquire_app_lock():
                 ep = int(existing) if existing else 0
             except Exception:
                 ep = 0
-            if ep and _pid_running(ep):
+            # A container's own PID is 1, and os.kill(1, 0) always succeeds, so a
+            # lock left behind by a previous run inside the SAME container reads as
+            # "still running" forever: the app exits 1 on every restart and the
+            # container crash-loops (measured on bs3 2026-11-14: 19,934 restarts).
+            # Treat our own PID as stale — a lock only blocks a *different* live pid.
+            if ep and ep != os.getpid() and _pid_running(ep):
                 print(f"❌ Another mesh-master instance appears to be running (PID {ep}). Exiting.")
                 sys.exit(1)
         with open(APP_LOCK_FILE, 'w', encoding='utf-8') as f:
